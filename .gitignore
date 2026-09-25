@@ -1,0 +1,10 @@
+node_modules/
+data/
+.env
+# выводы проб: ответы сессий и хуков, не код
+probe/*.jsonl
+probe/*.err
+probe/*.log
+probe/settings-*.json
+probe/target-*
+probe/probe-auto-dir/
