@@ -1,0 +1,62 @@
+{
+  "code": "EXT",
+  "name": "Экстрактор",
+  "beacon": {
+    "described": true,
+    "phase": "Витрина этапа 1: каркас сервера и читатель доски. Дальше — журналы сессий и субагентов.",
+    "next": "Такт В1 — каркас и читатель доски.",
+    "repos": [
+      { "name": "extractor", "path": "C:\\projects\\extractor", "branch": "main", "dirty": 0 },
+      { "name": "wt", "path": "C:\\projects\\extractor-wt\\ext-25", "branch": "ext-25-v1-skeleton", "dirty": 4 },
+      { "name": "unorbis-board", "path": "C:\\projects\\unorbis-board", "branch": "main", "dirty": 0 }
+    ]
+  },
+  "waiting": [
+    { "group": "review", "id": "EXT-23", "title": "Зеркало: --changed без перечитывания незакрытых", "at": "2026-10-01T10:30:00+03:00" }
+  ],
+  "workers": {
+    "threads": [
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000003",
+        "title": "EXT · витрина",
+        "project": "EXT",
+        "state": "busy",
+        "card": "EXT-25",
+        "since": "2026-10-01T11:20:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "rulesFresh": true,
+        "subagents": [
+          { "agent": "terminus", "who": "Терминус", "description": "EXT-25 В1: каркас сервера и читатель доски", "turns": 34, "maxTurns": 90, "target": 50 }
+        ],
+        "marks": []
+      }
+    ],
+    "closed": []
+  },
+  "board": {
+    "inProgress": [
+      { "id": "EXT-25", "title": "В1 · каркас сервера и читатель доски", "label": "terminus", "markB": false, "at": "2026-10-01T11:20:00+03:00", "agentWorking": "Терминус", "lastLog": { "text": "▶ выдан: terminus · ext-25-v1-skeleton · каркас и читатель доски", "author": null } }
+    ],
+    "ready": [
+      { "id": "EXT-26", "title": "В2 · читатель журналов", "label": "terminus", "markB": false, "at": "2026-10-01T09:00:00+03:00", "agentWorking": null, "lastLog": null },
+      { "id": "EXT-16", "title": "Словарь лейблов доски", "label": "trurl", "markB": true, "at": "2026-09-29T18:30:00+03:00", "agentWorking": null, "lastLog": { "text": "Решение по каждому лейблу — к Ивану вместе с Ш3.", "author": null } }
+    ],
+    "review": [
+      { "id": "EXT-23", "title": "Зеркало: --changed без перечитывания незакрытых", "label": "terminus", "markB": false, "at": "2026-10-01T10:30:00+03:00", "agentWorking": null, "lastLog": { "text": "⏸ получен: terminus · c03dd8a · гейт зелёный", "author": null } }
+    ],
+    "backlog": [
+      { "id": "EXT-6", "title": "Этап 1 · спека витрины Экстрактора", "label": "clap", "at": "2026-09-30T13:57:00+03:00" }
+    ],
+    "done": [
+      { "id": "EXT-14", "title": "Т4 · плановое зеркало", "at": "2026-09-28T20:10:00+03:00", "cancelled": false },
+      { "id": "EXT-4", "title": "Проба Plane MCP вместо REST", "at": "2026-09-20T12:00:00+03:00", "cancelled": true }
+    ],
+    "counts": { "live": 4, "backlog": 1, "done": 2 }
+  },
+  "freshness": {
+    "board": { "lastOkAt": "2026-10-01T12:00:03+03:00" },
+    "journals": { "lastOkAt": "2026-10-01T12:00:02+03:00" },
+    "mirror": { "lastOk": "2026-09-30T21:40:00+03:00" }
+  }
+}

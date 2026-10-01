@@ -1,0 +1,36 @@
+{
+  "header": {
+    "id": "EXT-6",
+    "title": "Этап 1 · спека витрины Экстрактора",
+    "status": "backlog",
+    "priority": "medium",
+    "labels": ["clap"],
+    "owner": "",
+    "mark_b": false,
+    "parent": "EXT-1",
+    "blocks": [],
+    "blocked_by": [],
+    "relates": [],
+    "spec": "extractor/SPEC-extractor-vitrina.md",
+    "created": "2026-09-25T15:20+03:00",
+    "updated": "2026-09-30T13:57+03:00"
+  },
+  "body": "Спека витрины: сервер на 127.0.0.1, читатели, экраны «Проект» и «Цех», уведомления, автозапуск, гейт этапа 1.\n\nКлюч к старому серверу: [скрыто: метка] — убран в `.env`.",
+  "links": {
+    "parent": { "id": "EXT-1", "title": "Экстрактор — кабина цеха" },
+    "blocks": [],
+    "blockedBy": [],
+    "relates": [],
+    "blockingIt": [{ "id": "EXT-25", "title": "В1 · каркас сервера и читатель доски" }],
+    "relatedFrom": [],
+    "children": [{ "id": "EXT-25", "title": "В1 · каркас сервера и читатель доски" }]
+  },
+  "feed": [
+    { "kind": "run", "at": "2026-10-01T11:20:00+03:00", "agent": "terminus", "who": "Терминус", "description": "EXT-25 В1: каркас сервера и читатель доски", "turnsTotal": 34, "entries": 1, "maxTurns": 90, "target": 50, "result": "работает" },
+    { "kind": "commit", "at": "2026-10-01T10:40:00+03:00", "hash": "8a0f029", "subject": "spec(extractor): витрина этапа 1 — ред. 3 утверждена (EXT-6)", "repo": "Obsidian Vault", "branch": "main" },
+    { "kind": "comment", "at": "2026-10-01T10:35:00+03:00", "author": null, "logKind": "решение", "body": "Спека утверждена.\n\nКто решил: слово Ивана в чате 01.10." },
+    { "kind": "run", "at": "2026-10-01T09:10:00+03:00", "agent": "golem", "who": "Голем", "description": "EXT-6 ревью спеки витрины, круг 3", "turnsTotal": 31, "entries": 1, "maxTurns": 40, "target": 35, "result": "готово" },
+    { "kind": "run", "at": "2026-09-30T22:00:00+03:00", "agent": "clap", "who": "Клапауций", "description": "EXT-6 спека витрины, ред. 2", "turnsTotal": 40, "entries": 2, "maxTurns": 40, "target": 35, "result": "обрыв · PARTIAL" },
+    { "kind": "comment", "at": "2026-09-30T13:57:00+03:00", "author": null, "logKind": "▶", "body": "▶ выдан: clap · EXT-6 · спека витрины" }
+  ]
+}

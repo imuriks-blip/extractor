@@ -1,0 +1,25 @@
+{
+  "port": 4317,
+  "paths": {
+    "board": "C:/projects/unorbis-board",
+    "boardLib": "C:/projects/unorbis-board/tools/lib",
+    "registry": "C:/Users/imuri/.claude/skills/unorbis-projects/tools/registry.json"
+  },
+  "pollMs": {
+    "board": 5000,
+    "processes": 2000,
+    "journals": 2000,
+    "git": 30000,
+    "desktopIndex": 10000
+  },
+  "thresholds": {
+    "taktYellowMin": 60,
+    "taktRedMin": 180,
+    "waitingOverDayHours": 24,
+    "staleMin": 15
+  },
+  "matchWindowMin": 10,
+  "wakeJumpS": 90,
+  "boardWriteTools": [],
+  "statsEveryMin": 10
+}
