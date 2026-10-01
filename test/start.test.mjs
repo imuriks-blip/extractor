@@ -42,4 +42,9 @@ test('старт: слушает 127.0.0.1, Host проверяется, server.
   assert.match(log, / start port=\d+/);
   assert.match(log, / req route=\/api\/ceh status=200/);
   assert.match(log, / stop/);
+  // строка stats: ключ — полный путь доски, есть пик за минуту (Г3)
+  const st = log.split('\n').find((l) => / stats /.test(l));
+  const git = JSON.parse(st.match(/ git=(\{.*\})$/)[1]);
+  assert.ok(git[path.resolve(board)], JSON.stringify(git));
+  assert.ok(git[path.resolve(board)].peakPerMin >= 1);
 });

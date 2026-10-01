@@ -1,10 +1,26 @@
 {
   "ok": true,
   "readers": {
-    "board": { "lastOkAt": "2026-10-01T12:00:03.120Z", "errors": 0, "lastError": null, "head": "c03dd8a0c03dd8a0c03dd8a0c03dd8a0c03dd8a0", "cards": 726 },
-    "registry": { "lastOkAt": "2026-10-01T12:00:01.004Z", "errors": 0, "lastError": null }
+    "board": {
+      "lastOkAt": "2026-10-01T12:00:03.120Z",
+      "errors": 0,
+      "lastError": null,
+      "badHeaders": 0,
+      "head": "c03dd8a0c03dd8a0c03dd8a0c03dd8a0c03dd8a0",
+      "cards": 726
+    },
+    "registry": {
+      "lastOkAt": "2026-10-01T12:00:01.004Z",
+      "errors": 0,
+      "lastError": null
+    }
   },
-  "gitCalls": { "unorbis-board": 144 },
+  "gitCalls": {
+    "C:\\projects\\unorbis-board": {
+      "total": 144,
+      "peakPerMin": 12
+    }
+  },
   "rss": 61234176,
   "uptimeS": 720
 }

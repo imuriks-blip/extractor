@@ -13,18 +13,24 @@ import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, spyFs } from './helpers.mj
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { scan } = await import(new URL(`file:///${BOARD_LIB}/secrets.mjs`).href);
 const SECRET = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zAb7d';
+// id флоу по слову-признаку: у IPTV путь по признаку закрыт (сеть доски) → класс 5, у других кодов — класс 4
+const FLOW_ID = '1a2b3c4d5e6f7g8h';
+const FLOW_LINE = `flow id ${FLOW_ID}`;
 const PORT = 4317;
 const H = { host: `127.0.0.1:${PORT}` };
 
 async function setup({ scanFn = scan } = {}) {
   const dir = makeBoard(tmpDir('board-'), {
-    codes: ['CAR', 'EXT', 'RADAR'],
+    codes: ['CAR', 'EXT', 'RADAR', 'IPTV'],
     cards: [
+      { id: 'IPTV-1', status: 'backlog', title: 'Плеер', body: `${FLOW_LINE}\n` },
+      { id: 'EXT-8', status: 'backlog', title: 'Флоу', body: `${FLOW_LINE}\n` },
       { id: 'CAR-1', status: 'in-progress' }, { id: 'CAR-2', status: 'review' }, { id: 'CAR-3', status: 'ready' },
       { id: 'EXT-6', status: 'backlog', title: 'Этап 1 · спека витрины', body: 'Спека витрины: сервер на 127.0.0.1.' },
       { id: 'EXT-7', status: 'review', title: 'Карточка с секретом', body: `Строка до.\nключ к гиту ${SECRET} — убрать.\n` },
     ],
   });
+  fs.writeFileSync(path.join(dir, 'CAR', 'CAR-10.md'), 'не шапка\n');
   gitInitCommit(dir);
   const regFile = path.join(tmpDir('reg-'), 'registry.json');
   fs.writeFileSync(regFile, JSON.stringify({
@@ -123,7 +129,7 @@ test('/api/ceh: projects[] в порядке board_codes, затем коды д
   const r = await app.inject({ method: 'GET', url: '/api/ceh', headers: H });
   assert.equal(r.statusCode, 200);
   const j = r.json();
-  assert.deepEqual(j.projects.map((p) => p.code), ['EXT', 'CAR', 'RADAR']);
+  assert.deepEqual(j.projects.map((p) => p.code), ['EXT', 'CAR', 'RADAR', 'IPTV']);
   const car = j.projects.find((p) => p.code === 'CAR');
   assert.deepEqual([car.inProgress, car.ready, car.review], [1, 1, 1]);
   const ext = j.projects.find((p) => p.code === 'EXT');
@@ -140,7 +146,8 @@ test('/api/health: читатели с временем удачного чте�
   const j = (await app.inject({ method: 'GET', url: '/api/health', headers: H })).json();
   assert.equal(j.ok, true);
   assert.ok(j.readers.board.lastOkAt);
-  assert.equal(j.readers.board.errors, 0);
+  assert.equal(j.readers.board.badHeaders, 1);
+  assert.equal(j.readers.board.errors, 1);
   assert.equal(typeof j.rss, 'number');
 });
 
@@ -151,4 +158,29 @@ test('server.log: запрос пишется маршрутом и кодом, 
   const req = lines.filter((l) => l.ev === 'req');
   assert.deepEqual(req.map((l) => [l.route, l.status]), [['/api/card/:id', 200], ['/api/health', 421]]);
   assert.equal(JSON.stringify(lines).includes('EXT-7'), false);
+});
+
+// Вердикт Голема, Важно 2: текст карточки маскируется с кодом её проекта — у IPTV сеть строже.
+test('маска с кодом проекта: id флоу по признаку скрыт в карточке IPTV, виден в карточке EXT', async () => {
+  const { app } = await setup();
+  const iptv = await app.inject({ method: 'GET', url: '/api/card/IPTV-1', headers: H });
+  const ext = await app.inject({ method: 'GET', url: '/api/card/EXT-8', headers: H });
+  assert.equal(iptv.statusCode, 200);
+  assert.equal(iptv.body.includes(FLOW_ID), false);
+  assert.match(iptv.json().body, /\[скрыто: сеть3\]/);
+  assert.equal(ext.json().body.includes(FLOW_ID), true);
+});
+
+test('карточка с битой шапкой → 200 {header: null, error: "шапка"}, не 500', async () => {
+  const { app } = await setup();
+  const r = await app.inject({ method: 'GET', url: '/api/card/CAR-10', headers: H });
+  assert.equal(r.statusCode, 200);
+  assert.deepEqual(r.json(), { header: null, body: null, error: 'шапка', links: null, feed: [] });
+});
+
+test('/api/ceh: activityAt — самое свежее updated карточек проекта', async () => {
+  const { app } = await setup();
+  const j = (await app.inject({ method: 'GET', url: '/api/ceh', headers: H })).json();
+  assert.equal(j.projects.find((p) => p.code === 'CAR').activityAt, '2026-09-30T12:00+03:00');
+  assert.equal(j.projects.find((p) => p.code === 'RADAR').activityAt, null);
 });

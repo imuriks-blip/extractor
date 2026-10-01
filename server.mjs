@@ -1,6 +1,6 @@
 // Экстрактор, витрина этапа 1 — точка входа: node server.mjs
 // Свои файлы — только data/vitrina/ (config.json, server.log); источники — только чтение.
-// VITRINA_DATA — другой каталог своих файлов (пробы); по умолчанию <репозиторий>/data/vitrina.
+// Каталог своих файлов не настраивается: только <репозиторий>/data/vitrina (гейт Г7).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,7 @@ import { loadConfig } from './lib/config.mjs';
 import { startServer } from './lib/start.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = process.env.VITRINA_DATA || path.join(ROOT, 'data', 'vitrina');
+const dataDir = path.join(ROOT, 'data', 'vitrina');
 const defaults = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.default.json'), 'utf8'));
 const config = loadConfig({ dataDir, defaults });
 
