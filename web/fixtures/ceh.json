@@ -1,0 +1,346 @@
+{
+  "waiting": {
+    "threads": [
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000001",
+        "title": "CAR · портал",
+        "project": "CAR",
+        "text": "Трурль: Ветка ext-31 готова, Голем без «Критично». Сливаю в main и выкатываю на car.unorbis.com — да?",
+        "since": "2026-10-01T09:12:00+03:00",
+        "overDay": false
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000002",
+        "title": "Астро: new",
+        "project": null,
+        "text": "Трурль: Какой из двух вариантов шаблона гороскопа берём — короткий или с картой?",
+        "since": "2026-09-30T08:40:00+03:00",
+        "overDay": true
+      }
+    ],
+    "yes": [
+      {
+        "id": "LEDGER-168",
+        "mark": "сливай",
+        "title": "Одна кнопка съёмки — родная камера",
+        "since": "2026-10-01T11:05:00+03:00"
+      },
+      {
+        "id": "INFRA-80",
+        "mark": "Б",
+        "title": "Перенос бэкапов на второй диск",
+        "since": "2026-09-30T17:20:00+03:00"
+      },
+      {
+        "id": "BW-41",
+        "mark": "развилка",
+        "title": "Фото сметы: один снимок или по листам",
+        "since": "2026-09-29T14:02:00+03:00"
+      }
+    ],
+    "review": [
+      {
+        "id": "EXT-23",
+        "title": "Зеркало: --changed без перечитывания незакрытых",
+        "at": "2026-10-01T10:30:00+03:00"
+      },
+      {
+        "id": "CAR-260",
+        "title": "FRONT · Галерея фото: порядок и обложка",
+        "at": "2026-09-25T16:44:00+03:00"
+      }
+    ]
+  },
+  "projects": [
+    {
+      "code": "CAR",
+      "name": "orbis-car",
+      "inRegistry": true,
+      "phase": {
+        "short": "Портал в работе: кабинет дилера и галерея фото.",
+        "full": "Портал в работе: кабинет дилера и галерея фото. Мини-апп — после галереи."
+      },
+      "next": {
+        "short": "Слить ext-31 и выкатить галерею.",
+        "full": "Слить ext-31 и выкатить галерею."
+      },
+      "inProgress": 3,
+      "ready": 5,
+      "review": 14,
+      "activityAt": "2026-10-01T11:40:00+03:00"
+    },
+    {
+      "code": "LEDGER",
+      "name": "ledger",
+      "inRegistry": true,
+      "phase": {
+        "short": "Приложение учётки: приёмка счетов.",
+        "full": "Приложение учётки: приёмка счетов."
+      },
+      "next": {
+        "short": "Решение по 100926.",
+        "full": "Решение по 100926."
+      },
+      "inProgress": 1,
+      "ready": 2,
+      "review": 6,
+      "activityAt": "2026-10-01T11:05:00+03:00"
+    },
+    {
+      "code": "MAKAR",
+      "name": "makar",
+      "inRegistry": true,
+      "phase": {
+        "short": "Память Макара: модули.",
+        "full": "Память Макара: модули."
+      },
+      "next": null,
+      "inProgress": 0,
+      "ready": 1,
+      "review": 2,
+      "activityAt": "2026-09-27T19:10:00+03:00"
+    },
+    {
+      "code": "ASTRO",
+      "name": "orbis-astro",
+      "inRegistry": true,
+      "phase": {
+        "short": "Пилот разговора в кабине.",
+        "full": "Пилот разговора в кабине."
+      },
+      "next": {
+        "short": "Шаблон гороскопа.",
+        "full": "Шаблон гороскопа."
+      },
+      "inProgress": 1,
+      "ready": 0,
+      "review": 3,
+      "activityAt": "2026-09-30T08:40:00+03:00"
+    },
+    {
+      "code": "BW",
+      "name": "unorbis-bodywork",
+      "inRegistry": true,
+      "phase": {
+        "short": "Приёмка авто во дворе: фото сметы.",
+        "full": "Приёмка авто во дворе: фото сметы."
+      },
+      "next": {
+        "short": "Развилка по снимкам сметы.",
+        "full": "Развилка по снимкам сметы."
+      },
+      "inProgress": 0,
+      "ready": 3,
+      "review": 1,
+      "activityAt": "2026-09-29T14:02:00+03:00"
+    },
+    {
+      "code": "INFRA",
+      "name": "unorbis-infra",
+      "inRegistry": true,
+      "phase": {
+        "short": "Бэкапы и туннель.",
+        "full": "Бэкапы и туннель."
+      },
+      "next": {
+        "short": "Второй диск под бэкапы.",
+        "full": "Второй диск под бэкапы."
+      },
+      "inProgress": 2,
+      "ready": 4,
+      "review": 9,
+      "activityAt": "2026-09-30T17:20:00+03:00"
+    },
+    {
+      "code": "EXT",
+      "name": "Экстрактор",
+      "inRegistry": true,
+      "phase": {
+        "short": "Витрина этапа 1: каркас сервера.",
+        "full": "Витрина этапа 1: каркас сервера."
+      },
+      "next": {
+        "short": "Такт В1 — каркас и читатель доски.",
+        "full": "Такт В1 — каркас и читатель доски."
+      },
+      "inProgress": 1,
+      "ready": 2,
+      "review": 4,
+      "activityAt": "2026-10-01T12:00:00+03:00"
+    },
+    {
+      "code": "RADAR",
+      "name": "—",
+      "inRegistry": true,
+      "phase": null,
+      "next": null,
+      "inProgress": 0,
+      "ready": 0,
+      "review": 0,
+      "activityAt": "2026-09-22T10:00:00+03:00"
+    },
+    {
+      "code": "IPTV",
+      "name": "—",
+      "inRegistry": true,
+      "phase": null,
+      "next": null,
+      "inProgress": 0,
+      "ready": 1,
+      "review": 0,
+      "activityAt": "2026-09-18T21:30:00+03:00"
+    }
+  ],
+  "workers": {
+    "threads": [
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000001",
+        "title": "CAR · портал",
+        "project": "CAR",
+        "state": "waiting",
+        "procStatus": "idle",
+        "card": "CAR-264",
+        "since": "2026-10-01T08:30:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "subagents": [],
+        "marks": [],
+        "waitingKind": "question",
+        "lastState": null
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000002",
+        "title": "Астро: new",
+        "project": null,
+        "state": "waiting",
+        "procStatus": "busy",
+        "card": null,
+        "since": "2026-09-30T08:10:00+03:00",
+        "sinceKind": "opened",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "subagents": [],
+        "marks": [],
+        "waitingKind": "askUserQuestion",
+        "lastState": null
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000003",
+        "title": "EXT · витрина",
+        "project": "EXT",
+        "state": "busy",
+        "card": "EXT-25",
+        "since": "2026-10-01T11:20:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "subagents": [
+          {
+            "agent": "terminus",
+            "who": "Терминус",
+            "description": "EXT-25 В1: каркас сервера и читатель доски",
+            "turns": 34,
+            "maxTurns": 90,
+            "target": 50
+          }
+        ],
+        "marks": [
+          {
+            "kind": "oldRules",
+            "rulesUpdatedAt": "2026-10-01T10:15:00+03:00"
+          }
+        ],
+        "procStatus": "busy",
+        "waitingKind": null,
+        "lastState": null
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000004",
+        "title": "LEDGER · учётка",
+        "project": "LEDGER",
+        "state": "busy",
+        "card": "LEDGER-168",
+        "since": "2026-10-01T10:50:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "subagents": [],
+        "marks": [
+          {
+            "kind": "partial",
+            "agent": "bard",
+            "who": "Бальд",
+            "card": "LEDGER-167",
+            "endedAt": "2026-10-01T11:31:00+03:00",
+            "turnLimit": 120,
+            "done": [
+              {
+                "hash": "49c6e02",
+                "subject": "knowledge(ledger-app): приёмка счёта 1010926"
+              }
+            ],
+            "lastText": "Камера открывается родная, кнопка одна; осталась проверка на втором телефоне.",
+            "left": "проверка на втором телефоне",
+            "waitingWord": true
+          },
+          {
+            "kind": "takt",
+            "level": "yellow",
+            "card": "LEDGER-168",
+            "agent": "terminus",
+            "issuedAt": "2026-10-01T10:52:00+03:00"
+          }
+        ],
+        "procStatus": "busy",
+        "waitingKind": null,
+        "lastState": null
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000005",
+        "title": "Проба гейта Ш5",
+        "project": null,
+        "state": "stale",
+        "card": null,
+        "since": "2026-10-01T08:05:00+03:00",
+        "sinceKind": "opened",
+        "lastSeenAt": "2026-10-01T11:38:00+03:00",
+        "lastState": "idle",
+        "subagents": [],
+        "marks": [],
+        "procStatus": null,
+        "waitingKind": null
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-000000000006",
+        "title": "BW · приёмка",
+        "project": "BW",
+        "state": "idle",
+        "procStatus": "idle",
+        "card": "BW-41",
+        "since": "2026-10-01T07:45:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "subagents": [],
+        "marks": [],
+        "waitingKind": null,
+        "lastState": null
+      }
+    ],
+    "subagentsCount": 1,
+    "marksCount": 3
+  },
+  "freshness": {
+    "board": {
+      "lastOkAt": "2026-10-01T12:00:03+03:00"
+    },
+    "journals": {
+      "lastOkAt": "2026-10-01T12:00:02+03:00"
+    },
+    "mirror": {
+      "lastOkAt": "2026-09-30T21:40:00+03:00"
+    }
+  },
+  "_states": {
+    "waiting": "ждёт тебя",
+    "busy": "работает",
+    "idle": "свободен",
+    "stale": "устарело (lastState — вычисленное состояние на последнем наблюдении)"
+  }
+}

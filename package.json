@@ -1,0 +1,16 @@
+{
+  "name": "extractor",
+  "private": true,
+  "type": "module",
+  "description": "Экстрактор — витрина цеха: сервер на 127.0.0.1, читатели источников (SPEC-extractor-vitrina).",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "fastify": "^5.12.5"
+  }
+}
