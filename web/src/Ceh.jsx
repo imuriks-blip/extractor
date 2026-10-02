@@ -13,16 +13,24 @@ const STATE = {
   stale: ['old', 'устарело'],
 };
 const STATE_WORD = { waiting: 'ждёт тебя', busy: 'работает', idle: 'свободен' };
-// «▶ выдан Голему»: агент — в дательном (2.3)
-const DATIVE = { golem: 'Голему', clap: 'Клапауцию', terminus: 'Терминусу', bard: 'Бальду', demon: 'Демону', tikhiy: 'Тихому' };
-const WHO = { golem: 'Голем', clap: 'Клапауций', terminus: 'Терминус', bard: 'Бальд', demon: 'Демон', tikhiy: 'Тихий' };
+
+// Свежесть нескольких читателей одной строкой: самое старое lastOkAt, самый ранний failingSince.
+function mergeFresh(...list) {
+  const by = (k) => list.map((f) => f?.[k]).filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
+  return { lastOkAt: by('lastOkAt'), failingSince: by('failingSince') };
+}
 
 // Серая строка 2.7: прежние данные остаются, у блока — «данные на ЧЧ:ММ, чтение не удаётся N мин».
-function staleText(dataAt, fetchFailing, now) {
-  const t = dataAt ? Date.parse(dataAt) : NaN;
-  if (!Number.isFinite(t)) return 'чтение ещё не прошло';
+// N — от failingSince читателя (сервер), если он есть; иначе — от последнего удачного чтения
+// (сбой самого запроса к ручке или читатель стоит без ошибки дольше минуты).
+function staleText(fresh, fetchFailing, now) {
+  const { lastOkAt, failingSince } = fresh || {};
+  const t = lastOkAt ? Date.parse(lastOkAt) : NaN;
+  const f = failingSince ? Date.parse(failingSince) : NaN;
+  if (!Number.isFinite(t)) return Number.isFinite(f) ? `данных нет, чтение не удаётся ${minutes(f, now)}` : 'чтение ещё не прошло';
+  if (Number.isFinite(f)) return `данные на ${hm(lastOkAt, now)}, чтение не удаётся ${minutes(f, now)}`;
   if (!fetchFailing && now - t <= STALE_MS) return null;
-  return `данные на ${hm(dataAt, now)}, чтение не удаётся ${minutes(t, now)}`;
+  return `данные на ${hm(lastOkAt, now)}, чтение не удаётся ${minutes(t, now)}`;
 }
 function Stale({ text }) {
   return text ? <div className="foot" role="status">{text}</div> : null;
@@ -106,6 +114,8 @@ function Waiting({ w, now, stale }) {
 
 /* ---------- Проекты ---------- */
 
+const phaseTip = (p) => [p.phase?.full ?? 'фаза не указана в карточке проекта', p.next && `→ ${p.next.full}`].filter(Boolean).join('\n');
+
 const n0 = (v) => <td className={v ? 'n num' : 'n num z'}>{v ?? 0}</td>;
 
 function Projects({ projects, now, stale, onOpen }) {
@@ -122,10 +132,13 @@ function Projects({ projects, now, stale, onOpen }) {
               <tr className="p" key={p.code} tabIndex={0} onClick={() => onOpen(p.code)} onKeyDown={key(p.code)} aria-label={`Открыть окно проекта ${p.code}`}>
                 <td className="code">{p.code}</td>
                 <td>
-                  {p.phase
-                    ? <span className="phase" title={p.phase.full}>{p.phase.short}</span>
-                    : <span className="faint">фаза не указана в карточке проекта</span>}
-                  {(p.phase || p.next) && <> <span className="next" title={p.next?.full}>→ {p.next?.short ?? '—'}</span></>}
+                  {/* не выше двух строк с «…»; целиком — во всплывающей подсказке (слово Ивана 02.10) */}
+                  <span className="pn" title={phaseTip(p)}>
+                    {p.phase
+                      ? <span className="phase">{p.phase.short}</span>
+                      : <span className="faint">фаза не указана в карточке проекта</span>}
+                    {(p.phase || p.next) && <> <span className="next">→ {p.next?.short ?? '—'}</span></>}
+                  </span>
                   {p.phaseFailingSince && (
                     <span className="pfail">данные на {hm(p.phaseReadAt, now)}, чтение не удаётся {minutes(Date.parse(p.phaseFailingSince), now)}</span>
                   )}
@@ -176,7 +189,7 @@ function Done({ done }) {
 }
 
 function Mark({ m, now }) {
-  const who = m.who || WHO[m.agent] || m.agent;
+  const who = m.who || m.agent;
   switch (m.kind) {
     case 'partial':
       return (
@@ -193,7 +206,7 @@ function Mark({ m, now }) {
     case 'takt':
       return (
         <div className={m.level === 'red' ? 'alarm' : 'alarm warn'}>
-          <span className="h">Такт без ответа</span>{m.card && <span className="mono">{m.card}</span>}▶ выдан {DATIVE[m.agent] || m.agent} {dur(m.issuedAt, now)} назад, ⏸ нет
+          <span className="h">Такт без ответа</span>{m.card && <span className="mono">{m.card}</span>}▶ выдан {m.whoDative || who} {dur(m.issuedAt, now)} назад, ⏸ нет
         </div>
       );
     case 'subagentWrite':
@@ -257,16 +270,14 @@ function Workers({ w, now, stale }) {
 
 export default function Ceh({ data, failing, now, onOpenProject }) {
   const f = data.freshness || {};
-  const boardAt = f.board?.lastOkAt, journalsAt = f.journals?.lastOkAt;
-  const oldestAt = [boardAt, journalsAt].filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
   return (
     <div className="grid">
       <div className="col">
-        <Waiting w={data.waiting} now={now} stale={staleText(oldestAt, failing, now)} />
-        <Projects projects={data.projects} now={now} stale={staleText(boardAt, failing, now)} onOpen={onOpenProject} />
+        <Waiting w={data.waiting} now={now} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
+        <Projects projects={data.projects} now={now} stale={staleText(f.board, failing, now)} onOpen={onOpenProject} />
       </div>
       <div className="col">
-        <Workers w={data.workers} now={now} stale={staleText(journalsAt, failing, now)} />
+        <Workers w={data.workers} now={now} stale={staleText(f.journals, failing, now)} />
       </div>
     </div>
   );

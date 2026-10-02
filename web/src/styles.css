@@ -89,6 +89,7 @@ details.grp>summary .cnt{color:var(--fg)}
 .z{color:var(--faint)}
 .go{color:var(--faint);width:20px;text-align:right}
 .tw{overflow-x:auto}
+.pn{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
 .pfail{display:block;font-size:12px;color:var(--faint)}
 
 /* кто работает */
