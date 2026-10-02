@@ -16,6 +16,7 @@ import { createRegistryReader } from '../lib/registry.mjs';
 import { CHECKS } from '../lib/pult/guard.mjs';
 import { ACTIONS } from '../lib/pult/actions.mjs';
 import { createPlaneQueue } from '../lib/pult/queue.mjs';
+import { withToken } from '../lib/web-static.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -43,8 +44,7 @@ const registry = createRegistryReader(regFile);
 // собранный интерфейс: оболочка с заглушкой токена, как её выдаёт сборка Vite (web/index.html)
 const STUB = '<!doctype html><html><head><meta charset="utf-8"><meta name="vitrina-token" content="__VITRINA_TOKEN__"><title>t</title></head><body></body></html>';
 
-async function setup({ off = OFF, enabled = true, words = true, handlers, now, mirrorDir, html = STUB, checks, planeRun } = {}) {
-  const data = tmpDir('pult-');
+async function setup({ off = OFF, enabled = true, words = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir } = {}) {
   const web = tmpDir('web-');
   fs.writeFileSync(path.join(web, 'index.html'), html);
   const actionsLog = path.join(data, 'actions.log');
@@ -52,7 +52,9 @@ async function setup({ off = OFF, enabled = true, words = true, handlers, now, m
   const app = await buildApp({
     port: PORT, board, registry, scan, webDir: web,
     log: { write: (ev, f) => logLines.push({ ev, ...f }) },
-    pult: { enabled, words, actionsLog, mirrorDir: mirrorDir ?? tmpDir('mirror-'), checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, lock: lockLib, planeRun },
+    // флаги и пути — как из config.json; подмены для тестов — отдельным параметром (конфиг защиту не выключит)
+    pult: { enabled, words, actionsLog, mirrorDir: mirrorDir ?? tmpDir('mirror-'), lock: lockLib, boardRoot },
+    pultSeams: { checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, planeRun },
   });
   const raw = () => (fs.existsSync(actionsLog) ? fs.readFileSync(actionsLog, 'utf8') : '');
   const lines = () => raw().split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -623,4 +625,187 @@ test('образцы web/fixtures пульта: ключи как у насто�
   assert.deepEqual(keys(fx('mirror.json')), Object.keys(await get('/api/mirror')).sort());
   assert.deepEqual(keys(fx('worktrees.json')[0]), ['branch', 'card', 'eligible', 'ignored', 'path', 'reason', 'repo'], 'форма §1.7; ручка пока пустая (ПТ8б)');
   assert.deepEqual(await get('/api/worktrees'), []);
+});
+
+// ---------------- дозапрос после ревью Голема (EXT-39) ----------------
+
+test('[bell-browser] обход кодировкой: GET /api/b%65ll/<uuid> с Origin → 403, без заголовков → 200', async () => {
+  const { app } = await setup();
+  const get = (h = {}) => app.inject({ method: 'GET', url: `/api/b%65ll/${uuid(7)}`, headers: { host: `127.0.0.1:${PORT}`, ...h } });
+  assert.equal((await get({ origin: EVIL })).statusCode, 403);
+  assert.equal((await get({ 'sec-fetch-site': 'cross-site' })).statusCode, 403);
+  const ok = await get();
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(ok.json(), []);
+});
+
+test('отрицательный контроль bell-browser: без проверки GET /api/bell/<uuid> с Origin отвечает 200, с ней — 403', async () => {
+  const blind = await setup({ off: ['bell-browser'] });
+  const full = await setup({ off: [] });
+  const get = (app) => app.inject({ method: 'GET', url: `/api/bell/${uuid(7)}`, headers: { host: `127.0.0.1:${PORT}`, origin: SELF } });
+  assert.equal((await get(blind.app)).statusCode, 200);
+  assert.equal((await get(full.app)).statusCode, 403);
+});
+
+test('[method] варианты пути /api/act без маршрута (/API/act, /api/act/, //api/act, /api%2Fact, /api/act;x) → 405, в actions.log ничего', async () => {
+  const { app, lines } = await setup();
+  const token = await pageToken(app);
+  for (const url of ['/API/act', '/api/act/', '//api/act', '/api%2Fact', '/api/act;x']) assert.equal((await act(app, token, { url })).statusCode, 405, url);
+  assert.equal(lines().length, 0);
+});
+
+test('[origin] варианты пути на маршрут /api/act (/api/%61ct, /api/act?x) — та же защита: чужой Origin → 403, GET отбит, исправный → 200', async () => {
+  const { app, lines } = await setup();
+  const token = await pageToken(app);
+  for (const url of ['/api/%61ct', '/api/act?x']) {
+    assert.equal((await act(app, token, { url, headers: { origin: EVIL } })).statusCode, 403, url);
+    // GET: /api/act?x — 405 (метод); /api/%61ct — GET-маршрута нет, ловит статика: 404 без тела (ничего не пишет)
+    assert.equal((await act(app, token, { url, method: 'GET', payload: '', headers: { 'content-type': undefined } })).statusCode, url.includes('%') ? 404 : 405, `${url} GET`);
+  }
+  assert.equal(lines().length, 0);
+  for (const url of ['/api/%61ct', '/api/act?x']) assert.equal((await act(app, token, { url })).statusCode, 200, url);
+});
+
+test('Content-Type: application/json; charset=utf-8 — проходит', async () => {
+  const { app, lines } = await setup();
+  const r = await act(app, await pageToken(app), { headers: { 'content-type': 'application/json; charset=utf-8' } });
+  assert.equal(r.statusCode, 200);
+  assert.deepEqual(steps(lines()), ['asked', 'done']);
+});
+
+// по факту: без проверки типа (выключена подменой) форма и multipart упираются в отсутствие парсера — 415
+async function formFact(app, token) {
+  const out = [];
+  for (const [ct, payload] of [['application/x-www-form-urlencoded', 'action=ping'], ['multipart/form-data; boundary=x', '--x\r\nContent-Disposition: form-data; name="action"\r\n\r\nping\r\n--x--\r\n']]) {
+    out.push((await act(app, token, { headers: { 'content-type': ct }, payload })).statusCode);
+  }
+  return out;
+}
+
+test('сторож парсеров по факту: без проверки типа форма и multipart → 415, обработчик не вызван; сторож зрячий — парсер «*» на контрольном сервере пропускает', async () => {
+  let calls = 0;
+  const { app, lines } = await setup({ off: ['content-type'], handlers: { ping: async () => { calls++; return { outcome: 'ok', message: 'pong' }; } } });
+  assert.deepEqual(await formFact(app, await pageToken(app)), [415, 415]);
+  assert.equal(calls, 0);
+  assert.equal(lines().length, 0);
+  const control = Fastify();
+  control.addContentTypeParser('*', { parseAs: 'string' }, (req, body, done) => done(null, body));
+  control.post('/api/act', async () => ({ ok: true }));
+  assert.deepEqual(await formFact(control, 't'), [200, 200]);
+});
+
+test('q: ровно {at, head} (at — время или null, head ≤ 60) или {uuid, at}; иное — 400; head в asked — по маске', async () => {
+  const { app, lines } = await setup();
+  const token = await pageToken(app);
+  const code = async (q) => (await act(app, token, { body: { action: 'ping', intentId: nextIntent(), q } })).statusCode;
+  for (const q of [{ at: '2026-10-02T19:40+03:00', head: 'Ветка готова — сливать?' }, { at: null }, { at: null, head: '' }, { uuid: uuid(3), at: '2026-10-02T19:40:00Z' }, { at: '2026-10-02T19:40+03:00', head: 'я'.repeat(60) + '\u0007' }]) {
+    assert.equal(await code(q), 200, JSON.stringify(q));
+  }
+  for (const q of [{}, { head: 'x' }, { at: 'вчера', head: 'x' }, { at: 5, head: 'x' }, { at: '2026-10-02T19:40+03:00' }, { at: null, head: 'я'.repeat(61) }, { at: null, head: 5 },
+    { uuid: 'x', at: null }, { uuid: uuid(3) }, { uuid: uuid(3), at: null, head: 'x' }, { at: null, head: 'x', extra: 1 }, [], 'q']) {
+    assert.equal(await code(q), 400, JSON.stringify(q));
+  }
+  await act(app, token, { body: { action: 'ping', intentId: nextIntent(), q: { at: null, head: `ключ ${SECRET}` } } });
+  const asked = lines().filter((l) => l.step === 'asked').at(-1);
+  assert.ok(!JSON.stringify(asked).includes(SECRET));
+  assert.match(asked.q.head, /\[скрыто/);
+});
+
+test('intentId после рестарта: ключи последних 10 мин восстанавливаются из actions.log — прежний исход, обработчик не вызван', async () => {
+  const data = tmpDir('pult-');
+  const first = await setup({ data });
+  const intentId = nextIntent();
+  const a = await act(first.app, await pageToken(first.app), { body: { action: 'ping', intentId, card: 'EXT-6' } });
+  assert.equal(a.statusCode, 200);
+  let calls = 0;
+  const handlers = { ping: async () => { calls++; return { outcome: 'ok', message: 'pong' }; } };
+  const second = await setup({ data, handlers });
+  const b = await act(second.app, await pageToken(second.app), { body: { action: 'ping', intentId, card: 'EXT-6' } });
+  assert.equal(b.statusCode, 200);
+  assert.deepEqual([b.json().id, b.json().step, b.json().outcome], [a.json().id, 'done', 'ok']);
+  assert.equal(calls, 0);
+  assert.equal(second.lines().filter((l) => l.step === 'asked').length, 1);
+  // действие, оборванное рестартом (asked без исхода), не повторяется: исход неизвестен
+  const cut = nextIntent();
+  fs.appendFileSync(path.join(data, 'actions.log'), JSON.stringify({ id: 'W-261002-120000-abcd', step: 'asked', at: new Date().toISOString(), action: 'ping', client: { intentId: cut } }) + '\n');
+  const third = await setup({ data, handlers });
+  const c = await act(third.app, await pageToken(third.app), { body: { action: 'ping', intentId: cut } });
+  assert.equal(c.json().id, 'W-261002-120000-abcd');
+  assert.equal(c.json().outcome, 'error');
+  assert.equal(calls, 0);
+  // старше 10 мин — ключ не держится
+  const old = nextIntent();
+  fs.appendFileSync(path.join(data, 'actions.log'), JSON.stringify({ id: 'W-261002-090000-dcba', step: 'asked', at: new Date(Date.now() - 11 * 60000).toISOString(), action: 'ping', client: { intentId: old } }) + '\n');
+  const fourth = await setup({ data, handlers });
+  assert.notEqual((await act(fourth.app, await pageToken(fourth.app), { body: { action: 'ping', intentId: old } })).json().id, 'W-261002-090000-dcba');
+  assert.equal(calls, 1);
+});
+
+test('конфиг не выключает защиту: checks и handlers внутри pult (как из config.json) не действуют — чужой Origin → 403', async () => {
+  const data = tmpDir('pult-');
+  const web = tmpDir('web-');
+  fs.writeFileSync(path.join(web, 'index.html'), STUB);
+  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, pult: { enabled: true, words: true, actionsLog: path.join(data, 'actions.log'), checks: [], handlers: { yes: async () => ({ outcome: 'ok' }) } } });
+  const token = await pageToken(app);
+  assert.equal((await act(app, token, { headers: { origin: EVIL } })).statusCode, 403);
+  assert.equal((await act(app, token, { body: { action: 'yes', intentId: nextIntent(), card: 'EXT-6' } })).statusCode, 501);
+});
+
+test('withToken: без <head> — после <html …> или после <!doctype>, <header> не принимается за <head>', () => {
+  const m = '<meta name="vitrina-token" content="T">';
+  assert.equal(withToken('<!doctype html><head><title>t</title></head>', 'T'), `<!doctype html><head>${m}<title>t</title></head>`);
+  assert.equal(withToken('<!doctype html><HEAD lang="ru"></HEAD>', 'T'), `<!doctype html><HEAD lang="ru">${m}</HEAD>`);
+  assert.equal(withToken('<!doctype html><html lang="ru"><body><header>x</header></body></html>', 'T'), `<!doctype html><html lang="ru">${m}<body><header>x</header></body></html>`);
+  assert.equal(withToken('<!doctype html><header>x</header>', 'T'), `<!doctype html>${m}<header>x</header>`);
+  assert.equal(withToken('<p>x</p>', 'T'), `${m}<p>x</p>`);
+  assert.equal(withToken('<head><meta name="vitrina-token" content="__VITRINA_TOKEN__"></head>', 'T'), `<head>${m}</head>`);
+});
+
+test('сбой записи done/error после обработчика: исход Ивану — по обработчику, сбой журнала — в server.log кодом', async () => {
+  let file;
+  const handlers = {
+    ping: async (ctx) => { fs.chmodSync(file, 0o444); if (ctx.card === 'CAR-1') throw Object.assign(new Error('x'), { code: 'BOOM' }); return { outcome: 'ok', message: 'pong' }; },
+  };
+  const s = await setup({ handlers });
+  file = s.actionsLog;
+  const token = await pageToken(s.app);
+  try {
+    const ok = await act(s.app, token, { body: { action: 'ping', intentId: nextIntent(), card: 'EXT-6' } });
+    assert.equal(ok.statusCode, 200);
+    assert.equal(ok.json().outcome, 'ok');
+    fs.chmodSync(file, 0o666);
+    const err = await act(s.app, token, { body: { action: 'ping', intentId: nextIntent(), card: 'CAR-1' } });
+    assert.equal(err.statusCode, 500);
+    assert.equal(err.json().message, 'ошибка: BOOM');
+  } finally { fs.chmodSync(file, 0o666); }
+  const fails = s.logLines.filter((l) => l.ev === 'error' && l.route === 'actions.log');
+  assert.equal(fails.length, 2);
+  assert.ok(fails.every((l) => /^E[A-Z]+$/.test(l.code)), JSON.stringify(fails));
+  assert.deepEqual(steps(s.lines()), ['asked', 'asked']);
+});
+
+test('mode в строках actions.log — из board.config.json доски; нет файла или режима — mirror', async () => {
+  const live = tmpDir('board-');
+  fs.writeFileSync(path.join(live, 'board.config.json'), '{"mode":"live"}');
+  for (const [root, want] of [[boardDir, 'mirror'], [live, 'live'], [tmpDir('board-'), 'mirror']]) {
+    const s = await setup({ boardRoot: root });
+    await act(s.app, await pageToken(s.app));
+    assert.deepEqual(s.lines().map((l) => l.mode), [want, want], root);
+  }
+});
+
+test('GET /api/mirror, правило 4 §5 доски: живой pid той же загрузки, но пульс старше 5 мин — замок мёртвый, running false', async () => {
+  const dir = tmpDir('mirror-');
+  const { app } = await setup({ mirrorDir: dir });
+  const get = async () => (await app.inject({ method: 'GET', url: '/api/mirror', headers: { host: `127.0.0.1:${PORT}` } })).json();
+  const now = Date.now();
+  const iso = (ms) => new Date(ms).toISOString();
+  const st = (o) => fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify(o));
+  fs.writeFileSync(path.join(dir, 'run.lock'), JSON.stringify({ pid: process.pid, kind: 'full', at: iso(now - 10 * 60000), boot: lockLib.bootTime() }));
+  st({ at: iso(now - 6 * 60000), kind: 'full', progress: { phase: 'cards', at: iso(now - 6 * 60000), started_at: iso(now - 10 * 60000) } });
+  assert.equal((await get()).running, false, 'пульс прохода стоит больше 5 мин');
+  st({ at: iso(now - 60000), kind: 'full' });
+  assert.equal((await get()).running, false, 'progress нет — пульс от at замка (10 мин)');
+  st({ at: iso(now - 60000), kind: 'full', progress: { phase: 'cards', at: iso(now - 60000), started_at: iso(now - 10 * 60000) } });
+  assert.equal((await get()).running, true, 'пульс свежий');
 });
