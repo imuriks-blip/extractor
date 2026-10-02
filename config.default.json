@@ -1,5 +1,7 @@
 {
   "port": 4317,
+  "toastAppId": "Unorbis.Extractor",
+  "toasts": true,
   "paths": {
     "board": "C:/projects/unorbis-board",
     "boardLib": "C:/projects/unorbis-board/tools/lib",
