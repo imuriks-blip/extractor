@@ -225,3 +225,15 @@ test('проект: пометка источника — по названию 
   const ct = build([live({ name: null })], [session({ thread: { ...session().thread, customTitle: 'CAR · портал' } })]).threads[0];
   assert.deepEqual([ct.title, ct.project, ct.projectBy], ['CAR · портал', 'CAR', 'title']);
 });
+
+// ---------- дозапрос EXT-27: Иван назвал треды голым кодом («EXT», «CAR», «LETGER» с опечаткой) — снимок 02.10 ----------
+test('проект по названию: равно коду или код + пробел/·/:/—/- в начале → код; «CARS», «LETGER», код не в начале → по карточкам', () => {
+  const at = new Date(T0 - 30 * MIN).toISOString();
+  const withCards = session({ ivan: { cards: { 'EXT-26': { n: 1, firstAt: at, lastAt: at } } } });
+  const p = (title) => { const t = build([live()], [withCards], { desktop: () => ({ title }) }).threads[0]; return [t.project, t.projectBy]; };
+  for (const [title, code] of [['EXT', 'EXT'], ['  CAR  ', 'CAR'], ['CAR · портал', 'CAR'], ['CAR: x', 'CAR'], ['CAR — x', 'CAR'], ['CAR-x', 'CAR'], ['IPTV плеер', 'IPTV']]) {
+    assert.deepEqual(p(title), [code, 'title'], title);
+  }
+  for (const title of ['CARS', 'LETGER', 'Портал: CAR new', 'CARS · x']) assert.deepEqual(p(title), ['EXT', 'cards'], title);
+  assert.deepEqual(build([live()], [session()], { desktop: () => ({ title: 'LETGER' }) }).threads[0].project, null, 'исправный: ни кода, ни карточек — не определён');
+});
