@@ -15,7 +15,7 @@ import { buildWorkers } from '../lib/waiting.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
-const { parseLog } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
+const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'fixtures');
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
@@ -66,7 +66,7 @@ async function realResponses() {
   gitInitCommit(dir);
   const reg = path.join(tmpDir('reg-'), 'registry.json');
   fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
-  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog });
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
   await board.init();
   const journals = createJournalReader({ root: tmpDir('jr-'), indexDir: tmpDir('ji-') });
   await journals.refresh();

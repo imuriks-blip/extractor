@@ -13,7 +13,7 @@ import { parseChronicle, createRulesMoment } from '../lib/rules-moment.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, cardText, gitInitCommit, gitCommitAll, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
-const { parseLog } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
+const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
 const RULES = JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8')).boardWriteTools;
 
 const T0 = Date.parse('2026-10-02T10:00:00Z');
@@ -34,7 +34,7 @@ async function boardWith(cards, logs) {
   const dir = makeBoard(tmpDir('b4-'), { codes: ['EXT', 'CAR'], cards });
   for (const [id, entries] of Object.entries(logs)) writeLog(dir, id, entries);
   gitInitCommit(dir);
-  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog });
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
   await board.init();
   return { dir, board };
 }
@@ -266,7 +266,7 @@ test('хроника: последняя строка «· правила обн
     { name: '2026-09.md', text: '24.09 · портал · пост; правила обновлены: x · INFRA-71 · adaee7f\n25.09 · цех · правила обновлены: список · INFRA-74 · 2dad5d9\n' },
     { name: '2026-10.md', text: '01.10 · цех · правила обновлены: реестр · EXT-6 · ed2012b (~/.claude), 6731704\n02.10 · витрина · В3 слита\n' },
   ]);
-  assert.deepEqual(r, { year: 2026, month: 10, day: 1, hashes: ['ed2012b', '6731704'] });
+  assert.deepEqual(r, { year: 2026, month: 10, day: 1, hashes: ['ed2012b', '6731704'], file: '2026-10.md', line: '01.10 · цех · правила обновлены: реестр · EXT-6 · ed2012b (~/.claude), 6731704' });
   assert.equal(parseChronicle([{ name: '2026-09.md', text: '24.09 · портал · пост; правила обновлены: x · INFRA-71 · adaee7f\n' }]), null);
 });
 
@@ -352,4 +352,108 @@ test('маска: строка (а) треда с проектом по карт
   assert.equal(by['s-cards'], 'Трурль: [скрыто: ключ]?', 'проект по карточкам — строгая сеть');
   assert.equal(by['s-title'], 'Трурль: SECRET?', 'код из названия — сеть проекта (исправный случай)');
   assert.equal(res.waiting.yes[0].title, 'Ключ [скрыто: ключ]', '(б) — сетью проекта карточки');
+});
+
+// ---------- круг Голема на В4 ----------
+
+test('Важно 1: тред с любой пометкой (и жёлтым тактом) — выше «ждёт тебя»; marksCount — только красные', async () => {
+  const { buildThreads } = await import('../lib/threads.mjs');
+  const { buildCeh } = await import('../lib/ceh.mjs');
+  const sA = 'aaaaaaaa-0000-4000-8000-0000000000a1';
+  const sB = 'bbbbbbbb-0000-4000-8000-0000000000b2';
+  const proc = (sid, status) => ({ pid: 1, sessionId: sid, status, startedAt: T0 - DAY, statusUpdatedAt: T0, observedAt: T0, live: true });
+  const thr = (sid) => ({ sessionId: sid, ivan: { cards: {} }, boardWrites: [], runs: [], thread: { lastAt: iso(T0 - MIN) } });
+  const b = { hasCode: () => false, hasCard: () => false };
+  const yellow = { kind: 'takt', level: 'yellow', card: 'EXT-7', agent: 'terminus', issuedAt: iso(T0 - 70 * MIN) };
+  const w = buildThreads({ procs: [proc(sA, 'waiting'), proc(sB, 'idle')], sessions: [thr(sA), thr(sB)], board: b, now: T0, marks: { [sB]: [yellow] } });
+  assert.deepEqual(w.threads.map((t) => t.sessionId), [sB, sA], 'свободный с пометкой — над ждущим');
+  const red = [{ ...yellow, level: 'red' }, { kind: 'oldRules', rulesUpdatedAt: iso(T0) }, { kind: 'partial' }, { kind: 'subagentWrite' }];
+  const ceh = buildCeh({ board: { codes: () => [], counts: () => ({}), activity: () => null }, registry: { codes: [] }, workers: { threads: [{ marks: [yellow, ...red] }], subagentsCount: 0 }, freshness: {} });
+  assert.equal(ceh.workers.marksCount, 4, 'жёлтый такт в красный счётчик не входит');
+});
+
+test('Важно 2: журнал карточки заперт (EBUSY) — карточка остаётся с прежней последней записью, счётчик ошибок журналов; исправный — обновляется', async () => {
+  const { dir } = await boardWith([{ id: 'EXT-1', status: 'review', title: 'Слить' }, { id: 'EXT-2', status: 'ready', title: 'Соседка' }], { 'EXT-1': [entry(T0 - 2 * 60 * MIN, 'коммент', 'Ждёт «сливай».')] });
+  let busy = false;
+  const fsx = { ...fs, readFileSync: (p, ...a) => { if (busy && String(p).endsWith('.log.md')) throw Object.assign(new Error('заперт'), { code: 'EBUSY' }); return fs.readFileSync(p, ...a); } };
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest, fs: fsx });
+  await board.init();
+  writeLog(dir, 'EXT-1', [entry(T0 - 2 * 60 * MIN, 'коммент', 'Ждёт «сливай».'), entry(T0 - 10 * MIN, 'коммент', 'Принято.')]);
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-2.md'), cardText({ id: 'EXT-2', status: 'in-progress', title: 'Соседка' }));
+  gitCommitAll(dir, 'запись');
+  busy = true;
+  await board.refresh();
+  assert.equal(board.card('EXT-2').status, 'in-progress', 'проход доски не сорван ошибкой журнала');
+  assert.ok(board.card('EXT-1'), 'карточка не выпала');
+  assert.equal(board.card('EXT-1').last.mark, 'сливай', 'прежняя последняя запись');
+  assert.equal(board.state().badHeaders, 0, 'не «битая шапка»');
+  assert.equal(board.state().logErrors, 2, 'заперты журналы обеих перечитанных карточек');
+  busy = false;
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-1.md'), cardText({ id: 'EXT-1', status: 'review', title: 'Слить', updated: '2026-10-02T12:59+03:00' }));
+  gitCommitAll(dir, 'шапка');
+  await board.refresh();
+  assert.equal(board.card('EXT-1').last.mark, null, 'исправный журнал — новая последняя запись');
+});
+
+const SID3 = '33333333-0000-4000-8000-000000000003';
+test('Важно 3: сессия из priorCliSessionIds живого треда — не «тред закрыт», пометка у живого треда; такт при равных at — у живой сессии', () => {
+  const on = w(T0 - 200 * MIN, '▶ выдан: terminus · a · b');
+  const m = marksOf([sess(SID2, [on]), sess(SID1, [on])], { liveOf: (sid) => (sid === SID2 ? SID1 : null) });
+  assert.deepEqual(m.closed, []);
+  assert.deepEqual(m.bySession[SID1].map((x) => [x.kind, x.card]), [['takt', 'EXT-7']], 'один такт, у живой сессии');
+  const only = marksOf([sess(SID2, [on])], { liveOf: (sid) => (sid === SID2 ? SID1 : null) });
+  assert.deepEqual(only.closed, [], 'прежняя сессия живого треда строкой «тред закрыт» не показывается');
+  assert.equal(only.bySession[SID1][0].kind, 'takt');
+  const plain = marksOf([sess(SID2, [on]), sess(SID1, [on])]);
+  assert.deepEqual(plain.bySession[SID1].map((x) => x.kind), ['takt'], 'равные at без связи тредов — тоже у живой сессии');
+});
+
+test('Важно 3 и мелочь 5: PARTIAL снимается словом Ивана в копии того же треда (тот же agentId + время), слово в другом треде не снимает', () => {
+  const other = sess(SID3, [], { ivan: { lastAt: iso(T0 - 5 * MIN), cards: {} } });
+  assert.equal(marksOf([partialSess(SID1, null), other]).bySession[SID1][0].kind, 'partial', 'слово Ивана в другом треде — блок висит');
+  const m = marksOf([partialSess(SID1, null), partialSess(SID2, iso(T0 - 5 * MIN))]);
+  assert.equal(m.bySession[SID1], undefined, 'слово в копии с тем же обрывом — снят');
+  assert.deepEqual(m.closed, []);
+});
+
+test('мелочь 1: «тред закрыт» — проект по карточке, без карточки — по названию треда; пометки двух проектов — в оба окна', () => {
+  const s2 = sess(SID2, [w(T0 - 200 * MIN, '▶ выдан: terminus · a · b', ['CAR-3'])], { runs: [{ ...run, cards: [] }], partials: [{ agentId: 'a1', at: iso(T0 - 60 * MIN), limit: 90, where: 'Agent' }] });
+  const m = marksOf([s2], { status: { 'CAR-3': 'review' }, titleOf: () => 'EXT · вчерашний', board: { ...cardBoard({ 'CAR-3': 'review' }), hasCode: (c) => ['EXT', 'CAR'].includes(c) } });
+  assert.deepEqual(m.closed.map((r) => [r.project, r.marks.map((x) => x.kind).join()]).sort(), [['CAR', 'takt'], ['EXT', 'partial']]);
+});
+
+test('мелочь 2: кэш коммитов — ошибка git кэшируется с отсрочкой; проект без repos — null («неизвестно»)', async () => {
+  const { createCommitsCache } = await import('../lib/waiting.mjs');
+  let calls = 0;
+  const cc = createCommitsCache({ git: async () => { calls++; throw new Error('нет репо'); }, reposOf: (c) => (c === 'EXT' ? ['x'] : []) });
+  const q = { key: 'k', code: 'EXT', since: iso(T0 - DAY), until: iso(T0) };
+  assert.equal(cc.get(q), null);
+  await cc.settle();
+  assert.equal(cc.get(q), null);
+  await cc.settle();
+  assert.equal(calls, 1, 'повтор не сразу — отсрочка');
+  const c2 = { ...q, key: 'c', code: 'CAR' };
+  cc.get(c2);
+  await cc.settle();
+  assert.equal(cc.get(c2), null, 'репозиториев нет — неизвестно, не «коммитов нет»');
+});
+
+test('Важно 4: строка без хеша — время коммита Vault, добавившего строку (git log -S); строки нет в коммите — дата, потом перепроверка', async () => {
+  const vault = tmpDir('vault-s-');
+  const chron = path.join(vault, 'unorbis', 'Хроника');
+  fs.mkdirSync(chron, { recursive: true });
+  fs.writeFileSync(path.join(chron, '2026-10.md'), '01.10 · цех · правила обновлены: правка · EXT-6\n');
+  gitInitCommit(vault);
+  const at1 = Date.parse(git(vault, 'log', '-1', '--format=%cI').trim());
+  const rm = createRulesMoment({ dir: chron, git: createGitRead(), repos: [vault], vaultRepo: vault });
+  await rm.refresh();
+  assert.deepEqual([Date.parse(rm.get().at), rm.get().by], [at1, 'line']);
+  fs.appendFileSync(path.join(chron, '2026-10.md'), '02.10 · цех · правила обновлены: ещё · EXT-28\n');
+  await rm.refresh();
+  assert.deepEqual([rm.get().at, rm.get().by], [new Date(2026, 9, 2).toISOString(), 'date'], 'строки нет в коммите — дата');
+  await new Promise((r) => setTimeout(r, 1100));
+  gitCommitAll(vault, 'хроника');
+  const at2 = Date.parse(git(vault, 'log', '-1', '--format=%cI').trim());
+  await rm.refresh();
+  assert.deepEqual([Date.parse(rm.get().at), rm.get().by], [at2, 'line'], 'перепроверка на опросе');
 });

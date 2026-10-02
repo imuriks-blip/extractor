@@ -7,7 +7,9 @@
       "lastError": null,
       "badHeaders": 0,
       "head": "c03dd8a0c03dd8a0c03dd8a0c03dd8a0c03dd8a0",
-      "cards": 726
+      "cards": 726,
+      "logErrors": 0,
+      "lastLogError": null
     },
     "registry": {
       "lastOkAt": "2026-10-01T12:00:01.004Z",
