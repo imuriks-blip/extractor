@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { checkPort, launch, startServer, VITRINA_APP, EXIT_FOREIGN } from '../lib/start.mjs';
 import { showToast, AUMID } from '../lib/toast.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
@@ -161,6 +163,7 @@ test('В9: redirectConsole — console.log/error дописываются в ф�
   assert.equal(lines.length, 3);
   assert.match(lines[0], /^\d{4}-\d\d-\d\dT\S+ первый 1$/);
   assert.match(lines[1], / второй$/);
+  assert.match(lines[2], / третий$/);
 });
 
 test('В9: redirectConsole — неперехваченная ошибка: стек в файл и выход 1', async () => {
@@ -171,7 +174,83 @@ test('В9: redirectConsole — неперехваченная ошибка: ст
   const codes = [];
   proc.exit = (c) => codes.push(c);
   redirectConsole({ file, target: { log() {}, error() {} }, proc });
-  proc.emit('uncaughtException', new Error('упало'));
+  const e = new TypeError('кусок журнала: секрет');
+  proc.emit('uncaughtException', e);
   assert.deepEqual(codes, [1]);
-  assert.match(fs.readFileSync(file, 'utf8'), /uncaught: Error: упало/);
+  const text = fs.readFileSync(file, 'utf8');
+  // имя ошибки и кадры стека — да; текст сообщения (может быть куском журнала) — нет (вердикт Голема на В9)
+  assert.match(text, /uncaught: TypeError\n/);
+  assert.match(text, /\n {4}at .*v9\.test\.mjs/);
+  assert.doesNotMatch(text, /секрет|кусок журнала/);
+});
+
+// ---------- гонка за порт (вердикт Голема на В9) ----------
+
+test('5: два startServer на одном порту одновременно — проигравший ALREADY_RUNNING и already, победитель жив', async () => {
+  const port = await freePort();
+  const dirs = [tmpDir('v9g-'), tmpDir('v9g-')];
+  const quiet = () => ({ on() {} });
+  const res = await Promise.allSettled(dirs.map((dataDir) => startServer({ config: config(port), dataDir, toast: quiet })));
+  const won = res.filter((r) => r.status === 'fulfilled');
+  const lost = res.filter((r) => r.status === 'rejected');
+  try {
+    assert.equal(won.length, 1, JSON.stringify(res.map((r) => r.reason?.code ?? r.status)));
+    assert.equal(lost[0].reason.code, 'ALREADY_RUNNING');
+    const logs = dirs.map((d) => fs.readFileSync(path.join(d, 'server.log'), 'utf8'));
+    assert.equal(logs.filter((l) => new RegExp(` already port=${port} pid=${process.pid}\\n`).test(l)).length, 1);
+    assert.equal(logs.filter((l) => / start port=/.test(l)).length, 1);
+    assert.deepEqual(await checkPort({ port }), { state: 'vitrina', pid: process.pid });
+  } finally { for (const w of won) await w.value.stop(); }
+});
+
+// ---------- toasts: false — пробные копии тостов не шлют ----------
+
+test('В9: toasts=false в настройке — тост не запускается; по умолчанию — запускается', async () => {
+  const { pickToast } = await import('../lib/start.mjs');
+  const t = () => {};
+  assert.equal(pickToast({ toasts: false }, t), null);
+  assert.equal(pickToast({}, t), t);
+  assert.equal(pickToast({ toasts: true }, t), t);
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8')).toasts, true);
+});
+
+// ---------- проверки скриптов (tools/vitrina-checks.ps1) — чистые функции, без реестра и процессов ----------
+
+const CHECKS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'vitrina-checks.ps1');
+function ps(lines) {
+  const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `. '${CHECKS}'; ${lines.join('; ')}`], { encoding: 'utf8', windowsHide: true });
+  return out.trim().split(/\r?\n/);
+}
+
+test('В9: AppId — с буквы или цифры, без «..» и «\\»; «.» и «..» отвергаются (живьём не пробуются)', () => {
+  const ids = ['Unorbis.Extractor', 'Unorbis.Extractor.Probe38', 'a', '.', '..', '...', 'a..b', '.hidden', '-x', 'a\\b', 'a/b', '', 'Unorbis Extractor'];
+  const want = ['True', 'True', 'True', 'False', 'False', 'False', 'False', 'False', 'False', 'False', 'False', 'False', 'False'];
+  assert.deepEqual(ps(ids.map((i) => `Test-AppIdArg '${i}'`)), want);
+});
+
+test('В9: своя витрина для update.ps1 — путь server.mjs этого корня буквально и pid слушателя порта', () => {
+  const root = 'C:\\projects\\extractor';
+  const own = '"C:\\Program Files\\nodejs\\node.exe"  "C:\\projects\\extractor\\server.mjs" --console-log';
+  const call = (o) => `Test-OwnVitrina -Root '${o.root ?? root}' -HealthPid 10 -ListenerPids @(${o.l ?? '10'}) -Name '${o.name ?? 'node.exe'}' -CommandLine '${o.cmd ?? own}'`;
+  const r = ps([
+    call({}),
+    call({ cmd: own.toUpperCase() }),
+    call({ root: 'C:\\scratch\\copy' }),
+    call({ l: '11' }),
+    call({ l: '' }),
+    call({ cmd: 'node server.mjs' }),
+    call({ cmd: '"node.exe" "C:\\projects\\extractor2\\server.mjs"' }),
+    call({ cmd: '"node.exe" "D:\\x\\C:\\projects\\extractor\\server.mjs"' }),
+    call({ name: 'cmd.exe' }),
+  ]);
+  assert.deepEqual(r, ['True', 'True', 'False', 'False', 'False', 'False', 'False', 'False', 'False']);
+});
+
+test('В9: ярлык свой — аргументы ведут на vitrina-hidden.js именно этого корня', () => {
+  const r = ps([
+    `Test-OursShortcutArgs -Root 'C:\\projects\\extractor' -Arguments '//B //Nologo //E:JScript "C:\\projects\\extractor\\tools\\vitrina-hidden.js" "C:\\node.exe"'`,
+    `Test-OursShortcutArgs -Root 'C:\\projects\\extractor' -Arguments '//B //Nologo //E:JScript "C:\\scratch\\wt\\tools\\vitrina-hidden.js" "C:\\node.exe"'`,
+    `Test-OursShortcutArgs -Root 'C:\\projects\\extractor' -Arguments ''`,
+  ]);
+  assert.deepEqual(r, ['True', 'False', 'False']);
 });
