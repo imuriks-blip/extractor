@@ -1,13 +1,45 @@
-// Источник данных экрана. Сейчас — опрос ручки раз в 5 с; в В8 его заменит поток событий сервера
-// (SSE `changed {scope}` → перезапрос ручки): достаточно отдать новый источник с тем же subscribe().
+// Источник данных экрана. В8: поток событий сервера (SSE /api/events, `changed {scope}` → перезапрос ручки);
+// поток оборвался — откат на опрос раз в 5 с, поток вернулся — опрос снят (streamSource).
 import { useEffect, useState } from 'react';
 
 // Источник: subscribe(onData, onError) → отписка.
-export function pollSource(url, everyMs = 5000) {
+
+// Один EventSource на страницу, общий для всех источников экрана. Браузер переподключается к потоку сам (retry с
+// сервера — 5 с); поток, закрытый навсегда (ответ не 200), пересоздаётся через 5 с.
+const stream = { es: null, open: false, subs: new Set(), retry: null };
+function streamUp() {
+  if (stream.es || typeof EventSource === 'undefined') return;
+  const es = new EventSource('/api/events');
+  stream.es = es;
+  es.addEventListener('open', () => { stream.open = true; for (const s of stream.subs) s.up(); });
+  es.addEventListener('changed', () => { for (const s of stream.subs) s.changed(); });
+  es.addEventListener('error', () => {
+    stream.open = false;
+    for (const s of stream.subs) s.down();
+    if (es.readyState === EventSource.CLOSED && stream.es === es) {
+      stream.es = null;
+      clearTimeout(stream.retry);
+      stream.retry = setTimeout(() => { if (stream.subs.size) streamUp(); }, 5000);
+    }
+  });
+}
+function streamDown() {
+  if (stream.subs.size) return;
+  stream.es?.close();
+  stream.es = null;
+  stream.open = false;
+  clearTimeout(stream.retry);
+}
+
+// Источник на потоке: ручка читается при подписке, при открытии потока и на каждое `changed`; пока потока нет —
+// опросом раз в fallbackMs. Ошибка ручки — onError, как у опроса (серая строка 2.7 и «Сервер витрины не отвечает»).
+export function streamSource(url, fallbackMs = 5000) {
   return {
     subscribe(onData, onError) {
-      let stopped = false, timer = null, ctl = null;
-      const tick = async () => {
+      let stopped = false, ctl = null, busy = false, again = false, timer = null;
+      const load = async () => {
+        if (busy) { again = true; return; }
+        busy = true;
         ctl = new AbortController();
         try {
           const r = await fetch(url, { cache: 'no-store', signal: ctl.signal });
@@ -17,15 +49,27 @@ export function pollSource(url, everyMs = 5000) {
         } catch (e) {
           if (!stopped) onError(e);
         }
-        if (!stopped) timer = setTimeout(tick, everyMs);
+        busy = false;
+        if (again && !stopped) { again = false; load(); }
       };
-      tick();
-      return () => { stopped = true; clearTimeout(timer); ctl?.abort(); };
+      // опрос, пока потока нет; уже идущий таймер не сбрасывается (ошибки переподключения приходят часто)
+      const poll = () => {
+        if (stopped || stream.open || timer) return;
+        timer = setTimeout(async () => { timer = null; if (stream.open || stopped) return; await load(); poll(); }, fallbackMs);
+      };
+      const sub = { up: () => { clearTimeout(timer); timer = null; load(); }, changed: load, down: poll };
+      stream.subs.add(sub);
+      streamUp();
+      load();
+      poll();
+      return () => { stopped = true; clearTimeout(timer); ctl?.abort(); stream.subs.delete(sub); streamDown(); };
     },
   };
 }
 
-export const cehSource = pollSource('/api/ceh', 5000);
+export const cehSource = streamSource('/api/ceh');
+// источник без данных (экран, которому нечего читать)
+export const idleSource = { subscribe: () => () => {} };
 
 // Ошибка не стирает прежние данные (2.7): data остаётся, failingSince — с первого сбоя подряд, okAt — последний удачный ответ.
 // Сменился источник (другой проект, другая карточка) — прежние данные не показываем: состояние помнит, чьё оно.

@@ -1,7 +1,7 @@
 // Карточка — панель справа ~560 px без затемнения (решение Ивана 8, макет BBE73reeyzkCGzC3rrg9sd, версия 2); поля — спека §2.6, §3.3.
 // Доска под панелью кликабельна: панель живёт, пока в адресе есть номер карточки (#/project/EXT/EXT-6), и меняет содержимое.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { pollSource, useSource } from './data.js';
+import { streamSource, useSource } from './data.js';
 import { ageShort, dd, dm, hm, minutes, plural } from './format.js';
 import { mdToHtml } from './md.js';
 import { staleText } from './Ceh.jsx';
@@ -140,7 +140,7 @@ function Feed({ data, filter, setFilter, now }) {
 }
 
 function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
-  const src = useMemo(() => pollSource(`/api/card/${encodeURIComponent(id)}`, 5000), [id]);
+  const src = useMemo(() => streamSource(`/api/card/${encodeURIComponent(id)}`), [id]);
   const { data, failingSince, okAt, error } = useSource(src);
   const h = data?.header;
   const project = data?.project ?? id.split('-')[0]; // поле project ручки (5baefc7); префикс — пока ответа нет

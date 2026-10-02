@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Ceh from './Ceh.jsx';
 import Project from './Project.jsx';
-import { cehSource, pollSource, useNow, useSource } from './data.js';
+import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
 import { hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
 
@@ -58,13 +58,25 @@ export default function App() {
   const route = useRoute();
   const code = route.name === 'project' ? route.code : null;
   // один источник на экран: «Цех» — /api/ceh, окно проекта — /api/project/<КОД>
-  const source = useMemo(() => (code ? pollSource(`/api/project/${code}`, 5000) : cehSource), [code]);
+  const source = useMemo(() => (code ? streamSource(`/api/project/${code}`) : cehSource), [code]);
   const { data, failingSince, error } = useSource(source);
+  // счётчик (4.2): N = |а| + |б| по всем проектам — из /api/ceh и в окне проекта; Review не входит
+  const ceh = useSource(code ? cehSource : idleSource);
+  const count = (code ? ceh.data : data)?.waiting?.count;
+  const n = Number.isInteger(count) ? count : null;
   const now = useNow(5000);
 
+  // заголовок «(N) Экстрактор · Цех» / «(N) Экстрактор · <КОД>»; N = 0 или ещё не прочитано — без скобок
   useEffect(() => {
-    document.title = route.name === 'ceh' ? 'Экстрактор · Цех' : `Экстрактор · ${route.card || route.code}`;
-  }, [route]);
+    const base = route.name === 'ceh' ? 'Экстрактор · Цех' : `Экстрактор · ${route.code}`;
+    document.title = n > 0 ? `(${n}) ${base}` : base;
+  }, [route, n]);
+  // значок на иконке установленного приложения (4.2, В-8): тот же N; 0 — снят; не прочитано — не трогаем
+  useEffect(() => {
+    if (n == null) return;
+    const p = n > 0 ? navigator.setAppBadge?.(n) : navigator.clearAppBadge?.();
+    p?.catch?.(() => {});
+  }, [n]);
 
   const open = (c) => { window.location.hash = `#/project/${c}`; };
   // карточка другого проекта (связь) открывается в окне своего проекта
