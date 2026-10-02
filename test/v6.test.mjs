@@ -221,12 +221,19 @@ test('такт: who — именительный, whoDative — дательны
 
 // ---------- failingSince (2.7) ----------
 
+// EXT-37: HEAD доски читается файлами .git; «git упал» — и .git не читается, и процесс git падает
+function gitDirFails(isBroken) {
+  const f = Object.create(fs);
+  f.readFileSync = (p, ...a) => { if (isBroken() && /[\\/]\.git[\\/]/.test(String(p))) { const e = new Error('EBUSY'); e.code = 'EBUSY'; throw e; } return fs.readFileSync(p, ...a); };
+  return f;
+}
+
 test('доска: failingSince — с первого сбоя подряд, null после удачи', async () => {
   const dir = makeBoard(tmpDir('b6-'), { codes: ['EXT'], cards: [{ id: 'EXT-1', status: 'review' }] });
   gitInitCommit(dir);
   const real = createGitRead();
   let broken = false;
-  const r = createBoardReader({ root: dir, git: (repo, args) => (broken ? Promise.reject(new Error('git упал')) : real(repo, args)), parseCard });
+  const r = createBoardReader({ root: dir, git: (repo, args) => (broken ? Promise.reject(new Error('git упал')) : real(repo, args)), parseCard, fs: gitDirFails(() => broken) });
   await r.init();
   assert.equal(r.state().failingSince, null);
   broken = true;
@@ -263,7 +270,7 @@ test('/api/ceh и /api/project: freshness.board и freshness.journals несут
   gitInitCommit(dir);
   const real = createGitRead();
   let broken = false;
-  const board = createBoardReader({ root: dir, git: (repo, args) => (broken ? Promise.reject(new Error('x')) : real(repo, args)), parseCard });
+  const board = createBoardReader({ root: dir, git: (repo, args) => (broken ? Promise.reject(new Error('x')) : real(repo, args)), parseCard, fs: gitDirFails(() => broken) });
   await board.init();
   const regFile = path.join(tmpDir('reg6-'), 'registry.json');
   fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));

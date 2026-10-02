@@ -229,3 +229,145 @@ test('В: удалённый горячий журнал — не ошибка �
   await r.refresh();
   assert.equal(r.state().files, 2);
 });
+
+// ---------- Б ----------
+import { createGitRead } from '../lib/git-read.mjs';
+import { createRegistryReader } from '../lib/registry.mjs';
+import { createGitReader } from '../lib/git-reader.mjs';
+import { createBoardReader } from '../lib/board-reader.mjs';
+import { BOARD_LIB, makeBoard, writeCard, git, gitInitCommit, gitCommitAll } from './helpers.mjs';
+
+const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
+
+function gitWorld() {
+  const root = tmpDir('ext37-git-');
+  const mk = (n) => { const d = path.join(root, n); nodeFs.mkdirSync(d); nodeFs.writeFileSync(path.join(d, 'a.txt'), n); gitInitCommit(d); return d; };
+  const A = mk('proj-a');
+  const C = mk('proj-c');
+  const S = mk('shared-s');
+  const WT = path.join(root, 'proj-a-wt');
+  git(A, 'worktree', 'add', '-q', '-b', 'ext-37-wt', WT);
+  const reg = path.join(root, 'registry.json');
+  nodeFs.writeFileSync(reg, JSON.stringify({
+    vault_root: root,
+    board_codes: { EXT: { projects: [], project_cards: [], repos: [A] }, CAR: { projects: [], project_cards: [], repos: [C] } },
+    board_shared_repos: { repos: [S] },
+  }));
+  return { root, A, C, S, WT, registry: createRegistryReader(reg) };
+}
+
+// подменный наблюдатель: тест сам шлёт события (имя файла от корня наблюдения) и сбои
+function fakeWatch() {
+  const list = [];
+  const watch = (dir, { onEvent, onFail }) => {
+    const w = { dir: path.resolve(dir), onEvent, onFail, closed: false, close() { w.closed = true; } };
+    list.push(w);
+    return w;
+  };
+  const at = (dir) => list.filter((w) => !w.closed && w.dir.toLowerCase() === path.resolve(dir).toLowerCase());
+  return { watch, list, emit: (dir, name) => at(dir).forEach((w) => w.onEvent(name)), fail: (dir) => at(dir).forEach((w) => w.onFail(new Error('EPERM'))) };
+}
+
+function gitRig(W, opts = {}) {
+  const calls = [];
+  const clock = { t: Date.parse('2026-10-02T10:00:00Z') };
+  const r = createGitReader({ git: createGitRead({ onCall: (p) => calls.push(path.resolve(p).toLowerCase()) }), registry: W.registry, boardRoot: null, now: () => clock.t, ...opts });
+  const take = () => calls.splice(0);
+  return { r, take, clock };
+}
+const key = (p) => path.resolve(p).toLowerCase();
+
+test('Б: без событий наблюдателя второй проход не зовёт git; readAt свежий; пропуски по тишине — в state', async () => {
+  const W = gitWorld();
+  const fw = fakeWatch();
+  const { r, take, clock } = gitRig(W, { watch: fw.watch });
+  await r.refresh();
+  assert.ok(take().length >= 5, 'первый проход — полный');
+  assert.deepEqual(fw.list.map((w) => w.dir.toLowerCase()).sort(), [key(W.A), key(W.WT), key(W.C), key(path.join(W.S, '.git'))].sort(),
+    'наблюдатели: корни рабочих копий проектов, .git общего репозитория');
+  clock.t += 30000;
+  await r.refresh();
+  assert.deepEqual(take(), [], 'тишина — ни одного запуска git');
+  assert.equal(r.quiet().quietSkips, 3);
+  assert.equal(r.beacon('EXT').readAt, new Date(clock.t).toISOString(), 'пропуск по тишине — тоже удачное наблюдение (серая строка 2.7 не встаёт)');
+});
+
+test('Б: правка в рабочей копии — status только этой копии; событие в .git (не objects) — полный проход репозитория; .git/objects — тишина', async () => {
+  const W = gitWorld();
+  const fw = fakeWatch();
+  const { r, take, clock } = gitRig(W, { watch: fw.watch });
+  await r.refresh(); take();
+  const dirtyOf = (p) => r.beacon('EXT').repos.find((x) => key(x.path) === key(p)).dirty;
+  assert.equal(dirtyOf(W.WT), 0);
+  nodeFs.writeFileSync(path.join(W.WT, 'new.txt'), 'x');
+  fw.emit(W.WT, 'new.txt');
+  clock.t += 30000; await r.refresh();
+  assert.deepEqual(take(), [key(W.WT)], 'один status рабочей копии');
+  assert.equal(dirtyOf(W.WT), 1, 'новое число незакоммиченных');
+  fw.emit(W.A, path.join('.git', 'objects', 'ab', 'cdef'));
+  fw.emit(path.join(W.S, '.git'), path.join('objects', 'pack', 'x.pack'));
+  clock.t += 30000; await r.refresh();
+  assert.deepEqual(take(), [], '.git/objects — не повод');
+  nodeFs.writeFileSync(path.join(W.C, 'c.txt'), 'c');
+  gitCommitAll(W.C, 'feat: CAR-37 коммит');
+  fw.emit(W.C, path.join('.git', 'refs', 'heads', 'main'));
+  clock.t += 30000; await r.refresh();
+  const c = take();
+  assert.ok(c.length >= 3 && c.every((p) => p === key(W.C)), 'полный проход только C: worktree list, status, rev-parse, log');
+  assert.ok(r.commitsFor('CAR-37').commits.some((x) => x.subject === 'feat: CAR-37 коммит'));
+});
+
+test('Б: наблюдатель упал — репозиторий опрашивается по-старому каждый проход; раз в 5 минут — полный проход всех', async () => {
+  const W = gitWorld();
+  const fw = fakeWatch();
+  const { r, take, clock } = gitRig(W, { watch: fw.watch });
+  await r.refresh(); take();
+  fw.fail(W.C);
+  for (let i = 0; i < 2; i++) {
+    clock.t += 30000; await r.refresh();
+    const c = take();
+    assert.ok(c.length >= 3 && c.every((p) => p === key(W.C)), `проход ${i + 1}: опрос только C`);
+  }
+  assert.ok(r.quiet().watchFailed >= 1);
+  clock.t += 5 * 60000; await r.refresh();
+  const all = new Set(take());
+  for (const p of [W.A, W.WT, W.C, W.S]) assert.ok(all.has(key(p)), `5 минут — полный проход: ${p}`);
+});
+
+test('Б (живой fs.watch): свои запуски git не будят наблюдателя — второй проход подряд пропускает все; правка файла — видна', async () => {
+  const W = gitWorld();
+  const { r, take } = gitRig(W);
+  await r.refresh(); take();
+  await new Promise((res) => setTimeout(res, 700));
+  await r.refresh();
+  assert.deepEqual(take(), [], 'второй проход без внешних изменений — без git');
+  nodeFs.writeFileSync(path.join(W.A, 'b.txt'), 'x');
+  await new Promise((res) => setTimeout(res, 700));
+  await r.refresh();
+  assert.deepEqual(take(), [key(W.A)]);
+  assert.equal(r.beacon('EXT').repos.find((x) => key(x.path) === key(W.A)).dirty, 1);
+  r.close();
+});
+
+test('Б: опрос доски — HEAD из файлов .git (ссылка, packed-refs), без запуска git; новый коммит — diff', async () => {
+  const dir = makeBoard(tmpDir('ext37-board-'), { codes: ['EXT'], cards: [{ id: 'EXT-1', title: 'Первая' }] });
+  gitInitCommit(dir);
+  const calls = [];
+  const b = createBoardReader({ root: dir, git: createGitRead({ onCall: () => calls.push(1) }), parseCard });
+  await b.init();
+  calls.length = 0;
+  for (let i = 0; i < 3; i++) await b.refresh();
+  assert.equal(calls.length, 0, 'HEAD не сменился — ни одного git');
+  assert.equal(b.state().head, git(dir, 'rev-parse', 'HEAD').trim());
+  writeCard(dir, { id: 'EXT-1', title: 'Переименована' });
+  const h2 = gitCommitAll(dir, 'mirror');
+  await b.refresh();
+  assert.equal(calls.length, 1, 'один diff --name-only');
+  assert.equal(b.card('EXT-1').title, 'Переименована');
+  assert.equal(b.state().head, h2);
+  git(dir, 'pack-refs', '--all');
+  assert.ok(!nodeFs.existsSync(path.join(dir, '.git', 'refs', 'heads', 'main')), 'ссылка ушла в packed-refs');
+  await b.refresh();
+  assert.equal(b.state().head, h2);
+  assert.equal(calls.length, 1, 'packed-refs — тоже файлом');
+});

@@ -28,7 +28,8 @@ function repoWorld() {
   const calls = [];
   const real = createGitRead();
   const g = (repo, args) => { calls.push(args[0]); return real(repo, args); };
-  return { A, WT, calls, reader: createGitReader({ git: g, registry: createRegistryReader(reg), boardRoot: null }) };
+  // без наблюдателя — опрос по-старому каждый проход (EXT-37); подсказки наблюдателя — test/ext37.test.mjs
+  return { A, WT, calls, reader: createGitReader({ git: g, registry: createRegistryReader(reg), boardRoot: null, watch: () => { throw new Error('без наблюдателя'); } }) };
 }
 
 test('опрос git: вершины не сменились — log не зовётся, коммиты прежние; новая вершина — log есть', async () => {

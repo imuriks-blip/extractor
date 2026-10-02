@@ -23,7 +23,8 @@ test('старт: слушает 127.0.0.1, Host проверяется, server.
   const board = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review' }] });
   gitInitCommit(board);
   const reg = path.join(tmpDir('reg-'), 'registry.json');
-  fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
+  // доска — и репозиторий проекта: HEAD доски читается файлами (EXT-37), git по ней зовёт читатель git (строка stats)
+  fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [board] } } }));
   const dataDir = tmpDir('data-');
   const port = 43000 + Math.floor(Math.random() * 2000);
   const config = { port, paths: { board, boardLib: BOARD_LIB, registry: reg }, pollMs: { board: 60000 }, statsEveryMin: 10 };
