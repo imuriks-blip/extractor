@@ -49,6 +49,12 @@ export function hm(iso, now = Date.now()) {
   return t.toDateString() === n.toDateString() ? time : `${p2(t.getDate())}.${p2(t.getMonth() + 1)} ${time}`;
 }
 
+// «ДД.ММ» — дата создания карточки.
+export function dd(iso) {
+  const t = new Date(iso);
+  return Number.isNaN(t.getTime()) ? '—' : `${p2(t.getDate())}.${p2(t.getMonth() + 1)}`;
+}
+
 export function dm(iso) {
   const t = new Date(iso);
   return Number.isNaN(t.getTime()) ? '—' : `${p2(t.getDate())}.${p2(t.getMonth() + 1)} ${p2(t.getHours())}:${p2(t.getMinutes())}`;

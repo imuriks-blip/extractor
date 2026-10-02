@@ -27,14 +27,19 @@ export function pollSource(url, everyMs = 5000) {
 
 export const cehSource = pollSource('/api/ceh', 5000);
 
-// Ошибка не стирает прежние данные (2.7): data остаётся, failingSince — с первого сбоя подряд.
+// Ошибка не стирает прежние данные (2.7): data остаётся, failingSince — с первого сбоя подряд, okAt — последний удачный ответ.
+// Сменился источник (другой проект, другая карточка) — прежние данные не показываем: состояние помнит, чьё оно.
+const EMPTY = { data: null, failingSince: null, okAt: null, error: null };
 export function useSource(source) {
-  const [st, set] = useState({ data: null, failingSince: null });
+  const [st, set] = useState(() => ({ ...EMPTY, source }));
   useEffect(() => source.subscribe(
-    (data) => set({ data, failingSince: null }),
-    () => set((s) => (s.failingSince ? s : { ...s, failingSince: Date.now() })),
+    (data) => set({ source, data, failingSince: null, okAt: Date.now(), error: null }),
+    (e) => set((s) => {
+      const cur = s.source === source ? s : { ...EMPTY, source };
+      return { ...cur, failingSince: cur.failingSince ?? Date.now(), error: e?.message ?? 'ошибка' };
+    }),
   ), [source]);
-  return st;
+  return st.source === source ? st : EMPTY;
 }
 
 // Часы для подписей давности: перерисовка, даже когда данные не меняются.

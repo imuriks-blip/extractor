@@ -195,7 +195,7 @@
     },
     {
       "code": "EXT",
-      "name": "Экстрактор",
+      "name": null,
       "inRegistry": true,
       "phase": {
         "short": "Витрина этапа 1: каркас сервера.",
@@ -214,7 +214,7 @@
     },
     {
       "code": "RADAR",
-      "name": "—",
+      "name": null,
       "inRegistry": true,
       "phase": null,
       "next": null,
@@ -227,7 +227,7 @@
     },
     {
       "code": "IPTV",
-      "name": "—",
+      "name": null,
       "inRegistry": true,
       "phase": null,
       "next": null,

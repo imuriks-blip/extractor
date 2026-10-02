@@ -138,8 +138,8 @@ test('образец ceh.json: порядок проектов — решени�
   for (const s of seen) assert.ok(STATES.includes(s), s);
   for (const s of STATES) assert.ok(seen.includes(s), `нет образца состояния ${s}`);
   for (const t of fx.workers.threads.filter((x) => x.state === 'stale')) assert.ok(STATES.includes(t.lastState), 'устарело: lastState — вычисленное состояние');
-  assert.equal(fx.projects.find((p) => p.code === 'EXT').name, 'Экстрактор');
-  assert.equal(load('project-EXT.json').name, 'Экстрактор');
+  assert.equal(fx.projects.find((p) => p.code === 'EXT').name, null); // имя-заглушка «—» → null (В7, EXT-32)
+  assert.equal(load('project-EXT.json').name, null);
   assert.ok(!JSON.stringify(fx).includes('"lastOk"'));
 });
 
