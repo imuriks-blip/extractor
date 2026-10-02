@@ -64,7 +64,7 @@ async function setup({ off = OFF, enabled = true, words = true, handlers, now, m
 
 // подменный запуск процесса (EXT-42): ни один тест не запускает настоящий wscript/mirror.mjs. fail — код ошибки
 // запуска (событие error, как у spawn при ненайденном файле); throwSync — исключение из самого вызова
-function fakeSpawn({ fail, throwSync } = {}) {
+function fakeSpawn({ fail, throwSync, exitCode } = {}) {
   const calls = [];
   const fn = (cmd, args, opts) => {
     const c = { cmd, args, opts, unref: 0 };
@@ -74,6 +74,8 @@ function fakeSpawn({ fail, throwSync } = {}) {
     ch.pid = fail ? undefined : 7000 + calls.length;
     ch.unref = () => { c.unref++; };
     process.nextTick(() => (fail ? ch.emit('error', Object.assign(new Error(`spawn ${cmd} ${fail}`), { code: fail })) : ch.emit('spawn')));
+    // exitCode — wscript вышел сразу после запуска (node не стартовал — 9009, mirror.mjs остановился до замка — 1/2)
+    if (exitCode !== undefined && !fail) setTimeout(() => ch.emit('exit', exitCode, null), 5);
     return ch;
   };
   fn.calls = calls;
@@ -1029,4 +1031,85 @@ test('GET /api/mirror: живой замок нового прохода и prog
   const { app } = await setup({ mirrorDir: dir });
   const m = await getMirror(app);
   assert.deepEqual([m.running, m.kind, m.phase, m.cardsDone, m.cardsTotal, m.requests, m.rpm, m.startedAt], [true, 'changed', null, null, null, null, null, iso(now - 5000)]);
+});
+
+// ---------------- EXT-42, дозапрос после Голема: тихий сбой до замка (Важно 1), числа своего прохода (Важно 2) ----------------
+
+test('mirror: node не стартовал (9009, строка в журнале задачи) — до 60 с «идёт», потом /api/mirror.lastError «проход не стартовал: <строка>»; следующее нажатие пишет error прежнему id', async () => {
+  let t = Date.parse('2026-10-03T12:00:00+03:00');
+  const spawn = fakeSpawn();
+  const { app, lines, data } = await setup({ boardRoot: launcherBoard(), spawn, now: () => t });
+  const token = await pageToken(app);
+  const first = (await act(app, token, mirrorBody())).json();
+  fs.writeFileSync(path.join(data, 'mirror-run.log'), '\r\nmirror-hidden: node did not start: no such file: node-x.exe\r\n');
+  t += 59000;
+  assert.deepEqual([(await getMirror(app)).running, (await getMirror(app)).lastError], [true, null]);
+  t += 2000;
+  const m = await getMirror(app);
+  assert.deepEqual([m.running, m.lastError], [false, 'проход не стартовал: mirror-hidden: node did not start: no such file: node-x.exe']);
+  assert.equal((await getMirror(app)).lastError, m.lastError, 'держится до следующего нажатия');
+  assert.deepEqual(steps(lines()), ['asked', 'done'], 'GET ничего не пишет');
+  const second = (await act(app, token, mirrorBody())).json();
+  assert.equal(second.outcome, 'ok');
+  const err = lines().filter((l) => l.id === first.id && l.step === 'error');
+  assert.equal(err.length, 1);
+  assert.equal(err[0].result.code, 'NOT_STARTED');
+  assert.equal(spawn.calls.length, 2);
+  assert.equal((await getMirror(app)).lastError, null, 'новый запуск — прежний сбой не показывается');
+});
+
+test('mirror: wscript вышел сразу (mirror.mjs остановился до замка), журнал пуст — сбой виден без ожидания 60 с, «проход не стартовал — см. data/vitrina/mirror-run.log»', async () => {
+  const spawn = fakeSpawn({ exitCode: 2 });
+  const { app } = await setup({ boardRoot: launcherBoard(), spawn });
+  await act(app, await pageToken(app), mirrorBody());
+  await new Promise((r) => setTimeout(r, 30));
+  const m = await getMirror(app);
+  assert.deepEqual([m.running, m.lastError], [false, 'проход не стартовал — см. data/vitrina/mirror-run.log']);
+});
+
+test('mirror: проход отметился в status.json после запуска — сбоя нет, lastError из status.json', async () => {
+  const dir = tmpDir('mirror-');
+  const spawn = fakeSpawn({ exitCode: 0 });
+  const { app, data } = await setup({ boardRoot: launcherBoard(), spawn, mirrorDir: dir });
+  await act(app, await pageToken(app), mirrorBody());
+  fs.writeFileSync(path.join(data, 'mirror-run.log'), 'итог ✅\n');
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: new Date(Date.now() + 1000).toISOString(), kind: 'changed', lastOk: new Date(Date.now() + 1000).toISOString() }));
+  await new Promise((r) => setTimeout(r, 30));
+  const m = await getMirror(app);
+  assert.deepEqual([m.running, m.lastError], [false, null]);
+});
+
+test('mirror: строка журнала задачи в lastError — до 200 знаков и по маске (секрет не выходит)', async () => {
+  const spawn = fakeSpawn({ exitCode: 1 });
+  const { app, data } = await setup({ boardRoot: launcherBoard(), spawn });
+  await act(app, await pageToken(app), mirrorBody());
+  fs.writeFileSync(path.join(data, 'mirror-run.log'), `mirror: ключ ${SECRET} ${'я'.repeat(300)}\n`);
+  await new Promise((r) => setTimeout(r, 30));
+  const e = (await getMirror(app)).lastError;
+  assert.ok(e.startsWith('проход не стартовал: mirror: ключ '), e);
+  assert.ok(!e.includes(SECRET), 'секрет по маске');
+  assert.ok([...e.slice('проход не стартовал: '.length)].length <= 200, 'не длиннее 200 знаков');
+});
+
+test('mirror: сбой до замка переживает рестарт витрины — запуск восстанавливается из actions.log', async () => {
+  const data = tmpDir('pult-');
+  const root = launcherBoard();
+  let t = Date.parse('2026-10-03T12:00:00+03:00');
+  const first = await setup({ boardRoot: root, data, now: () => t });
+  await act(first.app, await pageToken(first.app), mirrorBody());
+  fs.writeFileSync(path.join(data, 'mirror-run.log'), 'mirror: нет board.config.json\n');
+  t += 61000;
+  const second = await setup({ boardRoot: root, data, now: () => t });
+  assert.equal((await getMirror(second.app)).lastError, 'проход не стартовал: mirror: нет board.config.json');
+});
+
+test('GET /api/mirror: живой замок и progress этого прохода (started_at ≥ at замка) — phase, cardsDone, cardsTotal, requests, rpm выдаются', async () => {
+  const dir = tmpDir('mirror-');
+  const now = Date.now();
+  const iso = (ms) => new Date(ms).toISOString();
+  fs.writeFileSync(path.join(dir, 'run.lock'), JSON.stringify({ pid: process.pid, kind: 'changed', at: iso(now - 90000), boot: lockLib.bootTime() }));
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: iso(now - 20000), kind: 'changed', progress: { phase: 'comments', cards_done: 12, cards_total: 55, requests: 40, rpm: 23, at: iso(now - 20000), started_at: iso(now - 89000) } }));
+  const { app } = await setup({ mirrorDir: dir });
+  const m = await getMirror(app);
+  assert.deepEqual([m.running, m.kind, m.phase, m.cardsDone, m.cardsTotal, m.requests, m.rpm, m.startedAt], [true, 'changed', 'comments', 12, 55, 40, 23, iso(now - 89000)]);
 });
