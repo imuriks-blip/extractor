@@ -127,7 +127,7 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
   const src = useMemo(() => pollSource(`/api/card/${encodeURIComponent(id)}`, 5000), [id]);
   const { data, failingSince, okAt, error } = useSource(src);
   const h = data?.header;
-  const project = id.split('-')[0];
+  const project = data?.project ?? id.split('-')[0]; // поле project ручки (5baefc7); префикс — пока ответа нет
   const stale = data && failingSince ? staleText({ lastOkAt: new Date(okAt).toISOString() }, true, now) : null;
 
   let body;
@@ -174,6 +174,17 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
 
 export default function CardPanel({ id, now, onOpen, onClose }) {
   const closeRef = useRef(null);
+  // панель — под строкой шапки (слово Ивана 02.10): тема и свежесть всегда видны; высоту шапки меряем — на узком экране она в несколько строк
+  const [top, setTop] = useState(0);
+  useLayoutEffect(() => {
+    const el = document.querySelector('.top');
+    if (!el) return undefined;
+    const set = () => setTop(el.offsetTop + el.offsetHeight);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [filter, setFilter] = useState('all'); // фильтр ленты живёт, пока панель открыта, и переживает смену карточки
   useEffect(() => { closeRef.current?.focus(); }, []);
   useEffect(() => {
@@ -182,7 +193,7 @@ export default function CardPanel({ id, now, onOpen, onClose }) {
     return () => document.removeEventListener('keydown', on);
   }, [onClose]);
   return (
-    <aside className="panel" aria-labelledby="p-title">
+    <aside className="panel" aria-labelledby="p-title" style={{ top }}>
       <CardView key={id} id={id} now={now} onOpen={onOpen} onClose={onClose} closeRef={closeRef} filter={filter} setFilter={setFilter} />
     </aside>
   );

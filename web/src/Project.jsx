@@ -47,8 +47,9 @@ function Beacon({ b, failing, now }) {
       {b.described === false
         ? <span className="faint">{b.message || 'проект не описан в реестре'}</span>
         : <>
-            <span><span className="l">фаза</span>{b.phase ? <span className="phase">{b.phase}</span> : <span className="faint">фаза не указана в карточке проекта</span>}</span>
-            <span><span className="l">следующий шаг</span>{b.next ?? <span className="faint">—</span>}</span>
+            {/* не выше двух строк с «…»; целиком — во всплывающей подсказке (слово Ивана 02.10, как на «Цехе») */}
+            <span className="cl2" title={b.phase || undefined}><span className="l">фаза</span>{b.phase ? <span className="phase">{b.phase}</span> : <span className="faint">фаза не указана в карточке проекта</span>}</span>
+            <span className="cl2" title={b.next || undefined}><span className="l">следующий шаг</span>{b.next ?? <span className="faint">—</span>}</span>
           </>}
       {(b.repos || []).map((r, i) => <Repo key={r.path || r.name} r={r} label={labels[i]} />)}
       {b.phaseFailingSince && (
