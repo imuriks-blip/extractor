@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createJournalReader } from '../lib/journal-reader.mjs';
+import nodeFs from 'node:fs';
+import { createJournalReader, indexFingerprint } from '../lib/journal-reader.mjs';
+import { feedSession } from '../lib/journal-parse.mjs';
 import { tmpDir } from './helpers.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -122,4 +124,104 @@ test('журналы только читаются: дерево источни�
   await r.refresh();
   await r.refresh();
   assert.deepEqual(snapshot(t.root), before);
+});
+
+// ---------- правки по вердикту Голема (EXT-26, круг 1) ----------
+
+const strip = (ss) => ss.map(({ file, ...x }) => x);
+
+test('Критично 1: ошибка записи индекса (rename) не роняет проход — errors 1, данные целы; исправный рядом', async () => {
+  const t = tree();
+  const ok = reader(t.root);
+  await ok.refresh();
+  assert.equal(ok.state().errors, 0);
+  const eperm = Object.assign(new Error('занят'), { code: 'EPERM' });
+  const badFs = { ...nodeFs, renameSync: () => { throw eperm; } };
+  const r = createJournalReader({ root: t.root, indexDir: tmpDir('index-'), rules: RULES, fs: badFs });
+  await assert.doesNotReject(r.refresh());
+  assert.equal(r.state().errors, 1);
+  assert.equal(r.state().lastError, 'EPERM');
+  assert.deepEqual(strip(r.sessions()), strip(ok.sessions()), 'прежние данные целы');
+});
+
+test('Критично 1: refresh() не отклоняется ни при какой ошибке прохода (каталог источника пропал)', async () => {
+  const r = reader(path.join(tmpDir('gone-'), 'нет-такого'));
+  await assert.doesNotReject(r.refresh());
+  assert.equal(r.state().errors, 1);
+});
+
+test('Важно 1: смена правил boardWriteTools или разбора — полный пересбор индекса; те же — только хвост', async () => {
+  const t = tree();
+  const indexDir = tmpDir('index-');
+  const r1 = reader(t.root, indexDir);
+  await r1.refresh();
+  const same = reader(t.root, indexDir);
+  await same.refresh();
+  assert.equal(same.state().lastPassLines, 0);
+  const other = createJournalReader({ root: t.root, indexDir, rules: RULES.slice(0, 1) });
+  await other.refresh();
+  assert.equal(other.state().lastPassLines, other.state().lines, 'правила другие — перечитано всё');
+  assert.notEqual(indexFingerprint('a', RULES), indexFingerprint('b', RULES), 'отпечаток зависит от текста разбора');
+  assert.equal(indexFingerprint('a\r\nb', RULES), indexFingerprint('a\nb', RULES), 'концы строк checkout не влияют');
+});
+
+test('Важно 2: поток упал посреди файла — повторный проход дочитывает, без двойного счёта', async () => {
+  const t = tree();
+  let fail = true;
+  const flakyFs = {
+    ...nodeFs,
+    createReadStream: (f, o) => (async function* () {
+      let i = 0;
+      for await (const c of nodeFs.createReadStream(f, { ...o, highWaterMark: 4096 })) {
+        if (fail && f === t.main && i++ === 2) throw Object.assign(new Error('сбой'), { code: 'EIO' });
+        yield c;
+      }
+    })(),
+  };
+  const r = createJournalReader({ root: t.root, indexDir: tmpDir('index-'), rules: RULES, fs: flakyFs });
+  await r.refresh();
+  assert.equal(r.state().errors, 1);
+  fail = false;
+  await r.refresh();
+  const whole = reader(tree().root);
+  await whole.refresh();
+  assert.equal(r.state().lines, whole.state().lines);
+  assert.deepEqual(strip(r.sessions()), strip(whole.sessions()));
+});
+
+test('Важно 2: исключение разбора на строке — строка «непонятая», проход идёт дальше и не повторяется', async () => {
+  const t = tree();
+  let calls = 0;
+  const feeders = { session: (st, d, o) => { if (++calls === 5) throw new Error('сбой разбора'); return feedSession(st, d, o); } };
+  const r = createJournalReader({ root: t.root, indexDir: tmpDir('index-'), rules: RULES, feeders });
+  await r.refresh();
+  assert.equal(Object.values(r.state().unknown).reduce((a, b) => a + b, 0), 1);
+  assert.equal(r.state().errors, 0);
+  const n = r.state().lines;
+  await r.refresh();
+  assert.equal(r.state().lines, n);
+  assert.ok(r.sessions()[0].runs.find((x) => x.agentId === GOLEM), 'строки после сбойной разобраны');
+});
+
+test('мелочь 3–4: тип и описание — сначала .meta.json, потом вызов Agent; .meta.json, появившийся позже, дочитывается', async () => {
+  const t = tree();
+  const meta = path.join(t.root, 'C--Users-imuri-Documents-Obsidian-Vault', SID, 'subagents', `agent-${GOLEM}.meta.json`);
+  const saved = fs.readFileSync(meta, 'utf8');
+  fs.unlinkSync(meta);
+  const r = reader(t.root);
+  await r.refresh();
+  let run = r.sessions()[0].runs.find((x) => x.agentId === GOLEM);
+  assert.equal(run.agentType, 'golem', 'без .meta.json — из вызова');
+  fs.writeFileSync(meta, JSON.stringify({ ...JSON.parse(saved), agentType: 'golem-из-meta', description: 'описание-из-meta' }));
+  await r.refresh();
+  run = r.sessions()[0].runs.find((x) => x.agentId === GOLEM);
+  assert.equal(run.agentType, 'golem-из-meta');
+  assert.equal(run.description, 'описание-из-meta');
+});
+
+test('мелочь 6: версия непонятой строки — только вида N.N.N, иначе «?»', async () => {
+  const t = tree([...MAIN, '{"type":"zzz","version":"<не версия>"}', '{"version":"x y z","type":']);
+  const r = reader(t.root);
+  await r.refresh();
+  assert.deepEqual(r.state().unknown, { '?': 2 });
 });

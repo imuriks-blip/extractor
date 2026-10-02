@@ -267,3 +267,18 @@ test('продолжение с resumedAgentId — новый старт, даж
   const seq = MAIN.filter((d) => !(d.origin?.kind === 'peer') && !(typeof d.message?.content === 'string' && d.message.content.includes(`<task-id>${GOLEM}</task-id>`)));
   assert.equal(session(seq).runs[GOLEM].continuations, 2);
 });
+
+test('мелочь 1: уведомление массивом [{type:text}] — тоже итог', () => {
+  const notif = clone(MAIN.find((d) => typeof d.message?.content === 'string' && d.message.content.includes(`<task-id>${GOLEM}</task-id>`)));
+  notif.message.content = [{ type: 'text', text: notif.message.content }];
+  assert.equal(session([...golemLaunch(), notif]).runs[GOLEM].alive, false);
+});
+
+test('мелочь 2: SendMessage без запуска в журнале — запуск по resumedAgentId, а не по полю to', () => {
+  const send = MAIN.filter((d) => d.type === 'assistant' && d.message.content.some((p) => p.name === 'SendMessage' && p.input.to === GOLEM))[0];
+  const use = retarget(send, `"to":"${GOLEM}"`, '"to":"golem-по-имени"');
+  const st = session([use, resultFor(send)]);
+  assert.ok(st.runs[GOLEM], 'запуск под agentId из resumedAgentId');
+  assert.equal(st.runs[GOLEM].continuations, 1);
+  assert.equal(st.runs['golem-по-имени'], undefined);
+});

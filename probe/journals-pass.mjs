@@ -36,6 +36,9 @@ console.log(`журналов: ${st.files} (сессий ${ss.length}, суба�
 console.log(`непонятых строк по версиям: ${JSON.stringify(st.unknown)}`);
 console.log(`запусков субагентов: ${sum((s) => s.runs.length)}; заходов: ${per.reduce((a, p) => a + p.zakhods, 0)}; продолжений: ${per.reduce((a, p) => a + p.cont, 0)}; PARTIAL: ${sum((s) => s.partials.length)}; без итога (живые по журналу): ${st.runsOpen}`);
 console.log(`записей на доску (успешных): ${sum((s) => s.boardWrites.length)}; неуспешных: ${sum((s) => s.boardWritesFailed)}; сообщений Ивана: ${sum((s) => s.ivan.count)}`);
+const marked = /^(?:▶|⏸)️?/;
+console.log(`  из них первая строка не с ▶/⏸: ${sum((s) => s.boardWrites.filter((w) => !marked.test(w.firstLine)).length)}`);
+console.log(`индекс: ${st.indexBytes} байт, запись ${st.indexWriteMs} мс`);
 console.log(`время: полный проход ${(t1 - t0).toFixed(0)} мс, повторный (хвосты) ${(t2 - t1).toFixed(0)} мс; память: пик RSS ${mb(peak)}, heapUsed ${mb(process.memoryUsage().heapUsed)}; индекс ${mb(fs.statSync(path.join(indexDir, 'journals.json')).size)}`);
 console.log('\nтоп-10 сессий по запускам:');
 console.table(per.sort((a, b) => b.runs - a.runs || b.lines - a.lines).slice(0, 10));

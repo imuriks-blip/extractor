@@ -24,7 +24,9 @@
       "unknown": {
         "2.1.286": 1
       },
-      "runsOpen": 2
+      "runsOpen": 2,
+      "indexBytes": 2097152,
+      "indexWriteMs": 48
     }
   },
   "gitCalls": {
