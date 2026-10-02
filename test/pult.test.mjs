@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import Fastify from 'fastify';
 import { buildApp } from '../lib/app.mjs';
@@ -44,7 +45,7 @@ const registry = createRegistryReader(regFile);
 // собранный интерфейс: оболочка с заглушкой токена, как её выдаёт сборка Vite (web/index.html)
 const STUB = '<!doctype html><html><head><meta charset="utf-8"><meta name="vitrina-token" content="__VITRINA_TOKEN__"><title>t</title></head><body></body></html>';
 
-async function setup({ off = OFF, enabled = true, words = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir } = {}) {
+async function setup({ off = OFF, enabled = true, words = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir, spawn = fakeSpawn() } = {}) {
   const web = tmpDir('web-');
   fs.writeFileSync(path.join(web, 'index.html'), html);
   const actionsLog = path.join(data, 'actions.log');
@@ -54,11 +55,29 @@ async function setup({ off = OFF, enabled = true, words = true, handlers, now, m
     log: { write: (ev, f) => logLines.push({ ev, ...f }) },
     // флаги и пути — как из config.json; подмены для тестов — отдельным параметром (конфиг защиту не выключит)
     pult: { enabled, words, actionsLog, mirrorDir: mirrorDir ?? tmpDir('mirror-'), lock: lockLib, boardRoot },
-    pultSeams: { checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, planeRun },
+    pultSeams: { checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, planeRun, spawn },
   });
   const raw = () => (fs.existsSync(actionsLog) ? fs.readFileSync(actionsLog, 'utf8') : '');
   const lines = () => raw().split('\n').filter(Boolean).map((l) => JSON.parse(l));
   return { app, lines, raw, actionsLog, logLines, data };
+}
+
+// подменный запуск процесса (EXT-42): ни один тест не запускает настоящий wscript/mirror.mjs. fail — код ошибки
+// запуска (событие error, как у spawn при ненайденном файле); throwSync — исключение из самого вызова
+function fakeSpawn({ fail, throwSync } = {}) {
+  const calls = [];
+  const fn = (cmd, args, opts) => {
+    const c = { cmd, args, opts, unref: 0 };
+    calls.push(c);
+    if (throwSync) throw Object.assign(new Error('spawn'), { code: throwSync });
+    const ch = new EventEmitter();
+    ch.pid = fail ? undefined : 7000 + calls.length;
+    ch.unref = () => { c.unref++; };
+    process.nextTick(() => (fail ? ch.emit('error', Object.assign(new Error(`spawn ${cmd} ${fail}`), { code: fail })) : ch.emit('spawn')));
+    return ch;
+  };
+  fn.calls = calls;
+  return fn;
 }
 
 // токен — так, как его возьмёт страница: из отданного HTML
@@ -338,13 +357,13 @@ test('config.default.json: pult.enabled и pult.words — false', () => {
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------
 
-test('словарь §1.3: тринадцать действий таблицы и ping; настоящие — 501 «ещё не подключено» без строки в actions.log', async () => {
+test('словарь §1.3: тринадцать действий таблицы и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
   assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'return', 'take', 'yes'].sort());
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай'].sort());
   const { app, lines } = await setup();
   const token = await pageToken(app);
   const body = { yes: { card: 'EXT-6' }, go: { card: 'EXT-6' }, merge: { card: 'EXT-6' }, deploy: { card: 'EXT-6' }, no: { card: 'EXT-6' }, reply: { card: 'EXT-6', text: 'ответ' },
-    accept: { card: 'EXT-6' }, return: { card: 'EXT-6', text: 'причина' }, take: { card: 'EXT-6' }, mirror: {}, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
+    accept: { card: 'EXT-6' }, return: { card: 'EXT-6', text: 'причина' }, take: { card: 'EXT-6' }, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
   for (const [action, extra] of Object.entries(body)) {
     const r = await act(app, token, { body: { action, intentId: nextIntent(), ...extra } });
     assert.equal(r.statusCode, 501, action);
@@ -808,4 +827,205 @@ test('GET /api/mirror, правило 4 §5 доски: живой pid той ж
   assert.equal((await get()).running, false, 'progress нет — пульс от at замка (10 мин)');
   st({ at: iso(now - 60000), kind: 'full', progress: { phase: 'cards', at: iso(now - 60000), started_at: iso(now - 10 * 60000) } });
   assert.equal((await get()).running, true, 'пульс свежий');
+});
+
+// ---------------- EXT-42: «Прогони зеркало» — действие mirror (обычный проход) ----------------
+// Запуск — подменный (fakeSpawn): настоящий mirror.mjs тесты не запускают никогда.
+
+const p2 = (n) => String(n).padStart(2, '0');
+const hhmm = (ms) => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+// доска с обёрткой скрытого запуска: файл только лежит, его никто не исполняет
+function launcherBoard() {
+  const root = tmpDir('mboard-');
+  fs.mkdirSync(path.join(root, 'tools'));
+  fs.writeFileSync(path.join(root, 'tools', 'mirror-hidden.js'), '// заглушка: тесты её не запускают\n');
+  return root;
+}
+const mirrorBody = (extra = {}) => ({ body: { action: 'mirror', intentId: nextIntent(), ...extra } });
+const getMirror = async (app) => (await app.inject({ method: 'GET', url: '/api/mirror', headers: { host: `127.0.0.1:${PORT}` } })).json();
+
+test('mirror: запуск — wscript //B //Nologo //E:JScript <доска>\\tools\\mirror-hidden.js <node> --changed --log <data>\\mirror-run.log; отсоединённо, без окна, unref', async () => {
+  const root = launcherBoard();
+  const spawn = fakeSpawn();
+  const { app, data } = await setup({ boardRoot: root, spawn });
+  const r = await act(app, await pageToken(app), mirrorBody());
+  assert.equal(r.statusCode, 200);
+  assert.deepEqual([r.json().step, r.json().outcome, r.json().message], ['done', 'ok', 'зеркало запущено']);
+  assert.match(r.json().id, /^W-\d{6}-\d{6}-[0-9a-f]{4}$/);
+  assert.equal(spawn.calls.length, 1);
+  const [c] = spawn.calls;
+  assert.equal(path.basename(c.cmd).toLowerCase(), 'wscript.exe');
+  assert.ok(path.isAbsolute(c.cmd), 'wscript — полным путём, не поиском по PATH');
+  assert.deepEqual(c.args, ['//B', '//Nologo', '//E:JScript', path.join(root, 'tools', 'mirror-hidden.js'), process.execPath, '--changed', '--log', path.join(data, 'mirror-run.log')]);
+  assert.ok(!c.args.includes('--exit-with-parent'), 'проход живёт после рестарта витрины');
+  assert.equal(c.opts.detached, true);
+  assert.equal(c.opts.windowsHide, true);
+  assert.equal(c.opts.stdio, 'ignore');
+  assert.equal(c.unref, 1);
+});
+
+test('mirror: kind — только changed (по умолчанию); full — 501 «ещё не подключено» без записи и запуска; иное — 400', async () => {
+  const spawn = fakeSpawn();
+  const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn });
+  const token = await pageToken(app);
+  const full = await act(app, token, mirrorBody({ kind: 'full' }));
+  assert.equal(full.statusCode, 501);
+  assert.match(full.json().message, /полный.*ещё не подключено/);
+  for (const kind of ['bogus', 1, '', 'card']) assert.equal((await act(app, token, mirrorBody({ kind }))).statusCode, 400, String(kind));
+  assert.equal((await act(app, token, { body: { action: 'ping', intentId: nextIntent(), kind: 'changed' } })).statusCode, 400, 'kind — только у mirror');
+  assert.equal(spawn.calls.length, 0);
+  assert.equal(lines().length, 0);
+  assert.equal((await act(app, token, mirrorBody({ kind: 'changed' }))).statusCode, 200);
+  assert.deepEqual(spawn.calls[0].args.slice(5, 6), ['--changed']);
+});
+
+test('mirror: actions.log — asked (kind changed), затем done с result {outcome, pid wscript, ms}', async () => {
+  const spawn = fakeSpawn();
+  const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn });
+  const r = await act(app, await pageToken(app), mirrorBody());
+  const ls = lines();
+  assert.deepEqual(steps(ls), ['asked', 'done']);
+  assert.ok(ls.every((l) => l.id === r.json().id && l.action === 'mirror' && l.mode === 'mirror'));
+  assert.equal(ls[0].kind, 'changed');
+  assert.equal(ls[1].result.outcome, 'ok');
+  assert.equal(ls[1].result.pid, 7001, 'pid подменного запуска');
+  assert.ok(Number.isInteger(ls[1].result.ms) && ls[1].result.ms >= 0);
+});
+
+test('mirror: уже идёт по пульсу (progress моложе 5 мин) — refused mirror-running, «зеркало уже идёт (<вид> с ЧЧ:ММ)», запуска нет', async () => {
+  const dir = tmpDir('mirror-');
+  const t = Date.now();
+  const started = t - 7 * 60000;
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: new Date(t - 30000).toISOString(), kind: 'full', progress: { phase: 'cards', cards_done: 3, cards_total: 9, at: new Date(t - 30000).toISOString(), started_at: new Date(started).toISOString() } }));
+  const spawn = fakeSpawn();
+  const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn, mirrorDir: dir });
+  const r = await act(app, await pageToken(app), mirrorBody());
+  assert.equal(r.statusCode, 409);
+  assert.deepEqual([r.json().step, r.json().outcome, r.json().message], ['refused', 'refused', `зеркало уже идёт (full с ${hhmm(started)})`]);
+  assert.equal(spawn.calls.length, 0);
+  assert.deepEqual(steps(lines()), ['asked', 'refused']);
+  assert.equal(lines()[1].refusal, 'mirror-running');
+});
+
+test('mirror: уже идёт по живому run.lock (pid жив, та же загрузка) без пульса — refused, запуска нет; мёртвый pid — запуск идёт', async () => {
+  const dir = tmpDir('mirror-');
+  const at = Date.now() - 60000;
+  fs.writeFileSync(path.join(dir, 'run.lock'), JSON.stringify({ pid: process.pid, kind: 'changed', at: new Date(at).toISOString(), boot: lockLib.bootTime() }));
+  const spawn = fakeSpawn();
+  const { app } = await setup({ boardRoot: launcherBoard(), spawn, mirrorDir: dir });
+  const token = await pageToken(app);
+  const r = await act(app, token, mirrorBody());
+  assert.equal(r.json().message, `зеркало уже идёт (changed с ${hhmm(at)})`);
+  assert.equal(spawn.calls.length, 0);
+  fs.writeFileSync(path.join(dir, 'run.lock'), JSON.stringify({ pid: 0x7ffffff0, kind: 'changed', at: new Date(at).toISOString(), boot: lockLib.bootTime() }));
+  assert.equal((await act(app, token, mirrorBody())).json().outcome, 'ok');
+  assert.equal(spawn.calls.length, 1);
+});
+
+test('mirror: своя память «запущено в …» — второе нажатие сразу (пульс ещё пуст) → «уже идёт», один запуск; через 60 с — снова можно', async () => {
+  let t = Date.parse('2026-10-03T12:00:00+03:00');
+  const spawn = fakeSpawn();
+  const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn, now: () => t });
+  const token = await pageToken(app);
+  const [a, b] = await Promise.all([act(app, token, mirrorBody()), act(app, token, mirrorBody())]);
+  assert.deepEqual([a.json().outcome, b.json().outcome].sort(), ['ok', 'refused']);
+  assert.equal([a, b].find((r) => r.json().outcome === 'refused').json().message, `зеркало уже идёт (changed с ${hhmm(t)})`);
+  assert.equal(spawn.calls.length, 1, 'два wscript подряд не пошли');
+  t += 59000;
+  assert.equal((await act(app, token, mirrorBody())).json().outcome, 'refused');
+  assert.equal(spawn.calls.length, 1);
+  t += 2000;
+  assert.equal((await act(app, token, mirrorBody())).json().outcome, 'ok', 'память — 60 с');
+  assert.equal(spawn.calls.length, 2);
+  assert.equal(lines().filter((l) => l.refusal === 'mirror-running').length, 2);
+});
+
+test('mirror: своя память снимается, когда запущенный проход уже отметился в status.json (быстрый проход кончился раньше 60 с)', async () => {
+  const dir = tmpDir('mirror-');
+  const spawn = fakeSpawn();
+  const { app } = await setup({ boardRoot: launcherBoard(), spawn, mirrorDir: dir });
+  const token = await pageToken(app);
+  assert.equal((await act(app, token, mirrorBody())).json().outcome, 'ok');
+  assert.equal((await act(app, token, mirrorBody())).json().outcome, 'refused');
+  // проход отработал: пульс снят, итог записан — at позже запуска
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: new Date(Date.now() + 1000).toISOString(), kind: 'changed', lastOk: new Date(Date.now() + 1000).toISOString() }));
+  assert.equal((await act(app, token, mirrorBody())).json().outcome, 'ok');
+  assert.equal(spawn.calls.length, 2);
+});
+
+test('mirror: сбой запуска (wscript не нашёлся — событие error; исключение из spawn; нет mirror-hidden.js) — error с кодом словом, память не держит', async () => {
+  for (const [opts, code] of [[{ fail: 'ENOENT' }, 'ENOENT'], [{ throwSync: 'EPERM' }, 'EPERM']]) {
+    const spawn = fakeSpawn(opts);
+    const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn });
+    const token = await pageToken(app);
+    const r = await act(app, token, mirrorBody());
+    assert.equal(r.statusCode, 500, code);
+    assert.deepEqual([r.json().step, r.json().outcome, r.json().message], ['error', 'error', `ошибка: ${code}`]);
+    assert.deepEqual(steps(lines()), ['asked', 'error']);
+    assert.equal(lines()[1].result.code, code);
+    assert.equal(spawn.calls.length, 1);
+    assert.equal((await act(app, token, mirrorBody())).json().outcome, 'error', 'после сбоя — новая попытка, а не «уже идёт»');
+    assert.equal(spawn.calls.length, 2);
+  }
+  const spawn = fakeSpawn();
+  const { app, lines } = await setup({ boardRoot: tmpDir('noboard-'), spawn });
+  const r = await act(app, await pageToken(app), mirrorBody());
+  assert.equal(r.json().message, 'ошибка: NO_LAUNCHER');
+  assert.equal(lines()[1].result.code, 'NO_LAUNCHER');
+  assert.equal(spawn.calls.length, 0, 'без обёртки wscript не запускается');
+});
+
+test('mirror: флаги — pult.enabled = false → 503 без записи и запуска; pult.words = false действие не держит', async () => {
+  const spawn = fakeSpawn();
+  const off = await setup({ boardRoot: launcherBoard(), spawn, enabled: false });
+  assert.equal((await act(off.app, await pageToken(off.app), mirrorBody())).statusCode, 503);
+  assert.equal(off.lines().length, 0);
+  assert.equal(spawn.calls.length, 0);
+  const noWords = await setup({ boardRoot: launcherBoard(), spawn, words: false });
+  assert.equal((await act(noWords.app, await pageToken(noWords.app), mirrorBody())).statusCode, 200);
+  assert.equal(spawn.calls.length, 1);
+});
+
+test('[token] mirror без токена → 403: ни строки, ни запуска', async () => {
+  const spawn = fakeSpawn();
+  const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn });
+  const r = await act(app, undefined, { headers: { 'x-vitrina-token': undefined }, ...mirrorBody() });
+  assert.equal(r.statusCode, 403);
+  assert.equal(lines().length, 0);
+  assert.equal(spawn.calls.length, 0);
+});
+
+test('mirror: тот же intentId — прежний исход, второго запуска нет (и после рестарта витрины)', async () => {
+  const data = tmpDir('pult-');
+  const root = launcherBoard();
+  const spawn = fakeSpawn();
+  const first = await setup({ boardRoot: root, spawn, data });
+  const body = mirrorBody();
+  const a = await act(first.app, await pageToken(first.app), body);
+  const b = await act(first.app, await pageToken(first.app), body);
+  assert.equal(b.json().id, a.json().id);
+  const second = await setup({ boardRoot: root, spawn, data });
+  const c = await act(second.app, await pageToken(second.app), body);
+  assert.deepEqual([c.json().id, c.json().outcome], [a.json().id, 'ok']);
+  assert.equal(spawn.calls.length, 1);
+});
+
+test('GET /api/mirror: пока своя память держит запуск — running, kind changed, startedAt — время запуска; поля прохода пусты', async () => {
+  const t = Date.parse('2026-10-03T12:00:00+03:00');
+  const { app } = await setup({ boardRoot: launcherBoard(), now: () => t });
+  assert.equal((await getMirror(app)).running, false);
+  await act(app, await pageToken(app), mirrorBody());
+  const m = await getMirror(app);
+  assert.deepEqual([m.running, m.kind, m.startedAt, m.phase, m.cardsDone, m.cardsTotal], [true, 'changed', new Date(t).toISOString(), null, null, null]);
+});
+
+test('GET /api/mirror: живой замок нового прохода и progress прошлого (убитого) — числа прошлого не выдаются, startedAt — от замка', async () => {
+  const dir = tmpDir('mirror-');
+  const now = Date.now();
+  const iso = (ms) => new Date(ms).toISOString();
+  fs.writeFileSync(path.join(dir, 'run.lock'), JSON.stringify({ pid: process.pid, kind: 'changed', at: iso(now - 5000), boot: lockLib.bootTime() }));
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: iso(now - 60000), kind: 'full', progress: { phase: 'comments', cards_done: 500, cards_total: 700, requests: 900, rpm: 23, at: iso(now - 60000), started_at: iso(now - 3600000) } }));
+  const { app } = await setup({ mirrorDir: dir });
+  const m = await getMirror(app);
+  assert.deepEqual([m.running, m.kind, m.phase, m.cardsDone, m.cardsTotal, m.requests, m.rpm, m.startedAt], [true, 'changed', null, null, null, null, null, iso(now - 5000)]);
 });
