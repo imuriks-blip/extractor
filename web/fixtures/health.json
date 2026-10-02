@@ -1,5 +1,7 @@
 {
   "ok": true,
+  "app": "extractor-vitrina",
+  "pid": 12345,
   "readers": {
     "board": {
       "lastOkAt": "2026-10-01T12:00:03.120Z",
