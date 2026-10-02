@@ -134,3 +134,98 @@ test('Г: прерванный счёт (цикл с открытым вопро
   assert.deepEqual(toastRows(w([row]), { silent: true }).map((x) => x.key), [row.key]);
   assert.deepEqual(toastRows(w([row])).map((x) => x.key), [], 'без подтверждения — не тост');
 });
+
+// ---------- В ----------
+import nodeFs from 'node:fs';
+import { createJournalReader } from '../lib/journal-reader.mjs';
+
+// fs под счётчиком: какие пути трогали statSync и readdirSync
+function countingFs() {
+  const calls = { stat: [], readdir: [] };
+  const f = Object.create(nodeFs);
+  f.statSync = (p, ...a) => { calls.stat.push(path.resolve(String(p))); return nodeFs.statSync(p, ...a); };
+  f.readdirSync = (p, ...a) => { calls.readdir.push(path.resolve(String(p))); return nodeFs.readdirSync(p, ...a); };
+  f.reset = () => { calls.stat.length = 0; calls.readdir.length = 0; };
+  return { fs: f, calls };
+}
+const LINE = (n) => `{"type":"zzz-ext37","n":${n}}\n`;
+
+function journalsWorld() {
+  const root = tmpDir('ext37-journals-');
+  const P = path.join(root, 'C--proj');
+  nodeFs.mkdirSync(P);
+  const hot = path.join(P, 'hot-1.jsonl');
+  const cold = path.join(P, 'cold-1.jsonl');
+  const coldSub = path.join(P, 'cold-1', 'subagents');
+  nodeFs.mkdirSync(coldSub, { recursive: true });
+  nodeFs.mkdirSync(path.join(P, 'hot-1', 'subagents'), { recursive: true });
+  nodeFs.writeFileSync(hot, LINE(1));
+  nodeFs.writeFileSync(cold, LINE(1));
+  const coldAgent = path.join(coldSub, 'agent-a1.jsonl');
+  nodeFs.writeFileSync(coldAgent, LINE(1));
+  const hourAgo = new Date(Date.now() - 60 * 60000);
+  for (const f of [cold, coldAgent]) nodeFs.utimesSync(f, hourAgo, hourAgo);
+  return { root, P, hot, cold, coldSub, coldAgent };
+}
+
+test('В: раз в 2 с — только горячее: stat журналов, менявшихся за 15 мин, readdir каталогов проектов, subagents горячих сессий', async () => {
+  const W = journalsWorld();
+  const { fs, calls } = countingFs();
+  const clock = { t: Date.now() };
+  const live = new Set();
+  const r = createJournalReader({ root: W.root, indexDir: tmpDir('ext37-index-'), fs, now: () => new Date(clock.t), liveSessions: () => live });
+  await r.refresh();
+  assert.equal(r.state().files, 3);
+  assert.ok(calls.stat.includes(path.resolve(W.cold)), 'первый проход — полный');
+
+  fs.reset(); clock.t += 2000;
+  await r.refresh();
+  assert.ok(calls.stat.includes(path.resolve(W.hot)), 'горячий журнал — stat');
+  assert.ok(!calls.stat.includes(path.resolve(W.cold)), 'холодный журнал — без stat');
+  assert.ok(!calls.stat.includes(path.resolve(W.coldAgent)), 'холодный журнал субагента — без stat');
+  assert.ok(calls.readdir.includes(path.resolve(W.P)), 'каталог проекта — readdir (новый .jsonl)');
+  assert.ok(!calls.readdir.includes(path.resolve(W.coldSub)), 'subagents холодной сессии — без readdir');
+  assert.ok(calls.readdir.includes(path.resolve(W.P, 'hot-1', 'subagents')), 'subagents горячей сессии — readdir');
+  assert.ok(r.state().lastOkAt, 'горячий проход — удачное чтение');
+
+  // хвост живого журнала, новый журнал сессии, новый журнал субагента горячей сессии — за один горячий проход
+  const lines0 = r.state().lines;
+  nodeFs.appendFileSync(W.hot, LINE(2));
+  nodeFs.writeFileSync(path.join(W.P, 'new-1.jsonl'), LINE(1));
+  nodeFs.writeFileSync(path.join(W.P, 'hot-1', 'subagents', 'agent-b2.jsonl'), LINE(1));
+  clock.t += 2000;
+  await r.refresh();
+  assert.equal(r.state().files, 5, 'новый журнал сессии и новый журнал субагента найдены');
+  assert.equal(r.state().lines, lines0 + 3, 'хвост дочитан');
+
+  // холодный журнал живого треда (реестр процессов) — тоже горячий
+  nodeFs.appendFileSync(W.cold, LINE(2));
+  clock.t += 2000;
+  await r.refresh();
+  assert.equal(r.state().lines, lines0 + 3, 'холодный и не живой — ждёт полного обхода');
+  live.add('cold-1');
+  clock.t += 2000;
+  await r.refresh();
+  assert.equal(r.state().lines, lines0 + 4, 'живой тред — хвост за один горячий проход');
+
+  // полный обход — раз в 30 с
+  fs.reset(); clock.t += 30000;
+  await r.refresh();
+  assert.ok(calls.stat.includes(path.resolve(W.coldAgent)), 'через 30 с — полный обход');
+  assert.ok(calls.readdir.includes(path.resolve(W.coldSub)));
+});
+
+test('В: удалённый горячий журнал — не ошибка горячего прохода; полный обход убирает его из индекса', async () => {
+  const W = journalsWorld();
+  const clock = { t: Date.now() };
+  const r = createJournalReader({ root: W.root, indexDir: tmpDir('ext37-index-'), now: () => new Date(clock.t) });
+  await r.refresh();
+  nodeFs.unlinkSync(W.hot);
+  clock.t += 2000;
+  await r.refresh();
+  assert.equal(r.state().errors, 0);
+  assert.equal(r.state().failingSince, null);
+  clock.t += 30000;
+  await r.refresh();
+  assert.equal(r.state().files, 2);
+});
