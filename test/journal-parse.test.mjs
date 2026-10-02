@@ -333,3 +333,42 @@ test('2.1: склейка — по связи «тот же пакет ввод�
   same.timestamp = new Date(Date.parse(q.timestamp) + 10 * 60000).toISOString(); // 10 мин, ответа между нет
   assert.equal(session([q, same]).ivan.count, 1);
 });
+
+// ---------- слово Ивана 02.10 «картинка — да, считается»: сообщение из одной картинки без текста (EXT-27) ----------
+// Фикстура image-only.jsonl — две строки живой формы (журнал 01cb2e54-…, стр. 2338; журнал 59a4e21c-…, стр. 2170),
+// данные картинки заменены заглушкой 1×1. Живой проход 02.10: таких строк user 202, вложений с картинкой — 3.
+const [IMG_USER, IMG_QUEUED] = lines('image-only.jsonl');
+const otherImage = (d) => { const x = clone(d); const parts = x.message?.content ?? x.attachment.prompt; parts[0].source.data = 'AAAA'; return x; };
+
+test('2.1: строка user только с картинкой (origin human) — сообщение Ивана', () => {
+  assert.equal(IMG_USER.message.content.every((p) => p.type === 'image'), true, 'форма без текста');
+  assert.equal(isIvanMessage(IMG_USER), true);
+  const st = session([IMG_USER]);
+  assert.equal(st.ivan.count, 1);
+  assert.equal(st.ivan.lastAt, IMG_USER.timestamp);
+});
+
+test('2.1: картинка с isMeta, isSidechain или в паре со служебным текстом — не сообщение Ивана (контроль)', () => {
+  assert.equal(isIvanMessage({ ...clone(IMG_USER), isMeta: true }), false);
+  assert.equal(isIvanMessage({ ...clone(IMG_USER), isSidechain: true }), false);
+  const svc = clone(IMG_USER);
+  svc.message.content.push({ type: 'text', text: '<system-reminder>заглушка</system-reminder>' });
+  assert.equal(isIvanMessage(svc), false);
+  const tr = clone(IMG_USER);
+  tr.message.content = [{ type: 'tool_result', tool_use_id: 'x', content: [IMG_USER.message.content[0]] }];
+  assert.equal(isIvanMessage(tr), false, 'картинка внутри результата инструмента — не слово Ивана');
+});
+
+test('2.1: вложение queued_command с prompt-массивом из картинки — сообщение Ивана', () => {
+  assert.ok(Array.isArray(IMG_QUEUED.attachment.prompt));
+  assert.equal(IMG_QUEUED.attachment.commandMode, 'prompt');
+  assert.equal(session([IMG_QUEUED]).ivan.count, 1);
+});
+
+test('2.1: картинка вложением и следом та же картинка строкой user в том же пакете — одно сообщение; другая картинка — два; после ответа — два', () => {
+  const same = clone(IMG_USER);
+  same.message.content = clone(IMG_QUEUED.attachment.prompt);
+  assert.equal(session([IMG_QUEUED, same]).ivan.count, 1);
+  assert.equal(session([IMG_QUEUED, otherImage(same)]).ivan.count, 2, 'исправный случай: другое содержимое — два');
+  assert.equal(session([IMG_QUEUED, MAIN.find((d) => d.type === 'assistant'), same]).ivan.count, 2, 'после ответа ассистента — новое сообщение');
+});
