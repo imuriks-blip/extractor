@@ -19,7 +19,7 @@ const FLOW_LINE = `flow id ${FLOW_ID}`;
 const PORT = 4317;
 const H = { host: `127.0.0.1:${PORT}` };
 
-async function setup({ scanFn = scan } = {}) {
+async function setup({ scanFn = scan, threads } = {}) {
   const dir = makeBoard(tmpDir('board-'), {
     codes: ['CAR', 'EXT', 'RADAR', 'IPTV'],
     cards: [
@@ -40,7 +40,7 @@ async function setup({ scanFn = scan } = {}) {
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, fs: spy });
   await board.init();
   const lines = [];
-  const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), scan: scanFn, log: { write: (ev, f) => lines.push({ ev, ...f }) } });
+  const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), threads, scan: scanFn, log: { write: (ev, f) => lines.push({ ev, ...f }) } });
   spy.calls.length = 0;
   return { app, spy, lines, dir };
 }
@@ -183,4 +183,15 @@ test('/api/ceh: activityAt — самое свежее updated карточек 
   const j = (await app.inject({ method: 'GET', url: '/api/ceh', headers: H })).json();
   assert.equal(j.projects.find((p) => p.code === 'CAR').activityAt, '2026-09-30T12:00+03:00');
   assert.equal(j.projects.find((p) => p.code === 'RADAR').activityAt, null);
+});
+
+test('В3: строка треда в /api/ceh маскируется сетью своего проекта; тред без кода проекта — строгой сетью (ветка IPTV)', async () => {
+  const t = (project, title) => ({ sessionId: 's-' + String(project), title, project, state: 'idle', procStatus: 'idle', card: null, since: null, sinceKind: 'opened', lastSeenAt: null, subagents: [{ agent: 'terminus', who: 'Терминус', description: FLOW_LINE, turns: 1, maxTurns: 90, target: null }], marks: [], waitingKind: null, lastState: null });
+  const threads = { list: () => ({ threads: [t(null, FLOW_LINE), t('EXT', 'EXT · ' + FLOW_LINE)], subagentsCount: 2, unknownStatus: {} }), state: () => ({ processes: null, desktop: null }) };
+  const { app } = await setup({ threads });
+  const j = (await app.inject({ method: 'GET', url: '/api/ceh', headers: H })).json();
+  const [none, ext] = j.workers.threads;
+  assert.ok(!none.title.includes(FLOW_ID), 'без проекта — скрыто');
+  assert.ok(!none.subagents[0].description.includes(FLOW_ID), 'и в описании субагента');
+  assert.ok(ext.title.includes(FLOW_ID), 'исправный случай: у EXT id по признаку виден (класс 4) — тест зрячий');
 });
