@@ -13,15 +13,26 @@ import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
 
-// сеть-подмена: слово SECRET42 — находка класса 2
-const scan = (text) => {
+// сеть-подмена: SECRET42 — находка класса 2 в любой сети; FLOW77 — только в строгой (project: 'IPTV'), как id флоу
+// по слову-признаку у доски: так видно, какой сетью маскирован текст
+const scan = (text, { project = '' } = {}) => {
   const out = [];
-  text.replace(/\r\n?/g, '\n').split('\n').forEach((l, i) => { const k = l.indexOf('SECRET42'); if (k >= 0) out.push({ cls: 2, kind: 'метка', line: i + 1, start: k, end: k + 8 }); });
+  text.replace(/\r\n?/g, '\n').split('\n').forEach((l, i) => {
+    const k = l.indexOf('SECRET42'); if (k >= 0) out.push({ cls: 2, kind: 'метка', line: i + 1, start: k, end: k + 8 });
+    const q = l.indexOf('FLOW77'); if (q >= 0 && project === 'IPTV') out.push({ cls: 2, kind: 'флоу', line: i + 1, start: q, end: q + 6 });
+  });
   return out;
 };
+test('подмена сети различает проект: FLOW77 — находка только строгой сети', () => {
+  assert.equal(scan('x FLOW77', { project: 'EXT' }).length, 0);
+  assert.equal(scan('x FLOW77', { project: 'IPTV' }).length, 1);
+});
 
 async function setup() {
-  const dir = makeBoard(tmpDir('v5app-'), { codes: ['EXT', 'NEW'], cards: [
+  const dir = makeBoard(tmpDir('v5app-'), { codes: ['EXT', 'NEW', 'IPTV'], cards: [
+    { id: 'IPTV-1', title: 'Флоу FLOW77' },
+    { id: 'EXT-41', title: 'Свой FLOW77' },
+    { id: 'EXT-40', title: 'Связи с чужими', relates: ['IPTV-1', 'EXT-41'] },
     { id: 'EXT-1', title: 'Экстрактор — кабина' },
     { id: 'EXT-6', title: 'Спека витрины', status: 'review', body: '# Спека\n\nТело с SECRET42.', parent: 'EXT-1', blocks: ['EXT-7'], relates: ['EXT-8'] },
     { id: 'EXT-7', title: 'Слить' },
@@ -46,21 +57,22 @@ async function setup() {
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
   await board.init();
   const reg = path.join(tmpDir('v5reg-'), 'registry.json');
-  fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: ['unorbis/extractor.md'], repos: ['C:/projects/extractor'] } } }));
+  fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: ['unorbis/extractor.md'], repos: ['C:/projects/extractor'] }, IPTV: { projects: [], project_cards: ['iptv.md'], repos: ['C:/projects/iptv-player'] } } }));
   const registry = createRegistryReader(reg);
   const gitCalls = [];
   const gitReader = {
     beacon: (code) => { gitCalls.push(code); return code === 'EXT'
       ? { described: true, message: null, repos: [{ name: 'extractor', path: 'C:/projects/extractor', branch: 'main', dirty: 0, missing: false }, { name: 'wt', path: 'C:/x/wt', branch: 'ext-29', dirty: 3, missing: false }], readAt: '2026-10-02T10:00:00.000Z', failingSince: null }
       : { described: false, message: 'проект не описан в реестре', repos: [], readAt: null, failingSince: null }; },
-    commitsFor: (id) => ({ commits: id === 'EXT-6' ? [{ hash: 'abc1234', at: '2026-10-01T10:40:00+03:00', subject: 'spec: витрина SECRET42 (EXT-6)', repo: 'Obsidian Vault', branch: 'main' }] : [], readAt: '2026-10-02T10:00:00.000Z', failingSince: '2026-10-02T10:01:00.000Z' }),
+    commitsFor: (id) => ({ commits: id === 'EXT-6' ? [{ hash: 'abc1234', at: '2026-10-01T10:40:00+03:00', subject: 'spec: витрина SECRET42 (EXT-6)', repo: 'Obsidian Vault', branch: 'main', own: false }]
+      : id === 'EXT-40' ? [{ hash: 'own0001', at: '2026-10-01T10:00:00+03:00', subject: 'свой FLOW77 (EXT-40)', repo: 'extractor', branch: 'main', own: true }, { hash: 'iptv001', at: '2026-10-01T09:00:00+03:00', subject: 'чужой FLOW77 (EXT-40)', repo: 'iptv-player', branch: 'main', own: false }] : [], readAt: '2026-10-02T10:00:00.000Z', failingSince: '2026-10-02T10:01:00.000Z' }),
     state: () => ({ lastOkAt: null, errors: 0 }),
   };
-  const projectCards = { get: (code) => (code === 'EXT' ? { phase: 'Фаза целиком. '.repeat(10).trim(), next: 'Такт В5.' } : null) };
+  const projectCards = { get: (code) => (code === 'EXT' ? { phase: 'Фаза целиком. '.repeat(10).trim(), next: 'Такт В5.' } : code === 'IPTV' ? { phase: 'Фаза FLOW77.', next: 'Шаг FLOW77.' } : null) };
   const run = (o) => ({ agentType: 'terminus', description: null, target: null, cards: ['EXT-6'], alive: false, lastEndAt: null, turns: 1, zakhods: [1], lastAt: null, starts: [], ...o });
   const sessions = [
     { sessionId: 's1', partials: [{ agentId: 'r3', at: '2026-09-30T23:00:00+03:00', limit: 40 }], runs: [
-      run({ agentId: 'r1', description: 'EXT-6 В5 SECRET42', at: '2026-10-01T11:20:00+03:00', alive: true, turns: 34, zakhods: [34], target: 50 }),
+      run({ agentId: 'r1', description: 'EXT-6 В5 SECRET42 FLOW77', at: '2026-10-01T11:20:00+03:00', alive: true, turns: 34, zakhods: [34], target: 50 }),
       run({ agentId: 'r2', agentType: 'golem', description: 'EXT-6 ревью', at: '2026-10-01T09:10:00+03:00', lastEndAt: '2026-10-01T09:50:00+03:00', lastAt: '2026-10-01T09:49:00+03:00', turns: 31, zakhods: [20, 11], target: 35 }),
       run({ agentId: 'r3', agentType: 'clap', description: 'EXT-6 спека, ред. 2', at: '2026-09-30T22:00:00+03:00', lastEndAt: '2026-09-30T23:00:00+03:00', turns: 40, zakhods: [40] }),
       run({ agentId: 'r4', description: 'EXT-60 чужая', at: '2026-10-01T12:00:00+03:00', cards: ['EXT-60'] }),
@@ -115,14 +127,14 @@ test('карточка: лента — комменты журнала, комм
   const r = (await S.get('/api/card/EXT-6')).json();
   const brief = r.feed.map((f) => `${f.kind}@${f.at}`);
   assert.deepEqual(brief, [
-    'run@2026-10-01T11:20:00+03:00', 'commit@2026-10-01T10:40:00+03:00', 'comment@2026-10-01T07:35:00.000Z',
-    'run@2026-10-01T09:10:00+03:00', 'run@2026-09-30T22:00:00+03:00', 'comment@2026-09-30T10:57:00.000Z',
+    'run@2026-10-01T08:20:00.000Z', 'commit@2026-10-01T07:40:00.000Z', 'comment@2026-10-01T07:35:00.000Z',
+    'run@2026-10-01T06:10:00.000Z', 'run@2026-09-30T19:00:00.000Z', 'comment@2026-09-30T10:57:00.000Z',
   ]);
   const [r1, c, k1, r2, r3, k0] = r.feed;
-  assert.deepEqual(c, { kind: 'commit', at: '2026-10-01T10:40:00+03:00', hash: 'abc1234', subject: 'spec: витрина [скрыто: метка] (EXT-6)', repo: 'Obsidian Vault', branch: 'main' });
+  assert.deepEqual(c, { kind: 'commit', at: '2026-10-01T07:40:00.000Z', hash: 'abc1234', subject: 'spec: витрина [скрыто: метка] (EXT-6)', repo: 'Obsidian Vault', branch: 'main' });
   assert.equal(k1.author, 'trurl:EXT'); assert.equal(k1.logKind, 'решение'); assert.equal(k1.body, 'Спека утверждена.\n\nКто решил: слово Ивана.');
   assert.equal(k0.author, null, 'автор plane не показывается'); assert.equal(k0.logKind, '▶');
-  assert.deepEqual({ ...r1 }, { kind: 'run', at: '2026-10-01T11:20:00+03:00', agent: 'terminus', who: 'Терминус', description: 'EXT-6 В5 [скрыто: метка]', turnsTotal: 34, entries: 1, maxTurns: 90, target: 50, result: 'работает' });
+  assert.deepEqual({ ...r1 }, { kind: 'run', at: '2026-10-01T08:20:00.000Z', agent: 'terminus', who: 'Терминус', description: 'EXT-6 В5 [скрыто: метка] [скрыто: флоу]', turnsTotal: 34, entries: 1, maxTurns: 90, target: 50, result: 'работает' });
   assert.equal(r2.result, 'готово'); assert.equal(r2.turnsTotal, 31); assert.equal(r2.entries, 2); assert.equal(r2.maxTurns, 40);
   assert.equal(r3.result, 'обрыв · PARTIAL');
   assert.deepEqual(r.feedCounts, { comment: 2, commit: 1, run: 3 });
@@ -145,15 +157,15 @@ test('доска проекта: колонки по статусу, карто�
   assert.equal(r.lastLog.text.length, 120); assert.ok(r.lastLog.text.endsWith('…')); assert.ok(r.lastLog.text.startsWith('Длинная первая строка'));
   assert.equal(r.at, '2026-09-29T06:00:00.000Z', 'давность — max(updated, последняя запись)');
   assert.deepEqual(b.review.map((c) => [c.id, c.at, c.lastLog.text, c.lastLog.author]), [['EXT-6', '2026-10-01T07:35:00.000Z', 'Спека утверждена.', 'trurl:EXT']]);
-  assert.equal(b.backlog.length, 6);
+  assert.equal(b.backlog.length, 8);
   assert.deepEqual(Object.keys(b.backlog[0]).sort(), ['at', 'id', 'label', 'title']);
   assert.deepEqual(b.done.map((c) => [c.id, c.cancelled]), [['EXT-34', false], ['EXT-33', true], ['EXT-32', false]], 'последние сверху, отменённая — с пометкой');
-  assert.deepEqual(b.counts, { live: 3, backlog: 6, done: 3 });
+  assert.deepEqual(b.counts, { live: 3, backlog: 8, done: 3 });
 });
 
 test('доска проекта: в колонке свежие сверху', async () => {
   const b = (await S.get('/api/project/EXT')).json().board;
-  assert.equal(b.backlog.length, 6);
+  assert.equal(b.backlog.length, 8);
   assert.equal(b.backlog[0].id, 'EXT-26');
   const ats = b.backlog.map((c) => Date.parse(c.at));
   assert.deepEqual(ats, [...ats].sort((x, y) => y - x));
@@ -173,4 +185,21 @@ test('«Цех»: фаза и следующий шаг — первое пре�
   assert.deepEqual(brief('Такт В5. Потом В6.'), { short: 'Такт В5.', full: 'Такт В5. Потом В6.' });
   assert.equal(brief('01.10 слито, шаг 2.5 — дальше').short, '01.10 слито, шаг 2.5 — дальше', 'точка без пробела — не конец предложения');
   assert.equal(brief(null), null);
+});
+
+test('«Цех»: фаза и шаг каждого проекта — сетью его проекта (IPTV — строгой), не мягкой сетью ручки', async () => {
+  const ceh = (await S.get('/api/ceh')).json();
+  const iptv = ceh.projects.find((p) => p.code === 'IPTV');
+  assert.deepEqual(iptv.phase, { short: 'Фаза [скрыто: флоу].', full: 'Фаза [скрыто: флоу].' });
+  assert.deepEqual(iptv.next, { short: 'Шаг [скрыто: флоу].', full: 'Шаг [скрыто: флоу].' });
+});
+
+test('карточка EXT: коммит из репозитория IPTV и заголовок связанной IPTV-карточки — строгой сетью; свои — сетью EXT', async () => {
+  const r = (await S.get('/api/card/EXT-40')).json();
+  const rel = Object.fromEntries(r.links.relates.map((x) => [x.id, x.title]));
+  assert.equal(rel['IPTV-1'], 'Флоу [скрыто: флоу]');
+  assert.equal(rel['EXT-41'], 'Свой FLOW77');
+  const subj = Object.fromEntries(r.feed.filter((f) => f.kind === 'commit').map((f) => [f.hash, f.subject]));
+  assert.deepEqual(subj, { own0001: 'свой FLOW77 (EXT-40)', iptv001: 'чужой [скрыто: флоу] (EXT-40)' });
+  assert.ok(r.feed.every((f) => !('own' in f)), 'служебный признак сети наружу не идёт');
 });

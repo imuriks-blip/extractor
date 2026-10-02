@@ -7,7 +7,7 @@ import { createGitStats } from '../lib/git-stats.mjs';
 import { createServerLog } from '../lib/server-log.mjs';
 import { tmpDir } from './helpers.mjs';
 
-test('git-stats: всего и пик за календарную минуту, ключ — полный путь', () => {
+test('git-stats: всего и пик за календарную минуту, ключ — полный путь в нижнем регистре (Г3)', () => {
   let now = Date.parse('2026-10-01T12:00:05Z');
   const s = createGitStats(() => now);
   const A = 'C:\\Users\\imuri\\Documents\\Obsidian Vault';
@@ -16,8 +16,8 @@ test('git-stats: всего и пик за календарную минуту, 
   s.onCall(A);
   s.onCall('C:\\projects\\unorbis-board');
   assert.deepEqual(s.snapshot(), {
-    [A]: { total: 4, peakPerMin: 3 },
-    'C:\\projects\\unorbis-board': { total: 1, peakPerMin: 1 },
+    'c:\\users\\imuri\\documents\\obsidian vault': { total: 4, peakPerMin: 3 },
+    'c:\\projects\\unorbis-board': { total: 1, peakPerMin: 1 },
   });
 });
 

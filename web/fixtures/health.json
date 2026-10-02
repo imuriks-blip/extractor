@@ -52,7 +52,12 @@
       "lastError": null,
       "repos": 15,
       "failing": 0,
-      "passes": 12
+      "passes": 12,
+      "logRuns": 20,
+      "logSkipped": 148,
+      "wtErrors": 0,
+      "firstPassMs": 3400,
+      "lastPassMs": 900
     }
   },
   "gitCalls": {

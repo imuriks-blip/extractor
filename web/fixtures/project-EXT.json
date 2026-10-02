@@ -6,32 +6,37 @@
     "message": null,
     "phase": "Витрина этапа 1: каркас сервера и читатель доски. Дальше — журналы сессий и субагентов.",
     "next": "Такт В1 — каркас и читатель доски.",
+    "phaseReadAt": "2026-10-01T12:00:00.000Z",
+    "phaseFailingSince": null,
     "repos": [
       {
         "name": "extractor",
         "path": "C:/projects/extractor",
         "branch": "main",
         "dirty": 0,
-        "missing": false
+        "missing": false,
+        "error": null
       },
       {
         "name": "ext-25",
         "path": "C:/projects/extractor-wt/ext-25",
         "branch": "ext-25-v1-skeleton",
-        "dirty": 4,
-        "missing": false
+        "dirty": null,
+        "missing": false,
+        "error": "EPERM"
       },
       {
         "name": "unorbis-board",
         "path": "C:/projects/unorbis-board",
         "branch": "main",
         "dirty": 0,
-        "missing": false
+        "missing": false,
+        "error": null
       }
     ],
     "readAt": "2026-10-01T12:00:00.000Z",
     "failingSince": null,
-    "_note": "described: false → message «проект не описан в реестре», repos []. phase/next null → серым «фаза не указана в карточке проекта» (2.5). dirty 0 — «чисто», N — «N файлов не закоммичены», null — не прочитано (missing: true — папки рабочей копии нет). failingSince не null — серая строка «данные на ЧЧ:ММ (readAt), чтение не удаётся N мин» (2.7)."
+    "_note": "described: false → message «проект не описан в реестре», repos []. phase/next null → серым «фаза не указана в карточке проекта» (2.5). dirty 0 — «чисто», N — «N файлов не закоммичены», null — не прочитано (missing: true — папки рабочей копии нет). failingSince не null — серая строка «данные на ЧЧ:ММ (readAt), чтение не удаётся N мин» (2.7). У строки рабочей копии error не null — её status не прочитан (dirty null), репозиторий и лента читаются дальше. phaseFailingSince — то же для фазы и шага."
   },
   "waiting": [
     {
