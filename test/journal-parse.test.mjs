@@ -229,3 +229,41 @@ test('1.4: журнал дирижёра: MCP-коммент и plane.py close �
   assert.equal(st.boardWrites.filter((w) => w.tool === 'mcp__plane__create_work_item_comment').length, 1);
   assert.equal(st.boardWrites.length, 2); // + plane.py close (стр. 1372/1373)
 });
+
+// ---------- формы итога, найденные живым проходом 02.10 (в спеке не названы) ----------
+
+const golemLaunch = () => MAIN.slice(0, MAIN.findIndex((d) => d.toolUseResult?.agentId === GOLEM) + 1);
+const retarget = (d, from, to) => JSON.parse(JSON.stringify(d).replaceAll(from, to));
+
+test('итог: уведомление, пришедшее вложением queued_command (журнал bbd77ac1-…, стр. 4584), закрывает заход', () => {
+  const [att] = lines('notification-attachment.jsonl');
+  assert.equal(att.attachment.type, 'queued_command');
+  assert.equal(session(golemLaunch()).runs[GOLEM].alive, true, 'исправный: без уведомления — живой');
+  assert.equal(session([...golemLaunch(), retarget(att, 'abc69cad342028111', GOLEM)]).runs[GOLEM].alive, false);
+  // уведомление о другом агенте — не итог этого
+  assert.equal(session([...golemLaunch(), att]).runs[GOLEM].alive, true);
+});
+
+test('итог: PARTIAL во вложении-уведомлении считается один раз, даже если то же уведомление пришло и строкой user', () => {
+  const [att] = lines('notification-attachment.jsonl');
+  const a = retarget(att, '<summary><текст>', '<summary><текст> stopped at its 40-turn limit');
+  const userForm = clone(MAIN.find((d) => typeof d.message?.content === 'string' && d.message.content.includes(`<task-id>${GOLEM}</task-id>`)));
+  userForm.message.content = a.attachment.prompt;
+  const st = session([...golemLaunch(), a, userForm]);
+  assert.equal(st.partials.length, 1);
+  assert.equal(st.partials[0].where, 'notification');
+});
+
+test('итог: TaskStop агента дирижёром (журнал c950e50f-…, стр. 1475/1476) закрывает заход; с ошибкой — нет', () => {
+  const [use, res] = lines('task-stop.jsonl').map((d) => retarget(d, 'ad2de3ac2168c9a83', GOLEM));
+  assert.equal(session([...golemLaunch(), use, res]).runs[GOLEM].alive, false);
+  const bad = clone(res);
+  bad.message.content[0].is_error = true;
+  assert.equal(session([...golemLaunch(), use, bad]).runs[GOLEM].alive, true);
+});
+
+test('продолжение с resumedAgentId — новый старт, даже если прошлый итог не распознан', () => {
+  // без итога первого захода (уведомление и передача выкинуты) продолжение всё равно считается
+  const seq = MAIN.filter((d) => !(d.origin?.kind === 'peer') && !(typeof d.message?.content === 'string' && d.message.content.includes(`<task-id>${GOLEM}</task-id>`)));
+  assert.equal(session(seq).runs[GOLEM].continuations, 2);
+});
