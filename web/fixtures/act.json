@@ -1,0 +1,61 @@
+{
+  "_comment": "POST /api/act (спека пульта §1.7): вход {action, intentId, card?, session?, text?, title?, project?, q?, confirm?, pick?}; выход по исходам. ПТ1: настоящие действия — 501 «ещё не подключено», работает пустышка ping.",
+  "ok": {
+    "id": "W-261002-195246-3fa1",
+    "step": "done",
+    "outcome": "ok",
+    "message": "пульт на связи"
+  },
+  "refused": {
+    "id": "W-261002-195301-7c0e",
+    "step": "refused",
+    "outcome": "refused",
+    "message": "EXT-39: предыдущее ещё идёт"
+  },
+  "invalid": {
+    "id": null,
+    "step": null,
+    "outcome": "refused",
+    "message": "неверный параметр: card"
+  },
+  "disabled": {
+    "id": null,
+    "step": null,
+    "outcome": "refused",
+    "message": "пульт выключен (pult.enabled)"
+  },
+  "words-off": {
+    "id": null,
+    "step": null,
+    "outcome": "refused",
+    "message": "слова с витрины включатся после правки правил"
+  },
+  "not-connected": {
+    "id": null,
+    "step": null,
+    "outcome": "error",
+    "message": "«Принять» ещё не подключено"
+  },
+  "error": {
+    "id": "W-261002-195400-0b2d",
+    "step": "error",
+    "outcome": "error",
+    "message": "ошибка: NOT_CONNECTED"
+  },
+  "need-confirm": {
+    "_comment": "форма второго щелчка — ПТ3/ПТ6, ручка её пока не отдаёт",
+    "id": "W-261002-195500-9e41",
+    "step": "asked",
+    "outcome": "need-confirm",
+    "message": "подтверди",
+    "confirm": {
+      "what": "«сливай» по EXT-39",
+      "follows": "слить = выкатить",
+      "q": {
+        "at": "2026-10-02T19:40+03:00",
+        "head": "Ветка готова — сливать?"
+      },
+      "mirrorAt": "2026-10-02T19:52:46+03:00"
+    }
+  }
+}

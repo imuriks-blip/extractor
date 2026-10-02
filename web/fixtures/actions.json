@@ -1,0 +1,26 @@
+[
+  {
+    "id": "W-261002-195246-3fa1",
+    "at": "2026-10-02T19:52:46+03:00",
+    "action": "ping",
+    "card": null,
+    "project": null,
+    "text": null,
+    "status": "done",
+    "source": null
+  },
+  {
+    "id": "W-261002-194010-a2c4",
+    "at": "2026-10-02T19:40:10+03:00",
+    "action": "no",
+    "card": "EXT-39",
+    "project": "EXT",
+    "text": "рано, сначала ревью",
+    "status": "done",
+    "source": {
+      "image": "msedge.exe",
+      "ok": true
+    },
+    "_comment": "source — отметка процесса-источника, ПТ1б; до неё null"
+  }
+]

@@ -45,6 +45,10 @@
       "bodyArg": 1
     }
   ],
+  "pult": {
+    "enabled": false,
+    "words": false
+  },
   "statsEveryMin": 10,
   "indexWriteEveryS": 60
 }

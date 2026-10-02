@@ -1,0 +1,14 @@
+{
+  "running": true,
+  "kind": "changed",
+  "phase": "comments",
+  "cardsDone": 12,
+  "cardsTotal": 55,
+  "requests": 40,
+  "rpm": 23,
+  "startedAt": "2026-10-02T16:50:01.000Z",
+  "at": "2026-10-02T16:52:46.030Z",
+  "lastOk": "2026-10-02T16:12:46.030Z",
+  "lastFullOk": "2026-10-01T18:38:24.185Z",
+  "lastError": null
+}
