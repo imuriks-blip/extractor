@@ -268,14 +268,19 @@ function fakeWatch() {
   return { watch, list, emit: (dir, name) => at(dir).forEach((w) => w.onEvent(name)), fail: (dir) => at(dir).forEach((w) => w.onFail(new Error('EPERM'))) };
 }
 
+// тесты событий — с полным чтением раз в час: фазы 5-минутной страховки (Важно 2) не вмешиваются; страховка — свои тесты
+const HOUR = 60 * 60000;
 function gitRig(W, opts = {}) {
   const calls = [];
   const clock = { t: Date.parse('2026-10-02T10:00:00Z') };
-  const r = createGitReader({ git: createGitRead({ onCall: (p) => calls.push(path.resolve(p).toLowerCase()) }), registry: W.registry, boardRoot: null, now: () => clock.t, ...opts });
+  const r = createGitReader({ git: createGitRead({ onCall: (p) => calls.push(path.resolve(p).toLowerCase()) }), registry: W.registry, boardRoot: null, now: () => clock.t, fullEveryMs: HOUR, ...opts });
   const take = () => calls.splice(0);
   return { r, take, clock };
 }
 const key = (p) => path.resolve(p).toLowerCase();
+// первый проход ставит наблюдатели; новый наблюдатель — флаг «грязно» (правка между status и постановкой наблюдателя,
+// вердикт Голема на EXT-37, Важно 1), поэтому второй проход перечитывает; тишина — с третьего
+async function settle(r, clock, take) { await r.refresh(); clock.t += 30000; await r.refresh(); take(); }
 
 test('Б: без событий наблюдателя второй проход не зовёт git; readAt свежий; пропуски по тишине — в state', async () => {
   const W = gitWorld();
@@ -285,10 +290,13 @@ test('Б: без событий наблюдателя второй проход
   assert.ok(take().length >= 5, 'первый проход — полный');
   assert.deepEqual(fw.list.map((w) => w.dir.toLowerCase()).sort(), [key(W.A), key(W.WT), key(W.C), key(path.join(W.S, '.git'))].sort(),
     'наблюдатели: корни рабочих копий проектов, .git общего репозитория');
+  clock.t += 30000; await r.refresh();
+  assert.ok(take().length >= 5, 'второй проход — перечитка после постановки наблюдателей');
+  assert.equal(fw.list.length, 4, 'живые наблюдатели не пересоздаются');
   clock.t += 30000;
   await r.refresh();
   assert.deepEqual(take(), [], 'тишина — ни одного запуска git');
-  assert.equal(r.quiet().quietSkips, 3);
+  assert.equal(r.quiet().quietSkips, 3, 'третий проход — все три по тишине');
   assert.equal(r.beacon('EXT').readAt, new Date(clock.t).toISOString(), 'пропуск по тишине — тоже удачное наблюдение (серая строка 2.7 не встаёт)');
 });
 
@@ -296,7 +304,7 @@ test('Б: правка в рабочей копии — status только эт
   const W = gitWorld();
   const fw = fakeWatch();
   const { r, take, clock } = gitRig(W, { watch: fw.watch });
-  await r.refresh(); take();
+  await settle(r, clock, take);
   const dirtyOf = (p) => r.beacon('EXT').repos.find((x) => key(x.path) === key(p)).dirty;
   assert.equal(dirtyOf(W.WT), 0);
   nodeFs.writeFileSync(path.join(W.WT, 'new.txt'), 'x');
@@ -317,11 +325,11 @@ test('Б: правка в рабочей копии — status только эт
   assert.ok(r.commitsFor('CAR-37').commits.some((x) => x.subject === 'feat: CAR-37 коммит'));
 });
 
-test('Б: наблюдатель упал — репозиторий опрашивается по-старому каждый проход; раз в 5 минут — полный проход всех', async () => {
+test('Б: наблюдатель упал — репозиторий опрашивается по-старому каждый проход; раз в fullEveryMs — полный проход всех', async () => {
   const W = gitWorld();
   const fw = fakeWatch();
   const { r, take, clock } = gitRig(W, { watch: fw.watch });
-  await r.refresh(); take();
+  await settle(r, clock, take);
   fw.fail(W.C);
   for (let i = 0; i < 2; i++) {
     clock.t += 30000; await r.refresh();
@@ -329,7 +337,7 @@ test('Б: наблюдатель упал — репозиторий опраш�
     assert.ok(c.length >= 3 && c.every((p) => p === key(W.C)), `проход ${i + 1}: опрос только C`);
   }
   assert.ok(r.quiet().watchFailed >= 1);
-  clock.t += 5 * 60000; await r.refresh();
+  clock.t += HOUR; await r.refresh();
   const all = new Set(take());
   for (const p of [W.A, W.WT, W.C, W.S]) assert.ok(all.has(key(p)), `5 минут — полный проход: ${p}`);
 });
@@ -337,14 +345,13 @@ test('Б: наблюдатель упал — репозиторий опраш�
 test('Б (живой fs.watch): свои запуски git не будят наблюдателя — второй проход подряд пропускает все; правка файла — видна', async () => {
   const W = gitWorld();
   const { r, take } = gitRig(W);
-  await r.refresh(); take();
-  await new Promise((res) => setTimeout(res, 700));
-  await r.refresh();
-  assert.deepEqual(take(), [], 'второй проход без внешних изменений — без git');
+  await r.refresh(); await r.refresh(); take(); // второй — перечитка после постановки наблюдателей
+  // свои запуски: проходы подряд в течение ~1,5 с (события fs.watch приходят с задержкой) — ни одного git
+  for (let i = 0; i < 6; i++) { await new Promise((res) => setTimeout(res, 250)); await r.refresh(); assert.deepEqual(take(), [], `проход ${i + 3} без внешних изменений — без git`); }
   nodeFs.writeFileSync(path.join(W.A, 'b.txt'), 'x');
-  await new Promise((res) => setTimeout(res, 700));
-  await r.refresh();
-  assert.deepEqual(take(), [key(W.A)]);
+  let seen = [];
+  for (const t0 = Date.now(); Date.now() - t0 < 5000 && seen.length === 0;) { await new Promise((res) => setTimeout(res, 100)); await r.refresh(); seen = take(); }
+  assert.deepEqual(seen, [key(W.A)], 'правка видна (опрос до 5 с)');
   assert.equal(r.beacon('EXT').repos.find((x) => key(x.path) === key(W.A)).dirty, 1);
   r.close();
 });
@@ -377,7 +384,7 @@ test('Б: свои записи витрины (data/vitrina своего кор
   const fw = fakeWatch();
   const own = path.join(W.A, 'data', 'vitrina');
   const { r, take, clock } = gitRig(W, { watch: fw.watch, ignore: [own] });
-  await r.refresh(); take();
+  await settle(r, clock, take);
   fw.emit(W.A, path.join('data', 'vitrina', 'server.log'));
   fw.emit(W.A, path.join('data', 'vitrina', 'index', 'journals.json.123.tmp'));
   clock.t += 30000; await r.refresh();
@@ -385,4 +392,76 @@ test('Б: свои записи витрины (data/vitrina своего кор
   fw.emit(W.A, path.join('data', 'other.txt'));
   clock.t += 30000; await r.refresh();
   assert.deepEqual(take(), [key(W.A)]);
+});
+
+test('Б (Важно 1): правка копии между её status и постановкой наблюдателя — видна на следующем проходе', async () => {
+  const W = gitWorld();
+  const fw = fakeWatch();
+  let edited = false;
+  // правка «в щели»: status копии уже прошёл, наблюдатель ещё не стоит — событие наблюдатель не увидит никогда
+  const watch = (dir, h) => { if (!edited && key(dir) === key(W.WT)) { edited = true; nodeFs.writeFileSync(path.join(W.WT, 'gap.txt'), 'x'); } return fw.watch(dir, h); };
+  const { r, take, clock } = gitRig(W, { watch });
+  await r.refresh(); take();
+  const dirtyOf = () => r.beacon('EXT').repos.find((x) => key(x.path) === key(W.WT)).dirty;
+  assert.equal(dirtyOf(), 0, 'status был до правки');
+  clock.t += 30000; await r.refresh();
+  assert.ok(take().includes(key(W.WT)), 'новый наблюдатель — копия перечитана');
+  assert.equal(dirtyOf(), 1);
+  // переставленный после падения наблюдатель — тоже «грязно»
+  fw.fail(W.WT);
+  clock.t += HOUR; await r.refresh(); take();
+  nodeFs.writeFileSync(path.join(W.WT, 'gap2.txt'), 'x'); // правка после прохода, до которого наблюдатель снова встал
+  clock.t += 30000; await r.refresh();
+  assert.equal(dirtyOf(), 2, 'после пересоздания наблюдателя копия перечитана');
+});
+
+// реестр-подмена: n репозиториев проекта, git-подмена (одна копия, чисто), наблюдатель-подмена без событий
+function manyRepos(n) {
+  const repos = Array.from({ length: n }, (_, i) => `C:/fake/repo-${String(i).padStart(2, '0')}`);
+  const reg = { codes: [{ code: 'EXT', repos }], sharedRepos: [] };
+  return { repos, registry: { get: () => reg }, reg };
+}
+const stubGit = (log) => async (repo, args) => {
+  log.push([key(repo), args[0]]);
+  if (args[0] === 'worktree') return `worktree ${repo}\nHEAD ${'a'.repeat(40)}\nbranch refs/heads/main\n`;
+  if (args[0] === 'rev-parse') return 'a'.repeat(40) + '\n';
+  return '';
+};
+
+test('Б (Важно 2): полные проходы разнесены — у репозитория своя фаза в 5 минутах; за 30 с — около 1/10 репозиториев', async () => {
+  const N = 20;
+  const M = manyRepos(N);
+  const log = [];
+  const fw = fakeWatch();
+  const clock = { t: Date.parse('2026-10-02T10:00:07Z') };
+  const r = createGitReader({ git: stubGit(log), registry: M.registry, boardRoot: null, now: () => clock.t, watch: fw.watch });
+  await r.refresh(); clock.t += 30000; await r.refresh(); log.length = 0; // старт и перечитка после наблюдателей
+  const perPass = [];
+  const perRepo = new Map();
+  for (let i = 0; i < 20; i++) { // 10 минут
+    clock.t += 30000;
+    await r.refresh();
+    const full = log.filter(([, sub]) => sub === 'worktree').map(([p]) => p);
+    perPass.push(full.length);
+    for (const p of full) perRepo.set(p, (perRepo.get(p) ?? 0) + 1);
+    log.length = 0;
+  }
+  assert.ok(Math.max(...perPass) <= 3, `полных за проход не больше 3 из ${N}: ${perPass.join(' ')}`);
+  assert.equal(perPass.reduce((a, b) => a + b, 0), 2 * N, 'за 10 минут каждый — дважды');
+  for (const p of M.repos) assert.equal(perRepo.get(key(p)), 2, p);
+});
+
+test('Б: после close() проход наблюдателей не ставит; ушедший из реестра репозиторий — не «без наблюдателя»', async () => {
+  const M = manyRepos(3);
+  const fw = fakeWatch();
+  const clock = { t: Date.parse('2026-10-02T10:00:00Z') };
+  const r = createGitReader({ git: stubGit([]), registry: M.registry, boardRoot: null, now: () => clock.t, watch: fw.watch });
+  await r.refresh();
+  assert.equal(fw.list.length, 3);
+  M.reg.codes[0].repos = M.repos.slice(0, 2);
+  clock.t += 30000; await r.refresh();
+  assert.equal(r.quiet().watchFailed, 0, 'ушедший из реестра не считается упавшим');
+  r.close();
+  clock.t += 30000; await r.refresh();
+  assert.ok(fw.list.every((w) => w.closed), 'после close() новых живых наблюдателей нет');
 });
