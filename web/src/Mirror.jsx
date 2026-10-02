@@ -6,12 +6,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const POLL_MS = 4000;
-const OFF_KEY = 'vitrina.pultOff'; // токен запуска сервера, на котором пульт ответил 503
+const OFF_KEY = 'vitrina.pultOff'; // отпечаток токена запуска сервера, на котором пульт ответил 503
 const RELOAD_KEY = 'vitrina.act403'; // {intentId, at}: страница перезагружена после 403, намерение повторяется тем же ключом
 const RELOAD_FRESH_MS = 60000;
 const HINT = 'прогнать зеркало доски: свежие карточки из Plane (обычный проход, несколько минут)';
 
 const token = () => document.querySelector('meta[name="vitrina-token"]')?.content ?? '';
+// в хранилище браузера — не сам секрет страницы (§4.1 п.6), а его отпечаток: FNV-1a 32 бита (мелочь Голема на EXT-42)
+const mark = (t) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return t ? h.toString(16) : '';
+};
 const store = {
   get(s, k) { try { return s.getItem(k); } catch { return null; } },
   set(s, k, v) { try { s.setItem(k, v); } catch { /* хранилище недоступно — без памяти */ } },
@@ -26,7 +32,9 @@ async function readMirror() {
 
 // label — подпись зеркала из /api/ceh: сменилась (проход закончился или начат Планировщиком) — ход перечитывается
 export default function MirrorButton({ label }) {
-  const [off, setOff] = useState(() => { const t = token(); return !!t && store.get(localStorage, OFF_KEY) === t; });
+  const [off, setOff] = useState(() => { const t = token(); return !!t && store.get(localStorage, OFF_KEY) === mark(t); });
+  const offTimer = useRef(null);
+  useEffect(() => () => clearTimeout(offTimer.current), []);
   const [phase, setPhase] = useState('idle'); // idle | pending | running | off
   const [st, setSt] = useState(null); // последний ответ /api/mirror
   const [note, setNote] = useState(null); // красная пометка {text, title}
@@ -84,9 +92,9 @@ export default function MirrorButton({ label }) {
     }
     store.del(sessionStorage, RELOAD_KEY);
     if (r.status === 503) {
-      store.set(localStorage, OFF_KEY, token());
+      store.set(localStorage, OFF_KEY, mark(token()));
       setPhase('off');
-      setTimeout(() => setOff(true), 6000);
+      offTimer.current = setTimeout(() => setOff(true), 6000);
       return;
     }
     if (r.ok || (r.status === 409 && body?.outcome === 'refused')) {

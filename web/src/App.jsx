@@ -50,7 +50,8 @@ function Header({ route, freshness, name }) {
           {mirror && <><span className="sep">·</span><span title="Зеркало доски обновляется вручную: файлы доски отстают от Plane на время с последнего прохода">{mirror}</span></>}
         </span>
       )}
-      {freshness && <MirrorButton label={mirror ?? null} />}
+      {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}
+      {freshness && mirror && <MirrorButton label={mirror} />}
       <ThemeSwitch />
     </header>
   );
