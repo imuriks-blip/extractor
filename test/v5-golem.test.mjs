@@ -98,8 +98,20 @@ test('обрезка по символам: эмодзи на месте раз�
   assert.equal([...new Intl.Segmenter('ru', { granularity: 'grapheme' }).segment(b.short)].length, 90);
   assert.ok(b.short.endsWith('📱…'), b.short.slice(-4));
   assert.doesNotMatch(b.short, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/, 'нет одинокой половины суррогатной пары');
-  const flag = brief('б'.repeat(89) + '❤️' + 'в'.repeat(5));
-  assert.ok(!flag.short.includes('\uFE0F') || flag.short.includes('❤️'), 'вариационный селектор не отрезан от сердца');
+  // сердце с вариационным селектором — 89-я графема: в обрезку попадает целиком (круг 2 Голема на В5, мелочь 4)
+  const flag = brief('б'.repeat(88) + '❤️' + 'в'.repeat(5));
+  assert.ok(flag.short.includes('❤️'), 'сердце в обрезке целиком: ' + flag.short.slice(-4));
+  assert.doesNotMatch(flag.short, /❤(?!️)/, 'вариационный селектор не отрезан от сердца');
+});
+
+test('карточка проекта: файла нет — «фаза не указана», не сбой чтения (2.5; круг 2 Голема на В5, мелочь 3)', () => {
+  const root = tmpDir('v5gn-');
+  const V = path.join(root, 'vault'); fs.mkdirSync(V, { recursive: true });
+  const reg = path.join(root, 'registry.json');
+  fs.writeFileSync(reg, JSON.stringify({ vault_root: V, board_codes: { EXT: { project_cards: ['u/nope.md'], repos: [] } } }));
+  const r = createProjectCards({ registry: createRegistryReader(reg), fs }).get('EXT');
+  assert.equal(r.phase, null);
+  assert.equal(r.failingSince, null);
 });
 
 test('карточка проекта: ошибка чтения — прежние фаза и шаг плюс failingSince (2.7)', () => {

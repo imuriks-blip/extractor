@@ -36,7 +36,7 @@
     ],
     "readAt": "2026-10-01T12:00:00.000Z",
     "failingSince": null,
-    "_note": "described: false → message «проект не описан в реестре», repos []. phase/next null → серым «фаза не указана в карточке проекта» (2.5). dirty 0 — «чисто», N — «N файлов не закоммичены», null — не прочитано (missing: true — папки рабочей копии нет). failingSince не null — серая строка «данные на ЧЧ:ММ (readAt), чтение не удаётся N мин» (2.7). У строки рабочей копии error не null — её status не прочитан (dirty null), репозиторий и лента читаются дальше. phaseFailingSince — то же для фазы и шага."
+    "_note": "described: false → message «проект не описан в реестре», repos []. phase/next null → серым «фаза не указана в карточке проекта» (2.5). dirty 0 — «чисто», N — «N изменений не закоммичены» (строки status), null — не прочитано (missing: true — папки рабочей копии нет). failingSince не null — серая строка «данные на ЧЧ:ММ (readAt), чтение не удаётся N мин» (2.7). У строки рабочей копии error не null — её status не прочитан (dirty null), репозиторий и лента читаются дальше. phaseFailingSince — то же для фазы и шага."
   },
   "waiting": [
     {
