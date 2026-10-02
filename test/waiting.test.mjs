@@ -465,7 +465,7 @@ test('Важно 4: строка без хеша — время коммита V
 test('Важно 2 (круг 2): пометка «запись субагента» несёт первую строку тела записи, до 160 знаков', () => {
   const r = { agentId: 'a2', agentType: 'golem', cards: [], starts: [], alive: true, boardWrites: [{ at: iso(T0 - 20 * MIN), refs: ['EXT-7'], firstLine: 'Вердикт: ' + 'я'.repeat(300) }] };
   const [m] = marksOf([sess(SID1, [], { runs: [r] })]).bySession[SID1];
-  assert.equal(m.line, ('Вердикт: ' + 'я'.repeat(300)).slice(0, 160));
+  assert.equal(m.line, ('Вердикт: ' + 'я'.repeat(300)).slice(0, 159) + '…'); // 160 символов с «…» — cutChars (В6)
 });
 
 test('Важно 3 (круг 2): обрыв только в прежней сессии — снят словом Ивана в живой сессии того же десктопного треда; слово в другом треде — нет', () => {
