@@ -324,7 +324,7 @@ test('3 (Голем): строка (а) несёт uuid сообщения, по
   const t = { sessionId: 's1', state: 'waiting', waitingKind: 'askUserQuestion', title: 'тред', statusUpdatedAt: '2026-10-02T10:00:00.000Z' };
   const before = waitingThreads({ threads: [t], sessions: [], now: T0 })[0];
   assert.equal(before.uuid, null);
-  const after = waitingThreads({ threads: [t], sessions: [{ sessionId: 's1', thread: { ask: { text: 'Какой?', uuid: 'u9', at: '2026-10-02T09:59:00.000Z' } } }], now: T0 })[0];
+  const after = waitingThreads({ threads: [t], sessions: [{ sessionId: 's1', thread: { askOpen: true, ask: { text: 'Какой?', uuid: 'u9', at: '2026-10-02T09:59:00.000Z' } } }], now: T0 })[0];
   assert.equal(after.uuid, 'u9');
   assert.equal(after.key, 's1|u9');
 });
