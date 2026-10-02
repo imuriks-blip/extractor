@@ -399,7 +399,7 @@
       }
     ],
     "subagentsCount": 1,
-    "marksCount": 4,
+    "marksCount": 3,
     "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules"
   },
   "freshness": {
