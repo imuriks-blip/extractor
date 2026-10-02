@@ -12,7 +12,8 @@ import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { createJournalReader } from '../lib/journal-reader.mjs';
 import { buildWorkers } from '../lib/waiting.mjs';
-import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
+import { createGitReader } from '../lib/git-reader.mjs';
+import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
@@ -20,12 +21,14 @@ const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web',
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
 const PENDING = {
-  ceh: { 'projects.phase': 'В5', 'projects.next': 'В5' },
-  project: { beacon: 'В5', 'board.inProgress': 'В5', 'board.ready': 'В5', 'board.review': 'В5', 'board.backlog': 'В5', 'board.done': 'В5', 'board.counts': 'В5' },
-  card: { links: 'В5', feed: 'В5' },
+  ceh: {},
+  project: {},
+  card: {},
   health: {},
 };
 
+// лента карточки — разнородный список: образец каждого вида сверяется с элементом того же вида у ручки
+const BY_KIND = ['feed'];
 // словари с ключом-путём (не фиксированные ключи) — сверяется только, что это объект
 const DICT = ['gitCalls', 'readers.journals.unknown', 'readers.processes.unknownStatus', 'readers.processes.unknownWaitingFor'];
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
@@ -47,6 +50,14 @@ function compare(fx, real, pending, at = '') {
   for (const k of keys(fx)) {
     const p = at ? `${at}.${k}` : k;
     if (DICT.includes(p)) { assert.ok(isObj(fx[k]) && isObj(real[k]), p); continue; }
+    if (BY_KIND.includes(p)) {
+      for (const kd of new Set(fx[k].map((x) => x.kind))) {
+        const r = real[k].find((x) => x.kind === kd);
+        assert.ok(r, `${p}: у ручки нет элемента вида ${kd}`);
+        compare(template(fx[k].filter((x) => x.kind === kd)), r, pending, `${p}[${kd}]`);
+      }
+      continue;
+    }
     if (pending[p]) { assert.ok(empty(real[k]), `${p}: заготовка (наполняет ${pending[p]}) должна быть пустой`); continue; }
     if (fx[k] !== null && real[k] !== null) assert.equal(kind(real[k]), kind(fx[k]), `${p}: тип`);
     if (Array.isArray(fx[k]) && fx[k].length > 0) assert.ok(Array.isArray(real[k]) && real[k].length > 0, `${p}: в образце непусто, пометки нет — у ручки должно быть непусто`);
@@ -58,14 +69,18 @@ function compare(fx, real, pending, at = '') {
 async function realResponses() {
   const now = Date.now();
   const hm = (ms) => { const d = new Date(ms + 3 * 3600000).toISOString(); return `${d.slice(0, 10)} ${d.slice(11, 16)} +03:00`; };
-  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }, { id: 'EXT-7', status: 'in-progress', title: 'Слить' }] });
+  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }, { id: 'EXT-7', status: 'in-progress', title: 'Слить', parent: 'EXT-6', blocks: ['EXT-6'] },
+    { id: 'EXT-8', status: 'backlog', title: 'Потом' }, { id: 'EXT-9', status: 'ready', title: 'Следом' }, { id: 'EXT-10', status: 'done', title: 'Готово' }] });
   // (б): последняя запись EXT-7 с маркером, свежая; зеркало — .mirror/status.json (В-5)
   fs.writeFileSync(path.join(dir, 'EXT', 'EXT-7.log.md'), `### ${hm(now - 3600000)} · plane · коммент\n\nЖдёт «сливай».\n\n`);
   fs.mkdirSync(path.join(dir, '.mirror'));
   fs.writeFileSync(path.join(dir, '.mirror', 'status.json'), JSON.stringify({ lastOk: new Date(now - 86400000).toISOString() }));
   gitInitCommit(dir);
   const reg = path.join(tmpDir('reg-'), 'registry.json');
-  fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
+  // В5: репозиторий проекта (здесь — сама доска: маячок есть, коммиты доски в ленту не идут) и общий с коммитом EXT-6
+  const shared = tmpDir('shared-'); fs.writeFileSync(path.join(shared, 'a.txt'), 'x'); gitInitCommit(shared);
+  git(shared, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'spec: витрина (EXT-6)');
+  fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [dir] } }, board_shared_repos: { repos: [shared] } }));
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
   await board.init();
   const journals = createJournalReader({ root: tmpDir('jr-'), indexDir: tmpDir('ji-') });
@@ -82,7 +97,7 @@ async function realResponses() {
   const at = new Date(now - 600000).toISOString();
   const sessions = [
     { sessionId: sid, ivan: { cards: { 'EXT-6': { n: 1, firstAt: at, lastAt: at } } }, boardWrites: [], thread: { askOpen: false, endTurnQ: null, lastAt: at },
-      runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] },
+      runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, cards: ['EXT-6', 'EXT-7'], at, turns: 3, zakhods: [3], alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] },
     { sessionId: sidW, ivan: { cards: {} }, boardWrites: [], runs: [{ agentId: 'a2', agentType: 'golem', description: 'EXT-7 ревью', target: null, alive: true, lastEndAt: null, currentZakhod: 1, lastAt: at }], thread: { askOpen: true, endTurnQ: null, lastAt: at, ask: { text: 'Какой вариант?', uuid: 'u1', at } } },
     { sessionId: sidC, ivan: { cards: {} }, runs: [], thread: { customTitle: 'EXT · закрытый' }, boardWrites: [{ at: new Date(now - 4 * 3600000).toISOString(), refs: ['EXT-6'], firstLine: '▶ выдан: terminus · ext-6 · В4' }] },
   ];
@@ -91,7 +106,10 @@ async function realResponses() {
     list: () => buildWorkers({ procs, desktop: (h) => ({ title: titles[h] }), sessions, board, maxTurns: () => 90, now, thresholds: { taktYellowMin: 60, taktRedMin: 180, waitingOverDayHours: 24, staleMin: 15 }, rulesAt: new Date(now - 1800000).toISOString() }),
     state: () => ({ processes: { lastOkAt: at, errors: 0, lastError: null, files: 1, live: 1 }, desktop: { lastOkAt: at, errors: 0, lastError: null, files: 1 } }),
   };
-  const app = await buildApp({ port: 4317, board, registry: createRegistryReader(reg), journals, threads, scan: () => [] });
+  const registry = createRegistryReader(reg);
+  const gitReader = createGitReader({ git: createGitRead(), registry, boardRoot: dir });
+  await gitReader.refresh();
+  const app = await buildApp({ port: 4317, board, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90 });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
   return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health') };
 }
@@ -123,4 +141,10 @@ test('образец ceh.json: порядок проектов — решени�
   assert.equal(fx.projects.find((p) => p.code === 'EXT').name, 'Экстрактор');
   assert.equal(load('project-EXT.json').name, 'Экстрактор');
   assert.ok(!JSON.stringify(fx).includes('"lastOk"'));
+});
+
+test('доска проекта: «<агент> работает» — живой субагент из строк «Кто работает» (В3) с номером карточки в ТЗ', () => {
+  const ip = real.project.board.inProgress;
+  assert.deepEqual(ip.map((c) => [c.id, c.agentWorking]), [['EXT-7', 'Терминус']]);
+  assert.equal(real.project.board.ready[0].agentWorking, null);
 });

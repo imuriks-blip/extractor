@@ -164,7 +164,7 @@ test('субагенты: живой запуск живого треда — к
   const mine = session({ runs: [run(), run({ agentId: 'a2', agentType: 'golem' }), run({ agentId: 'a3', alive: false })] });
   const other = { ...session(), sessionId: 'bbbbbbbb-2222-4000-8000-000000000002', runs: [run({ agentId: 'a2', alive: false, lastEndAt: new Date(T0 - 1 * MIN).toISOString() })] };
   const r = build([live()], [mine, other]);
-  assert.deepEqual(r.threads[0].subagents, [{ agent: 'terminus', who: 'Терминус', description: 'EXT-27 В3', turns: 12, maxTurns: 90, target: 60 }]);
+  assert.deepEqual(r.threads[0].subagents, [{ agent: 'terminus', who: 'Терминус', description: 'EXT-27 В3', cards: [], turns: 12, maxTurns: 90, target: 60 }]);
   assert.equal(r.subagentsCount, 1);
   // исправный случай: итог в другой сессии раньше последней строки агента (агент продолжен) — живой
   const otherOld = { ...other, runs: [run({ agentId: 'a2', alive: false, lastEndAt: new Date(T0 - 30 * MIN).toISOString() })] };

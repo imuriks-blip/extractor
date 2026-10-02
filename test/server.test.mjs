@@ -178,7 +178,8 @@ test('карточка с битой шапкой → 200 {header: null, error: 
   const { app } = await setup();
   const r = await app.inject({ method: 'GET', url: '/api/card/CAR-10', headers: H });
   assert.equal(r.statusCode, 200);
-  assert.deepEqual(r.json(), { header: null, body: null, error: 'шапка', links: null, feed: [] });
+  // В5: у битой шапки связей нет (links: null), лента и её свежесть — как у любой карточки
+  assert.deepEqual(r.json(), { header: null, body: null, error: 'шапка', links: null, feed: [], feedCounts: { comment: 0, commit: 0, run: 0 }, feedGit: { readAt: null, failingSince: null }, logError: null });
 });
 
 test('/api/ceh: activityAt — самое свежее updated карточек проекта', async () => {

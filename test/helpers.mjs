@@ -14,20 +14,21 @@ export function tmpDir(prefix = 'vitrina-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-export function cardText({ id, status = 'backlog', title = 'Карточка', body = '', markB = false, updated = '2026-09-30T12:00+03:00' }) {
+export function cardText({ id, status = 'backlog', title = 'Карточка', body = '', markB = false, updated = '2026-09-30T12:00+03:00', parent = '', blocks = [], blockedBy = [], relates = [], labels = ['terminus'] }) {
+  const l = (a) => `[${a.join(', ')}]`;
   return [
     '---',
     `id: ${id}`,
     `title: ${JSON.stringify(title)}`,
     `status: ${status}`,
     'priority: medium',
-    'labels: [terminus]',
+    `labels: ${l(labels)}`,
     'owner: ""',
     `mark_b: ${markB}`,
-    'parent:',
-    'blocks: []',
-    'blocked_by: []',
-    'relates: []',
+    `parent:${parent ? ' ' + parent : ''}`,
+    `blocks: ${l(blocks)}`,
+    `blocked_by: ${l(blockedBy)}`,
+    `relates: ${l(relates)}`,
     'spec: ""',
     'created: 2026-09-25T15:20+03:00',
     `updated: ${updated}`,

@@ -94,6 +94,8 @@
         "short": "Слить ext-31 и выкатить галерею.",
         "full": "Слить ext-31 и выкатить галерею."
       },
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 3,
       "ready": 5,
       "review": 14,
@@ -111,6 +113,8 @@
         "short": "Решение по 100926.",
         "full": "Решение по 100926."
       },
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 1,
       "ready": 2,
       "review": 6,
@@ -125,6 +129,8 @@
         "full": "Память Макара: модули."
       },
       "next": null,
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 0,
       "ready": 1,
       "review": 2,
@@ -142,6 +148,8 @@
         "short": "Шаблон гороскопа.",
         "full": "Шаблон гороскопа."
       },
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 1,
       "ready": 0,
       "review": 3,
@@ -159,6 +167,8 @@
         "short": "Развилка по снимкам сметы.",
         "full": "Развилка по снимкам сметы."
       },
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 0,
       "ready": 3,
       "review": 1,
@@ -176,6 +186,8 @@
         "short": "Второй диск под бэкапы.",
         "full": "Второй диск под бэкапы."
       },
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 2,
       "ready": 4,
       "review": 9,
@@ -193,6 +205,8 @@
         "short": "Такт В1 — каркас и читатель доски.",
         "full": "Такт В1 — каркас и читатель доски."
       },
+      "phaseReadAt": "2026-10-01T12:00:00.000Z",
+      "phaseFailingSince": null,
       "inProgress": 1,
       "ready": 2,
       "review": 4,
@@ -204,6 +218,8 @@
       "inRegistry": true,
       "phase": null,
       "next": null,
+      "phaseReadAt": null,
+      "phaseFailingSince": null,
       "inProgress": 0,
       "ready": 0,
       "review": 0,
@@ -215,6 +231,8 @@
       "inRegistry": true,
       "phase": null,
       "next": null,
+      "phaseReadAt": null,
+      "phaseFailingSince": null,
       "inProgress": 0,
       "ready": 1,
       "review": 0,
@@ -271,6 +289,9 @@
             "agent": "terminus",
             "who": "Терминус",
             "description": "EXT-25 В1: каркас сервера и читатель доски",
+            "cards": [
+              "EXT-25"
+            ],
             "turns": 34,
             "maxTurns": 90,
             "target": 50
@@ -397,5 +418,6 @@
     "idle": "свободен",
     "stale": "устарело (lastState — вычисленное состояние на последнем наблюдении)"
   },
-  "_waiting": "count = |а| + |б| — крупное число и счётчик заголовка (Review не входит); more = |в| — «+ N посмотреть». (а) kind: question | askUserQuestion | permission | ? ; key — ключ уведомления (4.1). (б) key — номер + заголовок последней записи журнала."
+  "_waiting": "count = |а| + |б| — крупное число и счётчик заголовка (Review не входит); more = |в| — «+ N посмотреть». (а) kind: question | askUserQuestion | permission | ? ; key — ключ уведомления (4.1). (б) key — номер + заголовок последней записи журнала.",
+  "_note_phase": "projects[].phase / next — {short: первое предложение до 90 знаков, обрезанное с «…»; full — целиком для подсказки} или null (серым «фаза не указана в карточке проекта»). phaseFailingSince не null — карточка проекта не читается: фаза и шаг прежние, серая строка «данные на ЧЧ:ММ (phaseReadAt), чтение не удаётся N мин» (2.7). Тексты — сетью своего проекта (IPTV — строгой)."
 }

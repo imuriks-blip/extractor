@@ -3,28 +3,40 @@
   "name": "Экстрактор",
   "beacon": {
     "described": true,
+    "message": null,
     "phase": "Витрина этапа 1: каркас сервера и читатель доски. Дальше — журналы сессий и субагентов.",
     "next": "Такт В1 — каркас и читатель доски.",
+    "phaseReadAt": "2026-10-01T12:00:00.000Z",
+    "phaseFailingSince": null,
     "repos": [
       {
         "name": "extractor",
-        "path": "C:\\projects\\extractor",
+        "path": "C:/projects/extractor",
         "branch": "main",
-        "dirty": 0
+        "dirty": 0,
+        "missing": false,
+        "error": null
       },
       {
-        "name": "wt",
-        "path": "C:\\projects\\extractor-wt\\ext-25",
+        "name": "ext-25",
+        "path": "C:/projects/extractor-wt/ext-25",
         "branch": "ext-25-v1-skeleton",
-        "dirty": 4
+        "dirty": null,
+        "missing": false,
+        "error": "EPERM"
       },
       {
         "name": "unorbis-board",
-        "path": "C:\\projects\\unorbis-board",
+        "path": "C:/projects/unorbis-board",
         "branch": "main",
-        "dirty": 0
+        "dirty": 0,
+        "missing": false,
+        "error": null
       }
-    ]
+    ],
+    "readAt": "2026-10-01T12:00:00.000Z",
+    "failingSince": null,
+    "_note": "described: false → message «проект не описан в реестре», repos []. phase/next null → серым «фаза не указана в карточке проекта» (2.5). dirty 0 — «чисто», N — «N изменений не закоммичены» (строки status), null — не прочитано (missing: true — папки рабочей копии нет). failingSince не null — серая строка «данные на ЧЧ:ММ (readAt), чтение не удаётся N мин» (2.7). У строки рабочей копии error не null — её status не прочитан (dirty null), репозиторий и лента читаются дальше. phaseFailingSince — то же для фазы и шага."
   },
   "waiting": [
     {
@@ -74,6 +86,9 @@
             "agent": "terminus",
             "who": "Терминус",
             "description": "EXT-25 В1: каркас сервера и читатель доски",
+            "cards": [
+              "EXT-25"
+            ],
             "turns": 34,
             "maxTurns": 90,
             "target": 50
@@ -184,7 +199,8 @@
       "live": 4,
       "backlog": 1,
       "done": 2
-    }
+    },
+    "_note": "Колонки доски проекта (2.5): agentWorking — живой субагент «Кто работает» (В3) с номером карточки в ТЗ; lastLog — первая строка последней записи журнала до 120 знаков, author null у plane; at — давность max(updated, последняя запись); в колонке свежие сверху; done — последние сверху, cancelled: true — «отменена»; counts — «N живых · M в Backlog · K Done». Списки целиком — поиск в браузере."
   },
   "freshness": {
     "board": {
