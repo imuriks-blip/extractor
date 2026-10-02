@@ -465,3 +465,30 @@ test('Б: после close() проход наблюдателей не став
   clock.t += 30000; await r.refresh();
   assert.ok(fw.list.every((w) => w.closed), 'после close() новых живых наблюдателей нет');
 });
+
+test('Б: события .git по смыслу — index и служебные файлы чужого `git status` — только status копии; HEAD, refs, packed-refs, worktrees — полное чтение', async () => {
+  const W = gitWorld();
+  const fw = fakeWatch();
+  const { r, take, clock } = gitRig(W, { watch: fw.watch });
+  await settle(r, clock, take);
+  const pass = async () => { clock.t += 30000; await r.refresh(); return take(); };
+  const subs = [];
+  const win = (s) => s.split('/').join(path.sep); // имена событий fs.watch на Windows — с «\»
+  // чужой `git status` без --no-optional-locks: index.lock → index, каталог .git; плюс прочие служебные файлы (Windows: «\»)
+  for (const n of [win('.git/index.lock'), '.git', win('.git/index'), win('.git/ORIG_HEAD'), win('.git/FETCH_HEAD'), win('.git/logs/HEAD'), win('.git/config'), win('.git/COMMIT_EDITMSG'), win('.git/refs/heads/main.lock')]) fw.emit(W.A, n);
+  assert.deepEqual(await pass(), [key(W.A)], 'index основной копии — один status её');
+  fw.emit(W.A, win('.git/worktrees/proj-a-wt/index'));
+  fw.emit(W.A, win('.git/worktrees/proj-a-wt/index.lock'));
+  assert.deepEqual(await pass(), [key(W.WT)], 'index рабочей копии — status только её');
+  fw.emit(path.join(W.S, '.git'), 'index');
+  fw.emit(path.join(W.S, '.git'), win('logs/HEAD'));
+  assert.deepEqual(await pass(), [], 'общий репозиторий: index и логи — ничего (его status не нужен)');
+  for (const n of [win('.git/HEAD'), win('.git/packed-refs'), win('.git/refs/heads/x'), win('.git/worktrees/proj-a-wt/HEAD'), win('.git/worktrees/new-wt')]) {
+    fw.emit(W.A, n);
+    const c = await pass();
+    subs.push(n);
+    assert.ok(c.length >= 3 && c.every((p) => p === key(W.A) || p === key(W.WT)), `${n} — полное чтение A: ${c.join(',')}`);
+  }
+  fw.emit(path.join(W.S, '.git'), win('refs/heads/main'));
+  assert.deepEqual(await pass(), [key(W.S)], 'общий: ссылка — rev-parse');
+});
