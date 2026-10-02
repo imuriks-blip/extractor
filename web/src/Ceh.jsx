@@ -53,10 +53,23 @@ function Group({ id, title, count, hint, children }) {
   );
 }
 
+// «Готово, посмотри» (в): первые n свежих, остальное — кнопкой (слово Ивана 02.10). Им же пользуется окно проекта.
+export function useShowMore(list, n = REVIEW_SHOWN, className = 'more') {
+  const [all, setAll] = useState(false);
+  const shown = all ? list : list.slice(0, n);
+  const button = list.length > n
+    ? (
+      <button type="button" className={className} onClick={() => setAll((v) => !v)}>
+        {all ? 'Свернуть до свежих' : `Показать ещё ${list.length - n}`}
+      </button>
+    )
+    : null;
+  return [shown, button];
+}
+
 function Waiting({ w, now, stale }) {
   const o = useOpen('waiting');
-  const [allReview, setAllReview] = useState(false);
-  const review = allReview ? w.review : w.review.slice(0, REVIEW_SHOWN);
+  const [review, moreReview] = useShowMore(w.review);
   const empty = !w.threads.length && !w.yes.length && !w.review.length;
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
@@ -101,11 +114,7 @@ function Waiting({ w, now, stale }) {
               <span className="age num">{ageShort(r.at, now)}</span>
             </div>
           ))}
-          {w.review.length > REVIEW_SHOWN && (
-            <button type="button" className="more" onClick={() => setAllReview((v) => !v)}>
-              {allReview ? 'Свернуть до свежих' : `Показать ещё ${w.review.length - REVIEW_SHOWN}`}
-            </button>
-          )}
+          {moreReview}
         </Group>
       )}
 

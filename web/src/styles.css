@@ -30,7 +30,7 @@ button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
 /* шапка */
-.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:10px;border-bottom:1px solid var(--line);margin-bottom:12px;position:sticky;top:0;z-index:20;background:var(--bg)}
 .top b{font-weight:600}
 .top .sep{color:var(--faint)}
 .top a{color:inherit;text-decoration:none}
@@ -194,6 +194,7 @@ button.prow:hover,.prow[aria-current="true"]{background:var(--hover)}
 .prow .src{font-family:var(--mono);font-size:12px}
 .prow .age{text-align:right;color:var(--muted)}
 .empty{padding:4px 10px;border-top:1px solid var(--line);color:var(--faint);font-size:12px}
+.more.flat{padding:4px 10px 6px;border-top:1px solid var(--line)}
 
 /* панель карточки: справа, без затемнения — доска под ней кликабельна */
 .panel{position:fixed;z-index:10;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:-6px 0 24px var(--shade);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}

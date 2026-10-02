@@ -93,6 +93,22 @@ function Ev({ e }) {
   );
 }
 
+// Ключ записи ленты — из её полей, без индекса: новая запись сверху не сбивает раскрытый «целиком».
+function hashStr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+function evKey(e) {
+  if (e.kind === 'commit') return `commit-${e.hash}`;
+  if (e.kind === 'run') return `run-${e.at}-${e.agent}-${hashStr(String(e.description ?? ''))}`;
+  return `${e.kind}-${e.at}-${e.author ?? ''}-${e.logKind ?? ''}-${hashStr(String(e.body ?? ''))}`;
+}
+function withKeys(list) {
+  const seen = new Map(); // полные двойники — с номером повтора своего ключа, не с местом в ленте
+  return list.map((e) => { const k = evKey(e); const n = seen.get(k) ?? 0; seen.set(k, n + 1); return [n ? `${k}~${n}` : k, e]; });
+}
+
 function Feed({ data, filter, setFilter, now }) {
   const feed = data.feed || [];
   const counts = data.feedCounts || {};
@@ -116,7 +132,7 @@ function Feed({ data, filter, setFilter, now }) {
         <div className="note">журнал карточки не читается — комменты прежние</div>
       )}
       <div className="feed">
-        {shown.map((e, i) => <Ev key={`${e.kind}-${e.at}-${e.hash || i}`} e={e} />)}
+        {withKeys(shown).map(([k, e]) => <Ev key={k} e={e} />)}
         {!shown.length && <div className="note">{feed.length ? 'Записей этого вида нет.' : 'Записей в ленте нет.'}</div>}
       </div>
     </div>
@@ -174,21 +190,26 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
 
 export default function CardPanel({ id, now, onOpen, onClose }) {
   const closeRef = useRef(null);
-  // панель — под строкой шапки (слово Ивана 02.10): тема и свежесть всегда видны; высоту шапки меряем — на узком экране она в несколько строк
+  // панель — под строкой шапки (слово Ивана 02.10): шапка прилипает (sticky, top 0), панель fixed — отсчёт от окна,
+  // поэтому берём низ шапки в окне; меряем при смене её высоты (на узком экране она в несколько строк) и при прокрутке
   const [top, setTop] = useState(0);
   useLayoutEffect(() => {
     const el = document.querySelector('.top');
     if (!el) return undefined;
-    const set = () => setTop(el.offsetTop + el.offsetHeight);
+    const set = () => setTop(Math.max(0, Math.round(el.getBoundingClientRect().bottom)));
     set();
     const ro = new ResizeObserver(set);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener('scroll', set, { passive: true });
+    window.addEventListener('resize', set);
+    return () => { ro.disconnect(); window.removeEventListener('scroll', set); window.removeEventListener('resize', set); };
   }, []);
   const [filter, setFilter] = useState('all'); // фильтр ленты живёт, пока панель открыта, и переживает смену карточки
   useEffect(() => { closeRef.current?.focus(); }, []);
   useEffect(() => {
-    const on = (e) => { if (e.key === 'Escape') onClose(); };
+    // Esc в поле ввода (поиск Backlog/Done) — только очистить поле, панель не закрывать
+    const typing = (t) => t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    const on = (e) => { if (e.key === 'Escape' && !typing(e.target)) onClose(); };
     document.addEventListener('keydown', on);
     return () => document.removeEventListener('keydown', on);
   }, [onClose]);

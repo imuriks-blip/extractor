@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, hm, minutes, plural } from './format.js';
-import { Mark, Stale, Summary, Thread, mergeFresh, staleText } from './Ceh.jsx';
+import { Mark, Stale, Summary, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
 import CardPanel from './CardPanel.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
@@ -90,7 +90,8 @@ function ListGroup({ id, title, items, shown, hint, sel, onOpen, now }) {
     <details className="grp" open={o.open} onToggle={o.onToggle}>
       <Summary>{title} <span className="cnt num">{items.length}</span>{hint && <span className="hint">{hint}</span>}</Summary>
       {items.length > 0 && (
-        <input className="srch" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Найти в ${title}`} aria-label={`Найти в ${title}`} />
+        <input className="srch" type="search" value={q} onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setQ(''); }} placeholder={`Найти в ${title}`} aria-label={`Найти в ${title}`} />
       )}
       {list.map((c) => (
         <button type="button" key={c.id} className="lrow" data-id={c.id} aria-current={sel === c.id ? 'true' : undefined} onClick={() => onOpen(c.id)}>
@@ -111,7 +112,7 @@ function Board({ code, b, sel, onOpen, now, stale }) {
   const o = useOpen('pboard');
   const cnt = b.counts || {};
   return (
-    <details className="blk" open={o.open} onToggle={o.onToggle}>
+    <details className="blk pboard" open={o.open} onToggle={o.onToggle}>
       <Summary>
         Доска {code} <span className="cnt num">{plural(cnt.live ?? 0, ['живая', 'живые', 'живых'])} · {cnt.backlog ?? 0} в Backlog · {cnt.done ?? 0} Done</span>
         <span className="hint hsm">клик по карточке открывает её справа</span>
@@ -160,6 +161,9 @@ function WRow({ r, now, sel, onOpen }) {
 function PWaiting({ code, rows, cnt, now, stale, sel, onOpen }) {
   const o = useOpen('pwaiting');
   const threadWaits = rows.some((r) => r.group === 'thread');
+  // (а) и (б) — целиком; (в) Review — 10 свежих и «Показать ещё N», как на «Цехе»
+  const [review, moreReview] = useShowMore(rows.filter((r) => r.group === 'review'), undefined, 'more flat');
+  const shown = [...rows.filter((r) => r.group !== 'review'), ...review];
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
       <Summary>
@@ -167,7 +171,8 @@ function PWaiting({ code, rows, cnt, now, stale, sel, onOpen }) {
         {cnt?.more > 0 && <span className="hint">+ {cnt.more} посмотреть</span>}
       </Summary>
       {!threadWaits && <div className="empty">Тред {code} не ждёт ответа</div>}
-      {rows.map((r) => <WRow key={r.key || `${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} />)}
+      {shown.map((r) => <WRow key={r.key || `${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} />)}
+      {moreReview}
       <Stale text={stale} />
     </details>
   );

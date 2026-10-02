@@ -73,7 +73,11 @@ export default function App() {
     const r = parseRoute();
     if (r.name !== 'project' || !r.card) return;
     window.location.hash = `#/project/${r.code}`;
-    setTimeout(() => document.querySelector(`[data-id="${r.card}"]`)?.focus(), 0); // после перерисовки доски — фокус на карточку
+    setTimeout(() => { // после перерисовки доски — фокус на карточку; не видна — на заголовок доски
+      const el = document.querySelector(`[data-id="${r.card}"]`);
+      el?.focus();
+      if (!el || document.activeElement !== el) document.querySelector('details.pboard > summary')?.focus();
+    }, 0);
   }, []);
 
   let body;
