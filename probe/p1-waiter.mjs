@@ -15,6 +15,12 @@ process.stdin.on('end', () => {
   let j = {}
   try { j = JSON.parse(raw) } catch {}
   const sid = j.session_id || 'unknown'
+  // белый список (шаг 2, общий хук десктопа): файла нет — пускаем всех (шаг 1); есть — только перечисленные сессии
+  const allowFile = path.join(DIR, 'allow.txt')
+  if (fs.existsSync(allowFile)) {
+    const allow = fs.readFileSync(allowFile, 'utf8').split(/\s+/).filter(Boolean)
+    if (!allow.includes(sid)) process.exit(0)
+  }
   const lock = path.join(DIR, `${sid}.lock`)
   const btn = path.join(DIR, `${sid}.btn`)
   // уже есть живой ждущий этой сессии — второй не нужен
