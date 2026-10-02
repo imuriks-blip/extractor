@@ -81,6 +81,9 @@
             "agent": "terminus",
             "who": "Терминус",
             "description": "EXT-25 В1: каркас сервера и читатель доски",
+            "cards": [
+              "EXT-25"
+            ],
             "turns": 34,
             "maxTurns": 90,
             "target": 50
@@ -191,7 +194,8 @@
       "live": 4,
       "backlog": 1,
       "done": 2
-    }
+    },
+    "_note": "Колонки доски проекта (2.5): agentWorking — живой субагент «Кто работает» (В3) с номером карточки в ТЗ; lastLog — первая строка последней записи журнала до 120 знаков, author null у plane; at — давность max(updated, последняя запись); в колонке свежие сверху; done — последние сверху, cancelled: true — «отменена»; counts — «N живых · M в Backlog · K Done». Списки целиком — поиск в браузере."
   },
   "freshness": {
     "board": {

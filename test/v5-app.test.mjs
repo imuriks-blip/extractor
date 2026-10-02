@@ -27,14 +27,21 @@ async function setup() {
     { id: 'EXT-7', title: 'Слить' },
     { id: 'EXT-8', title: 'Соседка' },
     { id: 'EXT-25', title: 'В1 · каркас', parent: 'EXT-6', blocks: ['EXT-6'] },
-    { id: 'EXT-26', title: 'Связана с шестой', relates: ['EXT-6'] },
+    { id: 'EXT-26', title: 'Связана с шестой', relates: ['EXT-6'], updated: '2026-10-01T12:00+03:00' },
     { id: 'EXT-27', title: 'Ждёт шестую', blockedBy: ['EXT-6'] },
     { id: 'NEW-1', title: 'Новый проект' },
+    { id: 'EXT-30', title: 'В работе', status: 'in-progress', labels: ['terminus', 'golem'], updated: '2026-10-01T09:00+03:00' },
+    { id: 'EXT-31', title: 'В очереди с Б', status: 'ready', labels: [], markB: true, updated: '2026-09-29T09:00+03:00' },
+    { id: 'EXT-32', title: 'Сделана давно', status: 'done', updated: '2026-09-20T09:00+03:00' },
+    { id: 'EXT-33', title: 'Отменена', status: 'cancelled', updated: '2026-09-27T09:00+03:00' },
+    { id: 'EXT-34', title: 'Сделана вчера', status: 'done', updated: '2026-10-01T09:00+03:00' },
   ] });
   fs.writeFileSync(path.join(dir, 'EXT', 'EXT-6.log.md'), [
     '### 2026-09-30 13:57 +03:00 · plane · ▶', '', '▶ выдан: clap · EXT-6 · спека', '',
     '### 2026-10-01 10:35 +03:00 · trurl:EXT · решение', '', 'Спека утверждена.', '', 'Кто решил: слово Ивана.', '',
   ].join('\n'));
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-31.log.md'), '### 2026-09-28 10:00 +03:00 · plane · коммент\n\n' + 'Длинная первая строка '.repeat(10) + '\nвторая строка\n\n');
+  fs.rmSync(path.join(dir, 'EXT', 'EXT-30.log.md'));
   gitInitCommit(dir);
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
   await board.init();
@@ -63,7 +70,9 @@ async function setup() {
   ];
   const journals = { sessions: () => sessions, state: () => ({ lastOkAt: '2026-10-02T10:00:00.000Z' }) };
   const maxTurns = (t) => ({ terminus: 90, golem: 40, clap: 40 })[t] ?? null;
-  const app = await buildApp({ port: 4317, board, registry, journals, scan, gitReader, projectCards, maxTurns });
+  // В3: живой субагент несёт номер карточки в ТЗ (cards запуска) — строка «<агент> работает» на доске проекта
+  const threads = { list: () => ({ threads: [{ sessionId: 'x', project: 'EXT', projectBy: 'title', subagents: [{ agent: 'terminus', who: 'Терминус', cards: ['EXT-30'] }] }], subagentsCount: 1, unknownStatus: {} }), state: () => ({ processes: null, desktop: null }) };
+  const app = await buildApp({ port: 4317, board, registry, journals, threads, scan, gitReader, projectCards, maxTurns });
   const get = async (url) => app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } });
   return { get, gitCalls };
 }
@@ -125,4 +134,43 @@ test('карточка без коммитов и запусков (проект
   assert.equal(r.statusCode, 200);
   assert.deepEqual(r.json().feed.map((f) => f.kind), ['comment']);
   assert.deepEqual(r.json().links.children, []);
+});
+
+test('доска проекта: колонки по статусу, карточка — номер, первый лейбл, Б, давность, заголовок, агент В3, последняя запись', async () => {
+  const b = (await S.get('/api/project/EXT')).json().board;
+  assert.deepEqual(b.inProgress, [{ id: 'EXT-30', title: 'В работе', label: 'terminus', markB: false, at: '2026-10-01T06:00:00.000Z', agentWorking: 'Терминус', lastLog: null }]);
+  const r = b.ready[0];
+  assert.equal(r.id, 'EXT-31'); assert.equal(r.label, null); assert.equal(r.markB, true); assert.equal(r.agentWorking, null);
+  assert.equal(r.lastLog.author, null, 'автор plane не показывается');
+  assert.equal(r.lastLog.text.length, 120); assert.ok(r.lastLog.text.endsWith('…')); assert.ok(r.lastLog.text.startsWith('Длинная первая строка'));
+  assert.equal(r.at, '2026-09-29T06:00:00.000Z', 'давность — max(updated, последняя запись)');
+  assert.deepEqual(b.review.map((c) => [c.id, c.at, c.lastLog.text, c.lastLog.author]), [['EXT-6', '2026-10-01T07:35:00.000Z', 'Спека утверждена.', 'trurl:EXT']]);
+  assert.equal(b.backlog.length, 6);
+  assert.deepEqual(Object.keys(b.backlog[0]).sort(), ['at', 'id', 'label', 'title']);
+  assert.deepEqual(b.done.map((c) => [c.id, c.cancelled]), [['EXT-34', false], ['EXT-33', true], ['EXT-32', false]], 'последние сверху, отменённая — с пометкой');
+  assert.deepEqual(b.counts, { live: 3, backlog: 6, done: 3 });
+});
+
+test('доска проекта: в колонке свежие сверху', async () => {
+  const b = (await S.get('/api/project/EXT')).json().board;
+  assert.equal(b.backlog.length, 6);
+  assert.equal(b.backlog[0].id, 'EXT-26');
+  const ats = b.backlog.map((c) => Date.parse(c.at));
+  assert.deepEqual(ats, [...ats].sort((x, y) => y - x));
+});
+
+test('«Цех»: фаза и следующий шаг — первое предложение до 90 знаков с «…», целиком — full; нет карточки — null', async () => {
+  const long = 'Очень длинное первое предложение фазы, которое никак не помещается в девяносто знаков строки проекта. Второе.';
+  const ceh = (await S.get('/api/ceh')).json();
+  const ext = ceh.projects.find((p) => p.code === 'EXT');
+  assert.deepEqual(ext.next, { short: 'Такт В5.', full: 'Такт В5.' });
+  assert.equal(ext.phase.full, 'Фаза целиком. '.repeat(10).trim());
+  assert.equal(ext.phase.short, 'Фаза целиком.');
+  assert.equal(ceh.projects.find((p) => p.code === 'NEW').phase, null);
+  const { brief } = await import('../lib/project-cards.mjs');
+  const b = brief(long);
+  assert.equal(b.short.length, 90); assert.ok(b.short.endsWith('…')); assert.equal(b.full, long);
+  assert.deepEqual(brief('Такт В5. Потом В6.'), { short: 'Такт В5.', full: 'Такт В5. Потом В6.' });
+  assert.equal(brief('01.10 слито, шаг 2.5 — дальше').short, '01.10 слито, шаг 2.5 — дальше', 'точка без пробела — не конец предложения');
+  assert.equal(brief(null), null);
 });

@@ -21,9 +21,8 @@ const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web',
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
 const PENDING = {
-  // не вошло в ТЗ EXT-29 (В5: маячок и лента) — следующий такт по решению дирижёра
-  ceh: { 'projects.phase': 'после EXT-29', 'projects.next': 'после EXT-29' },
-  project: { 'board.inProgress': 'после EXT-29', 'board.ready': 'после EXT-29', 'board.review': 'после EXT-29', 'board.backlog': 'после EXT-29', 'board.done': 'после EXT-29', 'board.counts': 'после EXT-29' },
+  ceh: {},
+  project: {},
   card: {},
   health: {},
 };
@@ -70,7 +69,8 @@ function compare(fx, real, pending, at = '') {
 async function realResponses() {
   const now = Date.now();
   const hm = (ms) => { const d = new Date(ms + 3 * 3600000).toISOString(); return `${d.slice(0, 10)} ${d.slice(11, 16)} +03:00`; };
-  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }, { id: 'EXT-7', status: 'in-progress', title: 'Слить', parent: 'EXT-6', blocks: ['EXT-6'] }] });
+  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }, { id: 'EXT-7', status: 'in-progress', title: 'Слить', parent: 'EXT-6', blocks: ['EXT-6'] },
+    { id: 'EXT-8', status: 'backlog', title: 'Потом' }, { id: 'EXT-9', status: 'ready', title: 'Следом' }, { id: 'EXT-10', status: 'done', title: 'Готово' }] });
   // (б): последняя запись EXT-7 с маркером, свежая; зеркало — .mirror/status.json (В-5)
   fs.writeFileSync(path.join(dir, 'EXT', 'EXT-7.log.md'), `### ${hm(now - 3600000)} · plane · коммент\n\nЖдёт «сливай».\n\n`);
   fs.mkdirSync(path.join(dir, '.mirror'));
@@ -97,7 +97,7 @@ async function realResponses() {
   const at = new Date(now - 600000).toISOString();
   const sessions = [
     { sessionId: sid, ivan: { cards: { 'EXT-6': { n: 1, firstAt: at, lastAt: at } } }, boardWrites: [], thread: { askOpen: false, endTurnQ: null, lastAt: at },
-      runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, cards: ['EXT-6'], at, turns: 3, zakhods: [3], alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] },
+      runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, cards: ['EXT-6', 'EXT-7'], at, turns: 3, zakhods: [3], alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] },
     { sessionId: sidW, ivan: { cards: {} }, boardWrites: [], runs: [{ agentId: 'a2', agentType: 'golem', description: 'EXT-7 ревью', target: null, alive: true, lastEndAt: null, currentZakhod: 1, lastAt: at }], thread: { askOpen: true, endTurnQ: null, lastAt: at, ask: { text: 'Какой вариант?', uuid: 'u1', at } } },
     { sessionId: sidC, ivan: { cards: {} }, runs: [], thread: { customTitle: 'EXT · закрытый' }, boardWrites: [{ at: new Date(now - 4 * 3600000).toISOString(), refs: ['EXT-6'], firstLine: '▶ выдан: terminus · ext-6 · В4' }] },
   ];
@@ -141,4 +141,10 @@ test('образец ceh.json: порядок проектов — решени�
   assert.equal(fx.projects.find((p) => p.code === 'EXT').name, 'Экстрактор');
   assert.equal(load('project-EXT.json').name, 'Экстрактор');
   assert.ok(!JSON.stringify(fx).includes('"lastOk"'));
+});
+
+test('доска проекта: «<агент> работает» — живой субагент из строк «Кто работает» (В3) с номером карточки в ТЗ', () => {
+  const ip = real.project.board.inProgress;
+  assert.deepEqual(ip.map((c) => [c.id, c.agentWorking]), [['EXT-7', 'Терминус']]);
+  assert.equal(real.project.board.ready[0].agentWorking, null);
 });
