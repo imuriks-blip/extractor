@@ -136,7 +136,10 @@ test('/api/ceh: projects[] в порядке board_codes, затем коды д
   assert.deepEqual([ext.inProgress, ext.ready, ext.review], [0, 0, 1]);
   assert.equal(ext.inRegistry, true);
   assert.equal(j.projects.find((p) => p.code === 'RADAR').inRegistry, false);
-  assert.deepEqual(j.waiting, { threads: [], yes: [], review: [] });
+  // В4: журналы карточек этого теста без маркеров — (б) пусто, Review — обе карточки в review (2.4 (в))
+  assert.deepEqual([j.waiting.threads, j.waiting.yes, j.waiting.count], [[], [], 0]);
+  assert.deepEqual(j.waiting.review.map((r) => r.id).sort(), ['CAR-2', 'EXT-7']);
+  assert.equal(j.waiting.more, 2);
   assert.deepEqual(j.workers, { threads: [], subagentsCount: 0, marksCount: 0 });
   assert.ok(j.freshness.board.lastOkAt);
 });

@@ -11,16 +11,17 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { createJournalReader } from '../lib/journal-reader.mjs';
-import { buildThreads } from '../lib/threads.mjs';
+import { buildWorkers } from '../lib/waiting.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
+const { parseLog } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'fixtures');
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
 const PENDING = {
-  ceh: { 'waiting.threads': 'В4', 'waiting.yes': 'В4', 'waiting.review': 'В4', 'workers.threads.marks': 'В4', 'projects.phase': 'В5', 'projects.next': 'В5', 'freshness.mirror': 'В4' },
-  project: { beacon: 'В5', waiting: 'В4', 'workers.threads.marks': 'В4', 'workers.threads.rulesFresh': 'В4', 'workers.closed': 'В4', 'board.inProgress': 'В5', 'board.ready': 'В5', 'board.review': 'В5', 'board.backlog': 'В5', 'board.done': 'В5', 'board.counts': 'В5', 'freshness.mirror': 'В4' },
+  ceh: { 'projects.phase': 'В5', 'projects.next': 'В5' },
+  project: { beacon: 'В5', 'board.inProgress': 'В5', 'board.ready': 'В5', 'board.review': 'В5', 'board.backlog': 'В5', 'board.done': 'В5', 'board.counts': 'В5' },
   card: { links: 'В5', feed: 'В5' },
   health: {},
 };
@@ -55,23 +56,39 @@ function compare(fx, real, pending, at = '') {
 }
 
 async function realResponses() {
-  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }] });
+  const now = Date.now();
+  const hm = (ms) => { const d = new Date(ms + 3 * 3600000).toISOString(); return `${d.slice(0, 10)} ${d.slice(11, 16)} +03:00`; };
+  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }, { id: 'EXT-7', status: 'in-progress', title: 'Слить' }] });
+  // (б): последняя запись EXT-7 с маркером, свежая; зеркало — .mirror/status.json (В-5)
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-7.log.md'), `### ${hm(now - 3600000)} · plane · коммент\n\nЖдёт «сливай».\n\n`);
+  fs.mkdirSync(path.join(dir, '.mirror'));
+  fs.writeFileSync(path.join(dir, '.mirror', 'status.json'), JSON.stringify({ lastOk: new Date(now - 86400000).toISOString() }));
   gitInitCommit(dir);
   const reg = path.join(tmpDir('reg-'), 'registry.json');
   fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
-  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard });
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog });
   await board.init();
   const journals = createJournalReader({ root: tmpDir('jr-'), indexDir: tmpDir('ji-') });
   await journals.refresh();
-  // живой тред EXT с живым субагентом (В3) — данные выжимок читателей, собранные строками «Кто работает»
-  const now = Date.now();
+  // живые треды EXT (В3): ждущий ответа на AskUserQuestion и работающий с живым субагентом; оба открыты до
+  // «правила обновлены»; закрытый тред с висящим ▶ на EXT-6 (В-6 (б)) — данные выжимок читателей
   const sid = '00000000-0000-4000-8000-000000000003';
-  const procs = [{ pid: 101, sessionId: sid, hostSessionId: 'local_x', name: null, status: 'busy', startedAt: now - 3600000, statusUpdatedAt: now, observedAt: now, live: true }];
+  const sidW = '00000000-0000-4000-8000-000000000001';
+  const sidC = '00000000-0000-4000-8000-000000000009';
+  const procs = [
+    { pid: 101, sessionId: sid, hostSessionId: 'local_x', name: null, status: 'busy', startedAt: now - 3600000, statusUpdatedAt: now, observedAt: now, live: true },
+    { pid: 102, sessionId: sidW, hostSessionId: 'local_w', name: null, status: 'waiting', waitingFor: 'input needed', startedAt: now - 3600000, statusUpdatedAt: now, observedAt: now, live: true },
+  ];
   const at = new Date(now - 600000).toISOString();
-  const sessions = [{ sessionId: sid, ivan: { cards: { 'EXT-6': { n: 1, firstAt: at, lastAt: at } } }, boardWrites: [], thread: { askOpen: false, endTurnQ: null, lastAt: at },
-    runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] }];
+  const sessions = [
+    { sessionId: sid, ivan: { cards: { 'EXT-6': { n: 1, firstAt: at, lastAt: at } } }, boardWrites: [], thread: { askOpen: false, endTurnQ: null, lastAt: at },
+      runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] },
+    { sessionId: sidW, ivan: { cards: {} }, boardWrites: [], runs: [{ agentId: 'a2', agentType: 'golem', description: 'EXT-7 ревью', target: null, alive: true, lastEndAt: null, currentZakhod: 1, lastAt: at }], thread: { askOpen: true, endTurnQ: null, lastAt: at, ask: { text: 'Какой вариант?', uuid: 'u1', at } } },
+    { sessionId: sidC, ivan: { cards: {} }, runs: [], thread: { customTitle: 'EXT · закрытый' }, boardWrites: [{ at: new Date(now - 4 * 3600000).toISOString(), refs: ['EXT-6'], firstLine: '▶ выдан: terminus · ext-6 · В4' }] },
+  ];
+  const titles = { local_x: 'EXT · витрина', local_w: 'EXT · вопрос' };
   const threads = {
-    list: () => buildThreads({ procs, desktop: () => ({ title: 'EXT · витрина' }), sessions, board, maxTurns: () => 90, now }),
+    list: () => buildWorkers({ procs, desktop: (h) => ({ title: titles[h] }), sessions, board, maxTurns: () => 90, now, thresholds: { taktYellowMin: 60, taktRedMin: 180, waitingOverDayHours: 24, staleMin: 15 }, rulesAt: new Date(now - 1800000).toISOString() }),
     state: () => ({ processes: { lastOkAt: at, errors: 0, lastError: null, files: 1, live: 1 }, desktop: { lastOkAt: at, errors: 0, lastError: null, files: 1 } }),
   };
   const app = await buildApp({ port: 4317, board, registry: createRegistryReader(reg), journals, threads, scan: () => [] });
