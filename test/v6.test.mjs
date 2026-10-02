@@ -13,6 +13,7 @@ import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { createJournalReader } from '../lib/journal-reader.mjs';
 import { waitingThreads, buildMarks } from '../lib/waiting.mjs';
+import { newSessionState, feedSession, newAgentState, feedAgent, agentSummary } from '../lib/journal-parse.mjs';
 import * as text from '../lib/text.mjs';
 
 const stripMarkdown = (s) => text.stripMarkdown(s);
@@ -276,4 +277,52 @@ test('/api/ceh и /api/project: freshness.board и freshness.journals несут
   const bad = (await app.inject({ method: 'GET', url: '/api/project/EXT', headers: H })).json().freshness;
   assert.equal(bad.board.failingSince, board.state().failingSince);
   assert.ok(bad.board.failingSince);
+});
+
+// ---------- вердикт Голема на В6: разметка снимается до обрезки и через настоящий разбор журнала (EXT-31) ----------
+
+test('Важно 1 Голема: (а) через journal-parse — «**» на границе 160 не остаётся непарной, на конце «…»', () => {
+  const sid = 'aaaaaaaa-0000-4000-8000-000000000009';
+  const st = newSessionState();
+  const para = 'я'.repeat(150) + ' **жирный хвост** и дальше текст?';
+  feedSession(st, { type: 'assistant', uuid: 'u1', timestamp: iso(T0), message: { id: 'm1', stop_reason: 'end_turn', content: [{ type: 'text', text: `Сделал.\n\n${para}` }] } });
+  const t = { sessionId: sid, title: 'CAR', project: 'CAR', projectBy: 'title', state: 'waiting', waitingKind: 'question', statusUpdatedAt: iso(T0) };
+  const [row] = waitingThreads({ threads: [t], sessions: [{ sessionId: sid, thread: st.thread }], now: T0 });
+  assert.equal(row.text, 'Трурль: ' + 'я'.repeat(150) + ' жирный х…');
+  assert.ok(!row.text.includes('*'));
+  // AskUserQuestion — тот же путь
+  const st2 = newSessionState();
+  feedSession(st2, { type: 'assistant', uuid: 'u2', timestamp: iso(T0), message: { id: 'm2', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tq', name: 'AskUserQuestion', input: { questions: [{ question: 'ё'.repeat(155) + ' [ссылка на спеку](https://example.org/very/long/path)?', header: 'h', multiSelect: false, options: [] }] } }] } });
+  const [ask] = waitingThreads({ threads: [{ ...t, waitingKind: 'askUserQuestion' }], sessions: [{ sessionId: sid, thread: st2.thread }], now: T0 });
+  assert.equal(ask.text, 'Трурль: ' + 'ё'.repeat(155) + ' ссы…');
+});
+
+test('Важно 1 Голема (EXT-31): lastText PARTIAL через journal-parse — разметка снята до обрезки 200, на конце «…»; короткий — без «…»', () => {
+  const st = newAgentState();
+  feedAgent(st, { type: 'assistant', timestamp: iso(T0 - 70 * MIN), message: { id: 'x1', content: [{ type: 'text', text: 'ю'.repeat(190) + ' **итог работы** конец\n**Осталось:** `npm test`' }] } });
+  const s = agentSummary(st);
+  const run = { agentId: 'a1', agentType: 'terminus', cards: ['EXT-7'], starts: [iso(T0 - 3 * 60 * MIN)], lastText: s.lastText, left: s.left, alive: false };
+  const [p] = marks([sess({ runs: [run], partials: [{ agentId: 'a1', at: iso(T0 - 60 * MIN), limit: 90 }] })]);
+  assert.equal(p.lastText, 'ю'.repeat(190) + ' итог раб…');
+  assert.equal(p.left, 'Осталось: npm test');
+  const st2 = newAgentState();
+  feedAgent(st2, { type: 'assistant', timestamp: iso(T0 - 70 * MIN), message: { id: 'x2', content: [{ type: 'text', text: '**Итог:** коротко' }] } });
+  const [p2] = marks([sess({ runs: [{ ...run, lastText: agentSummary(st2).lastText }], partials: [{ agentId: 'a1', at: iso(T0 - 60 * MIN), limit: 90 }] })]);
+  assert.equal(p2.lastText, 'Итог: коротко');
+});
+
+// ---------- мелочь Голема: запрет фреймов ----------
+
+test('мелочь Голема: X-Frame-Options DENY и CSP frame-ancestors none — у всех ответов (статика, ручка, 404, 421, 503)', async () => {
+  const { top, root } = dist();
+  const app = await staticApp(root);
+  const gone = await staticApp(path.join(top, 'нет'));
+  const cases = [[app, '/', H, 200], [app, '/assets/index-DlhUvg85.js', H, 200], [app, '/api/health', H, 200], [app, '/api/nope', H, 404],
+    [app, '/net.js', H, 404], [app, '/', { host: 'evil.example' }, 421], [gone, '/', H, 503]];
+  for (const [a, url, headers, code] of cases) {
+    const r = await a.inject({ method: 'GET', url, headers });
+    assert.equal(r.statusCode, code, url);
+    assert.equal(r.headers['x-frame-options'], 'DENY', `${url} ${code}`);
+    assert.equal(r.headers['content-security-policy'], "frame-ancestors 'none'", `${url} ${code}`);
+  }
 });

@@ -246,7 +246,8 @@ test('разбор субагента: последний текст (200 зна
   feedAgent(st, { type: 'user', timestamp: iso(T0 - 8 * MIN), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'w1', content: 'ok' }] } }, { rules: RULES });
   feedAgent(st, { type: 'assistant', timestamp: iso(T0 - 7 * MIN), message: { id: 'x3', content: [{ type: 'text', text: 'ю'.repeat(300) + '\n- **Осталось:** тесты витрины' }] } }, { rules: RULES });
   const s = agentSummary(st);
-  assert.equal(s.lastText, 'ю'.repeat(200), 'последний текст — первые 200 знаков');
+  // В6, вердикт Голема (EXT-31): разбор хранит сырой текст с запасом (до 2000 символов); 200 с «…» — на выходе, после снятия разметки
+  assert.equal(s.lastText, 'ю'.repeat(300) + '\n- **Осталось:** тесты витрины', 'последний текст — целиком, сырой');
   assert.equal(s.left, '- **Осталось:** тесты витрины', 'строка «осталось» — из последнего текста');
   feedAgent(st, { type: 'assistant', timestamp: iso(T0 - 6 * MIN), message: { id: 'x4', content: [{ type: 'text', text: 'Итог без остатка.' }] } }, { rules: RULES });
   assert.equal(agentSummary(st).left, null, 'в последнем тексте строки нет — «агент не указал»');
