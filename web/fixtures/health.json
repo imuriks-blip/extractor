@@ -45,6 +45,14 @@
       "errors": 0,
       "lastError": null,
       "files": 50
+    },
+    "git": {
+      "lastOkAt": "2026-10-01T12:00:00.000Z",
+      "errors": 0,
+      "lastError": null,
+      "repos": 15,
+      "failing": 0,
+      "passes": 12
     }
   },
   "gitCalls": {

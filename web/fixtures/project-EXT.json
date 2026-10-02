@@ -3,28 +3,35 @@
   "name": "Экстрактор",
   "beacon": {
     "described": true,
+    "message": null,
     "phase": "Витрина этапа 1: каркас сервера и читатель доски. Дальше — журналы сессий и субагентов.",
     "next": "Такт В1 — каркас и читатель доски.",
     "repos": [
       {
         "name": "extractor",
-        "path": "C:\\projects\\extractor",
+        "path": "C:/projects/extractor",
         "branch": "main",
-        "dirty": 0
+        "dirty": 0,
+        "missing": false
       },
       {
-        "name": "wt",
-        "path": "C:\\projects\\extractor-wt\\ext-25",
+        "name": "ext-25",
+        "path": "C:/projects/extractor-wt/ext-25",
         "branch": "ext-25-v1-skeleton",
-        "dirty": 4
+        "dirty": 4,
+        "missing": false
       },
       {
         "name": "unorbis-board",
-        "path": "C:\\projects\\unorbis-board",
+        "path": "C:/projects/unorbis-board",
         "branch": "main",
-        "dirty": 0
+        "dirty": 0,
+        "missing": false
       }
-    ]
+    ],
+    "readAt": "2026-10-01T12:00:00.000Z",
+    "failingSince": null,
+    "_note": "described: false → message «проект не описан в реестре», repos []. phase/next null → серым «фаза не указана в карточке проекта» (2.5). dirty 0 — «чисто», N — «N файлов не закоммичены», null — не прочитано (missing: true — папки рабочей копии нет). failingSince не null — серая строка «данные на ЧЧ:ММ (readAt), чтение не удаётся N мин» (2.7)."
   },
   "waiting": [
     {

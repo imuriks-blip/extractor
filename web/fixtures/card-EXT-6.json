@@ -39,7 +39,9 @@
         "id": "EXT-25",
         "title": "В1 · каркас сервера и читатель доски"
       }
-    ]
+    ],
+    "blockedByIt": [],
+    "_note": "blockingIt — «← блокирует её» (их blocks), relatedFrom — «← связана», blockedByIt — карточки, ждущие эту (их blocked_by), children — дети."
   },
   "feed": [
     {
@@ -100,5 +102,16 @@
       "logKind": "▶",
       "body": "▶ выдан: clap · EXT-6 · спека витрины"
     }
-  ]
+  ],
+  "feedCounts": {
+    "comment": 2,
+    "commit": 1,
+    "run": 3
+  },
+  "feedGit": {
+    "readAt": "2026-10-01T12:00:00.000Z",
+    "failingSince": null
+  },
+  "logError": null,
+  "_note": "body — markdown; в HTML с очисткой (без сырого HTML и скриптов, ссылки rel=\"noreferrer\") переводит вёрстка (2.6). feedGit.failingSince не null — серая строка 2.7 у коммитов ленты; logError — журнал карточки не прочитан."
 }
