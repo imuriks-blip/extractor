@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>злая страница П.4</title></head>
+<body>
+<p>Злая страница (127.0.0.1:4398): пытается нажать кнопку пульта 127.0.0.1:4399 и прочитать его токен.</p>
+<iframe name="sink" style="width:10px;height:10px"></iframe>
+<script>
+const PULT = 'http://127.0.0.1:4399';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const TOKEN_RE = /name="vitrina-token" content="([^"]+)"/;
+
+async function tryFetch(url, init) {
+  try {
+    const r = await fetch(url, init);
+    let text = null;
+    try { text = await r.text(); } catch (e) { text = 'не читается: ' + e.name; }
+    return { page: `ответ получен: type=${r.type} status=${r.status}`, tokenRead: TOKEN_RE.test(text ?? '') };
+  } catch (e) {
+    return { page: `fetch упал: ${e.name}: ${e.message}`, tokenRead: false };
+  }
+}
+
+function submitForm(fields, enctype) {
+  return new Promise((resolve) => {
+    const f = document.createElement('form');
+    f.method = 'POST'; f.action = PULT + '/api/act'; f.target = 'sink';
+    if (enctype) f.enctype = enctype;
+    for (const [n, v] of fields) { const i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; f.appendChild(i); }
+    document.body.appendChild(f);
+    const sink = document.querySelector('iframe[name=sink]');
+    let done = false;
+    sink.addEventListener('load', () => { if (!done) { done = true; resolve(); } }, { once: true });
+    f.submit();
+    setTimeout(() => { if (!done) { done = true; resolve(); } }, 2500);
+  }).then(() => {
+    let seen;
+    try { seen = document.querySelector('iframe[name=sink]').contentDocument?.body?.innerText ?? 'contentDocument=null'; } catch (e) { seen = 'чтение ответа: ' + e.name; }
+    return { page: `форма отправлена; ответ в iframe: ${seen}`, tokenRead: false };
+  });
+}
+
+window.attacks = {
+  'fetch POST JSON (cors)': () => tryFetch(PULT + '/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'evil-json' }) }),
+  'fetch POST JSON + угаданный X-Vitrina-Token': () => tryFetch(PULT + '/api/act', { method: 'POST', headers: { 'content-type': 'application/json', 'x-vitrina-token': 'guess' }, body: JSON.stringify({ action: 'evil-json-token' }) }),
+  'fetch POST без JSON-типа (no-cors, text/plain)': () => tryFetch(PULT + '/api/act', { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'evil-text' }) }),
+  'fetch POST no-cors с заявленным application/json': () => tryFetch(PULT + '/api/act', { method: 'POST', mode: 'no-cors', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'evil-nocors-json' }) }),
+  'fetch POST на localhost:4399 (no-cors)': () => tryFetch('http://localhost:4399/api/act', { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'evil-localhost' }) }),
+  'форма urlencoded': () => submitForm([['action', 'evil-form']]),
+  'форма text/plain, тело похоже на JSON': () => submitForm([['{"action":"evil-form-text","x":"', '"}']], 'text/plain'),
+  'песочница iframe (Origin: null), fetch no-cors': () => new Promise((resolve) => {
+    const fr = document.createElement('iframe');
+    fr.sandbox = 'allow-scripts';
+    fr.srcdoc = `<script>fetch('${PULT}/api/act',{method:'POST',mode:'no-cors',body:JSON.stringify({action:'evil-null'})}).then(r=>parent.postMessage('ответ: type='+r.type+' status='+r.status,'*'),e=>parent.postMessage('fetch упал: '+e.name,'*'))<\/script>`;
+    const on = (e) => { if (e.source === fr.contentWindow) { removeEventListener('message', on); resolve({ page: String(e.data), tokenRead: false }); } };
+    addEventListener('message', on);
+    document.body.appendChild(fr);
+    setTimeout(() => resolve({ page: 'нет ответа из песочницы', tokenRead: false }), 3000);
+  }),
+  'прочитать HTML пульта (fetch cors)': () => tryFetch(PULT + '/'),
+  'прочитать HTML пульта (fetch no-cors)': () => tryFetch(PULT + '/', { mode: 'no-cors' }),
+  'прочитать HTML пульта (iframe)': () => new Promise((resolve) => {
+    const fr = document.createElement('iframe');
+    fr.src = PULT + '/';
+    document.body.appendChild(fr);
+    setTimeout(() => {
+      let page, tokenRead = false;
+      try { const html = fr.contentDocument?.documentElement?.outerHTML; tokenRead = TOKEN_RE.test(html ?? ''); page = html == null ? 'contentDocument=null' : 'прочитан документ фрейма длиной ' + html.length; } catch (e) { page = 'чтение фрейма: ' + e.name; }
+      resolve({ page, tokenRead });
+    }, 2000);
+  }),
+};
+</script>
+</body></html>
