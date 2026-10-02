@@ -6,8 +6,10 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { createNotifier, createWake, createNotifyLoop, toastRows } from '../lib/notify.mjs';
-import { toastXml, showToast } from '../lib/toast.mjs';
-import { createEvents } from '../lib/events.mjs';
+import { toastXml, showToast, createToastQueue } from '../lib/toast.mjs';
+import { createEvents, createServerTick } from '../lib/events.mjs';
+import { waitingThreads } from '../lib/waiting.mjs';
+import { EventEmitter } from 'node:events';
 import { buildThreads } from '../lib/threads.mjs';
 import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
@@ -76,7 +78,8 @@ test('4.1: строка ушла и вернулась с новым ключо�
 
 test('4.1: строки тостов — (а) и (б), заголовок и тело по спеке; Review (в) тостов не даёт', () => {
   const rows = toastRows({
-    threads: [{ key: 's1|u1', title: 'EXT · витрина', text: 'Трурль: сливаем?' }, { key: 's2|t', title: null, kind: 'permission', text: 'ждёт разрешения на команду' }],
+    threads: [{ key: 's1|u1', uuid: 'u1', kind: 'question', title: 'EXT · витрина', text: 'Трурль: сливаем?' }, { key: 's2|t', uuid: null, title: null, kind: 'permission', text: 'ждёт разрешения на команду' },
+      { key: 's3|2026-10-02T10:00:00.000Z', uuid: null, kind: 'askUserQuestion', title: 'хвост не дочитан', text: null }],
     yes: [{ key: 'EXT-6|k', id: 'EXT-6', mark: 'развилка', title: 'Этап 1' }],
     review: [{ id: 'EXT-7', title: 'Готово' }],
   });
@@ -280,4 +283,146 @@ test('поток: без смены данных — changed {scope: tick} не 
   assert.deepEqual(frames(s.raw).map((f) => f.data.scope), ['data', 'tick']);
   s.close();
   await app.close();
+});
+
+// ---------- дозапрос Голема на В8 ----------
+
+test('гонка: пробуждение до конца start() — после чтения тосты идут (ready не теряется)', async () => {
+  const c = clock();
+  const shown = [];
+  let rows = [row('a1')];
+  let releaseFirst, releaseRead;
+  const first = new Promise((r) => { releaseFirst = r; });
+  const loop = createNotifyLoop({
+    notifier: createNotifier({ file: notifiedFile(), show: (r) => shown.push(r.key) }),
+    rows: () => rows,
+    readAll: () => new Promise((r) => { releaseRead = r; }),
+    wake: createWake({ now: c.now, jumpMs: 90000 }),
+  });
+  await loop.tick(); // опорный тик часов
+  const started = loop.start(first);
+  c.t += 45 * MIN;
+  const woke = loop.tick(); // пробуждение: readAll висит
+  releaseFirst(); await started; // первый проход закончился во время чтения после сна
+  releaseRead(); await woke;
+  rows = [...rows, row('a2')];
+  c.t += 2000; await loop.tick();
+  assert.deepEqual(shown, ['a2']);
+});
+
+test('3 (Голем): (а) вопрос без uuid сообщения из журнала — в тосты не идёт; разрешение — идёт', () => {
+  const rows = toastRows({ threads: [
+    { key: 's1|2026-10-02T10:00:00.000Z', uuid: null, kind: 'askUserQuestion', title: 'А', text: null },
+    { key: 's2|2026-10-02T10:00:00.000Z', uuid: null, kind: 'question', title: 'Б', text: null },
+    { key: 's3|t', uuid: null, kind: 'permission', title: 'В', text: 'ждёт разрешения на команду' },
+    { key: 's4|u4', uuid: 'u4', kind: 'askUserQuestion', title: 'Г', text: 'Трурль: какой?' },
+  ] });
+  assert.deepEqual(rows.map((r) => r.key), ['s3|t', 's4|u4']);
+});
+
+test('3 (Голем): строка (а) несёт uuid сообщения, по которому сработало правило; хвост не дочитан — null', () => {
+  const t = { sessionId: 's1', state: 'waiting', waitingKind: 'askUserQuestion', title: 'тред', statusUpdatedAt: '2026-10-02T10:00:00.000Z' };
+  const before = waitingThreads({ threads: [t], sessions: [], now: T0 })[0];
+  assert.equal(before.uuid, null);
+  const after = waitingThreads({ threads: [t], sessions: [{ sessionId: 's1', thread: { ask: { text: 'Какой?', uuid: 'u9', at: '2026-10-02T09:59:00.000Z' } } }], now: T0 })[0];
+  assert.equal(after.uuid, 'u9');
+  assert.equal(after.key, 's1|u9');
+});
+
+test('2 (Голем): больше 3 свежих строк за цикл — 3 тоста и четвёртый «и ещё N — смотри витрину»; ключи — все', () => {
+  const file = notifiedFile();
+  const shown = [];
+  const n = createNotifier({ file, show: (r) => shown.push(r) });
+  n.cycle([], { silent: true });
+  n.cycle(['k1', 'k2', 'k3', 'k4', 'k5'].map((k) => row(k)));
+  assert.deepEqual(shown.slice(0, 3).map((r) => r.key), ['k1', 'k2', 'k3']);
+  assert.equal(shown.length, 4);
+  assert.match(`${shown[3].title} ${shown[3].body}`, /и ещё 2 — смотри витрину/);
+  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(file, 'utf8')).keys).sort(), ['k1', 'k2', 'k3', 'k4', 'k5']);
+  shown.length = 0;
+  n.cycle(['k1', 'k6', 'k7', 'k8'].map((k) => row(k)));
+  assert.deepEqual(shown.map((r) => r.key), ['k6', 'k7', 'k8'], 'ровно 3 — без схлопывания');
+});
+
+// подменный процесс тоста: выходит, когда скажут; kill — тоже выход
+function fakeRun() {
+  const kids = [];
+  const run = (r) => { const k = new EventEmitter(); k.row = r; k.killed = false; k.kill = () => { k.killed = true; setImmediate(() => k.emit('exit', null)); }; kids.push(k); return k; };
+  return { kids, run };
+}
+
+test('2 (Голем): тосты строго по одному — следующий процесс после выхода предыдущего', async () => {
+  const f = fakeRun();
+  const q = createToastQueue({ run: f.run, timeoutMs: 15000 });
+  q.push(row('t1')); q.push(row('t2')); q.push(row('t3'));
+  assert.equal(f.kids.length, 1);
+  f.kids[0].emit('exit', 0);
+  await until(() => f.kids.length === 2);
+  assert.equal(f.kids[1].row.key, 't2');
+  f.kids[1].emit('exit', 0);
+  await until(() => f.kids.length === 3);
+  f.kids[2].emit('exit', 0);
+  await q.idle();
+  assert.equal(f.kids.length, 3);
+});
+
+test('2 (Голем): потолок — зависший процесс тоста убивается по таймауту, очередь идёт дальше', async () => {
+  const f = fakeRun();
+  const done = [];
+  const q = createToastQueue({ run: f.run, timeoutMs: 50, onDone: (code) => done.push(code) });
+  q.push(row('hang')); q.push(row('next'));
+  await until(() => f.kids.length === 2, 1000);
+  assert.equal(f.kids[0].killed, true);
+  f.kids[1].emit('exit', 0);
+  await q.idle();
+  assert.deepEqual(done, ['timeout', 0]);
+});
+
+test('5 (Голем): ошибка запуска тоста — одна запись (error и exit вместе), очередь идёт дальше; исключение spawn — тоже', async () => {
+  const done = [];
+  let n = 0;
+  const run = (r) => {
+    n++;
+    if (r.key === 'throw') throw Object.assign(new Error('x'), { code: 'EPERM' });
+    const k = new EventEmitter(); k.kill = () => {};
+    setImmediate(() => { k.emit('error', Object.assign(new Error('x'), { code: 'ENOENT' })); k.emit('exit', -2); });
+    return k;
+  };
+  const q = createToastQueue({ run, timeoutMs: 1000, onDone: (code) => done.push(code) });
+  q.push(row('err')); q.push(row('throw')); q.push(row('ok-after'));
+  await q.idle();
+  assert.equal(n, 3);
+  assert.deepEqual(done, ['ENOENT', 'EPERM', 'ENOENT']);
+});
+
+test('5 (Голем): исключение show логируется своим именем, не как запись notified.json', () => {
+  const errs = [];
+  const n = createNotifier({ file: notifiedFile(), show: () => { throw new Error('spawn'); }, onError: (e, kind) => errs.push(kind) });
+  n.cycle([], { silent: true });
+  n.cycle([row('k1')]);
+  assert.deepEqual(errs, ['show']);
+});
+
+test('5 (Голем): XML тоста — управляющие символы вырезаны, перевод строки и табуляция остаются', () => {
+  const x = toastXml({ title: 'a\x00b\x07c\x0Bd\x0Ce\x1Ff', body: 'с\tтаб\nстрока', url: 'http://127.0.0.1:4317/#/' });
+  assert.match(x, /<text>abcdef<\/text>/);
+  assert.match(x, /<text>с\tтаб\nстрока<\/text>/);
+});
+
+test('4 (Голем): «Цех» считается один раз на тик для тостов и подписи; без клиентов потока подпись не считается', async () => {
+  let calls = 0, sigs = 0, clients = 0;
+  const ticks = [];
+  const tick = createServerTick({
+    cehPayload: () => { calls++; return { waiting: { count: calls } }; },
+    events: { count: () => clients, tick: (s) => ticks.push(s) },
+    signature: (ceh) => { sigs++; return `sig${ceh.waiting.count}`; },
+  });
+  const loopTick = async () => { tick.current(); tick.current(); }; // строки тостов
+  await tick.run(loopTick);
+  assert.deepEqual([calls, sigs], [1, 0], 'без клиентов: один расчёт (тосты), подписи нет');
+  clients = 1;
+  await tick.run(loopTick);
+  assert.deepEqual([calls, sigs], [2, 1], 'с клиентом: тот же расчёт идёт в подпись');
+  assert.equal(ticks.at(-1), 'sig2');
+  assert.equal(ticks.length, 2, 'tick ради свежести зовётся и без клиентов');
 });
