@@ -179,7 +179,7 @@ test('stripMarkdown: жирный, курсив, код, ссылки, заго�
 test('(а): текст вопроса без разметки; снятие — до обрезки 160 знаков', () => {
   const sid = 'aaaaaaaa-0000-4000-8000-000000000001';
   const t = { sessionId: sid, title: 'EXT', project: 'EXT', projectBy: 'title', state: 'waiting', waitingKind: 'question', statusUpdatedAt: iso(T0) };
-  const row = (text, kind = 'question') => waitingThreads({ threads: [{ ...t, waitingKind: kind }], sessions: [{ sessionId: sid, thread: { [kind === 'question' ? 'q' : 'ask']: { text, uuid: 'u', at: iso(T0) } } }], now: T0 })[0].text;
+  const row = (text, kind = 'question') => waitingThreads({ threads: [{ ...t, waitingKind: kind }], sessions: [{ sessionId: sid, thread: { askOpen: kind !== 'question', [kind === 'question' ? 'q' : 'ask']: { text, uuid: 'u', at: iso(T0) } } }], now: T0 })[0].text;
   assert.equal(row('**Следующий шаг — T13:** прогон `npm test`, затем [В6](https://x).'), 'Трурль: Следующий шаг — T13: прогон npm test, затем В6.');
   assert.equal(row('Какой _вариант_ брать?', 'askUserQuestion'), 'Трурль: Какой вариант брать?');
   // сырой текст 161 знак, без разметки — 155: обрезка после снятия не трогает его и не оставляет непарный `
