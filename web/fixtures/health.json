@@ -28,6 +28,21 @@
       "indexBytes": 2097152,
       "indexWriteMs": 48,
       "indexWrites": 14
+    },
+    "processes": {
+      "lastOkAt": "2026-10-01T12:00:01.900Z",
+      "errors": 0,
+      "lastError": null,
+      "files": 3,
+      "live": 2,
+      "unknownStatus": {},
+      "unknownWaitingFor": {}
+    },
+    "desktop": {
+      "lastOkAt": "2026-10-01T12:00:00.500Z",
+      "errors": 0,
+      "lastError": null,
+      "files": 50
     }
   },
   "gitCalls": {

@@ -199,6 +199,7 @@
         "project": "CAR",
         "state": "waiting",
         "procStatus": "idle",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "card": "CAR-264",
         "since": "2026-10-01T08:30:00+03:00",
         "sinceKind": "card",
@@ -206,7 +207,8 @@
         "subagents": [],
         "marks": [],
         "waitingKind": "question",
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000002",
@@ -214,6 +216,7 @@
         "project": null,
         "state": "waiting",
         "procStatus": "busy",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "card": null,
         "since": "2026-09-30T08:10:00+03:00",
         "sinceKind": "opened",
@@ -221,7 +224,8 @@
         "subagents": [],
         "marks": [],
         "waitingKind": "askUserQuestion",
-        "lastState": null
+        "lastState": null,
+        "projectBy": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000003",
@@ -249,8 +253,10 @@
           }
         ],
         "procStatus": "busy",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000004",
@@ -289,8 +295,10 @@
           }
         ],
         "procStatus": "busy",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000005",
@@ -305,7 +313,9 @@
         "subagents": [],
         "marks": [],
         "procStatus": null,
-        "waitingKind": null
+        "statusUpdatedAt": null,
+        "waitingKind": null,
+        "projectBy": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000006",
@@ -313,6 +323,7 @@
         "project": "BW",
         "state": "idle",
         "procStatus": "idle",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "card": "BW-41",
         "since": "2026-10-01T07:45:00+03:00",
         "sinceKind": "card",
@@ -320,7 +331,8 @@
         "subagents": [],
         "marks": [],
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       }
     ],
     "subagentsCount": 1,

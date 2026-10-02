@@ -333,3 +333,81 @@ test('2.1: склейка — по связи «тот же пакет ввод�
   same.timestamp = new Date(Date.parse(q.timestamp) + 10 * 60000).toISOString(); // 10 мин, ответа между нет
   assert.equal(session([q, same]).ivan.count, 1);
 });
+
+// ---------- слово Ивана 02.10 «картинка — да, считается»: сообщение из одной картинки без текста (EXT-27) ----------
+// Фикстура image-only.jsonl — две строки живой формы (журнал 01cb2e54-…, стр. 2338; журнал 59a4e21c-…, стр. 2170),
+// данные картинки заменены заглушкой 1×1. Живой проход 02.10: таких строк user 202, вложений с картинкой — 3.
+const [IMG_USER, IMG_QUEUED] = lines('image-only.jsonl');
+const otherImage = (d) => { const x = clone(d); const parts = x.message?.content ?? x.attachment.prompt; parts[0].source.data = 'AAAA'; return x; };
+
+test('2.1: строка user только с картинкой (origin human) — сообщение Ивана', () => {
+  assert.equal(IMG_USER.message.content.every((p) => p.type === 'image'), true, 'форма без текста');
+  assert.equal(isIvanMessage(IMG_USER), true);
+  const st = session([IMG_USER]);
+  assert.equal(st.ivan.count, 1);
+  assert.equal(st.ivan.lastAt, IMG_USER.timestamp);
+});
+
+test('2.1: картинка с isMeta, isSidechain или в паре со служебным текстом — не сообщение Ивана (контроль)', () => {
+  assert.equal(isIvanMessage({ ...clone(IMG_USER), isMeta: true }), false);
+  assert.equal(isIvanMessage({ ...clone(IMG_USER), isSidechain: true }), false);
+  const svc = clone(IMG_USER);
+  svc.message.content.push({ type: 'text', text: '<system-reminder>заглушка</system-reminder>' });
+  assert.equal(isIvanMessage(svc), false);
+  const tr = clone(IMG_USER);
+  tr.message.content = [{ type: 'tool_result', tool_use_id: 'x', content: [IMG_USER.message.content[0]] }];
+  assert.equal(isIvanMessage(tr), false, 'картинка внутри результата инструмента — не слово Ивана');
+});
+
+test('2.1: вложение queued_command с prompt-массивом из картинки — сообщение Ивана', () => {
+  assert.ok(Array.isArray(IMG_QUEUED.attachment.prompt));
+  assert.equal(IMG_QUEUED.attachment.commandMode, 'prompt');
+  assert.equal(session([IMG_QUEUED]).ivan.count, 1);
+});
+
+test('2.1: картинка вложением и следом та же картинка строкой user в том же пакете — одно сообщение; другая картинка — два; после ответа — два', () => {
+  const same = clone(IMG_USER);
+  same.message.content = clone(IMG_QUEUED.attachment.prompt);
+  assert.equal(session([IMG_QUEUED, same]).ivan.count, 1);
+  assert.equal(session([IMG_QUEUED, otherImage(same)]).ivan.count, 2, 'исправный случай: другое содержимое — два');
+  assert.equal(session([IMG_QUEUED, MAIN.find((d) => d.type === 'assistant'), same]).ivan.count, 2, 'после ответа ассистента — новое сообщение');
+});
+
+// ---------- В3 (EXT-27): что журнал сессии даёт состоянию треда (2.1, правила (А) и (Б)) ----------
+// thread-state.jsonl — три строки живой формы, тексты — заглушки: вызов AskUserQuestion (журнал 040635f3-…),
+// его результат с ответом, ответ ассистента end_turn одной частью text. Факт прохода 02.10 по журналам сессий:
+// stop_reason стоит на каждой строке сообщения (thinking/text/tool_use) и равен итоговому; вызовов AskUserQuestion 348,
+// все — stop_reason tool_use, без результата — 1.
+const [ASK_USE, ASK_RES, END_TEXT] = lines('thread-state.jsonl');
+const IVAN = () => clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
+const endWith = (text, at) => { const x = clone(END_TEXT); x.message.content[0].text = text; if (at) x.timestamp = at; x.message.id = `msg_${text.length}_${at ?? ''}`; return x; };
+
+test('В3 (А): открытый AskUserQuestion — в состоянии сессии; результат на него закрывает', () => {
+  assert.equal(ASK_USE.message.stop_reason, 'tool_use');
+  assert.equal(ASK_USE.message.content[0].name, 'AskUserQuestion');
+  const open = session([IVAN(), ASK_USE]).thread;
+  assert.equal(open.askOpen, true);
+  assert.equal(open.askAt, ASK_USE.timestamp);
+  assert.equal(session([IVAN(), ASK_USE, ASK_RES]).thread.askOpen, false, 'исправный случай: ответ получен');
+});
+
+test('В3 (Б): end_turn с «?» в последнем абзаце после сообщения Ивана — вопрос; «?» не в последнем абзаце — нет; новое слово Ивана снимает', () => {
+  assert.equal(END_TEXT.message.stop_reason, 'end_turn');
+  const q = session([IVAN(), endWith('Сделано.\n\nСливаю — да?')]).thread;
+  assert.equal(q.endTurnQ, true);
+  assert.equal(session([IVAN(), endWith('Вопрос был?\n\nСделано, слито.')]).thread.endTurnQ, false);
+  assert.equal(session([IVAN(), endWith('Сливаю — да?'), IVAN()]).thread.endTurnQ, null, 'после нового слова Ивана ответа ещё нет');
+  // последнее end_turn важнее прежнего: ответ на уведомление без вопроса снимает «ждёт»
+  assert.equal(session([IVAN(), endWith('Да?', '2026-10-02T10:00:00Z'), endWith('Готово.', '2026-10-02T10:05:00Z')]).thread.endTurnQ, false);
+});
+
+test('В3: время последнего события сессии — по последней строке', () => {
+  const st = session([IVAN(), endWith('Готово.', '2026-10-02T10:05:00Z')]);
+  assert.equal(st.thread.lastAt, '2026-10-02T10:05:00Z');
+});
+
+test('В3: последний custom-title журнала — в состоянии треда (третья ступень названия, 1.4)', () => {
+  const ct = (t) => ({ type: 'custom-title', customTitle: t, sessionId: SID });
+  assert.equal(session([ct('EXT · раз'), ct('CAR · два')]).thread.customTitle, 'CAR · два');
+  assert.equal(session([IVAN()]).thread.customTitle ?? null, null);
+});
