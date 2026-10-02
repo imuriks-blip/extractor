@@ -344,6 +344,8 @@
             "level": "yellow",
             "card": "LEDGER-168",
             "agent": "terminus",
+            "who": "Терминус",
+            "whoDative": "Терминусу",
             "issuedAt": "2026-10-01T10:52:00+03:00"
           },
           {
@@ -397,15 +399,18 @@
       }
     ],
     "subagentsCount": 1,
-    "marksCount": 4,
+    "marksCount": 3,
     "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules"
   },
   "freshness": {
+    "_failingSince": "с первого сбоя чтения подряд, null после удачи (2.7): серая строка «данные на ЧЧ:ММ, чтение не удаётся N мин»",
     "board": {
-      "lastOkAt": "2026-10-01T12:00:03+03:00"
+      "lastOkAt": "2026-10-01T12:00:03+03:00",
+      "failingSince": null
     },
     "journals": {
-      "lastOkAt": "2026-10-01T12:00:02+03:00"
+      "lastOkAt": "2026-10-01T12:00:02+03:00",
+      "failingSince": null
     },
     "mirror": {
       "lastOkAt": "2026-09-30T21:40:00+03:00",

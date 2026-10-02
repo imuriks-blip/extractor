@@ -1,0 +1,144 @@
+/* Токены и стили — из макета «Цех» (артефакт AdbsFQdeExwwUBEEXPbwsf, версия 3). Значения не менять без макета. */
+/* Раскладка: тонкая строка-шапка; слева «Ждёт меня» и проекты, справа «Кто работает» (до 900px — в стопку). */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --line:#e1e4e9; --fg:#1b2027; --muted:#677180; --faint:#9aa2ad;
+  --accent:#2c5c9e; --hover:#eef2f8;
+  --red:#b9342a; --red-bg:#fbeeec; --amber:#94600a; --amber-bg:#fbf2e0; --green:#2b7449; --green-bg:#e8f4ec;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --r:4px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121519; --surface:#191d23; --line:#2a3038; --fg:#e2e6eb; --muted:#8f98a4; --faint:#636c78;
+  --accent:#80a9e4; --hover:#212833;
+  --red:#ef8076; --red-bg:#341e1c; --amber:#e2ad55; --amber-bg:#30281a; --green:#72c493; --green-bg:#1a2c22;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121519; --surface:#191d23; --line:#2a3038; --fg:#e2e6eb; --muted:#8f98a4; --faint:#636c78;
+  --accent:#80a9e4; --hover:#212833;
+  --red:#ef8076; --red-bg:#341e1c; --amber:#e2ad55; --amber-bg:#30281a; --green:#72c493; --green-bg:#1a2c22;
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:13px/1.45 var(--sans);margin:0}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:0 24px}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* шапка */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.top b{font-weight:600}
+.top .sep{color:var(--faint)}
+.top a{color:inherit;text-decoration:none}
+.top a:hover{color:var(--accent)}
+.top .fresh{margin-left:auto}
+.fresh .sep{margin-inline:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.seg button{background:var(--surface);border:0;padding:2px 8px;cursor:pointer;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--hover);color:var(--fg)}
+
+/* раскладка */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+/* блок */
+details.blk{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+details.blk>summary{display:flex;align-items:baseline;gap:8px;padding:7px 10px;cursor:pointer;list-style:none;font-weight:600}
+summary::-webkit-details-marker{display:none}
+summary .car{color:var(--faint);font-weight:400;width:10px;display:inline-block;transition:transform .12s}
+details[open]>summary .car{transform:rotate(90deg)}
+summary .cnt{font-weight:500;color:var(--muted)}
+summary .hint{margin-left:auto;font-weight:400;color:var(--faint);font-size:12px}
+summary .hint.red{color:var(--red)}
+.big{font-size:20px;line-height:1;font-weight:600;color:var(--accent)}
+@media (prefers-reduced-motion:reduce){summary .car{transition:none}}
+
+/* ждёт меня */
+details.grp{border-top:1px solid var(--line)}
+details.grp>summary{display:flex;align-items:baseline;gap:8px;padding:5px 10px;cursor:pointer;list-style:none;font-size:12px;color:var(--muted);font-weight:500}
+details.grp>summary .cnt{color:var(--fg)}
+.wrow{display:grid;grid-template-columns:150px minmax(0,1fr) 64px;gap:10px;padding:4px 10px 4px 28px;align-items:baseline}
+.wrow:hover{background:var(--hover)}
+.src{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.src .k{color:var(--faint);margin-right:4px}
+.age{text-align:right;color:var(--muted);white-space:nowrap}
+.tag{display:inline-block;font-size:11px;padding:0 5px;border-radius:3px;margin-right:6px;background:var(--hover);color:var(--muted);font-weight:500}
+.tag.r{background:var(--red-bg);color:var(--red)}
+.tag.b{background:var(--amber-bg);color:var(--amber)}
+.wrow:last-child{padding-bottom:7px}
+.more{display:block;width:100%;text-align:left;background:none;border:0;padding:3px 10px 6px 28px;cursor:pointer;color:var(--accent);font-size:12px}
+.more:hover{background:var(--hover)}
+
+/* проекты */
+.ptable{width:100%;border-collapse:collapse}
+.ptable th{font-weight:500;font-size:11px;color:var(--faint);text-align:left;padding:4px 10px;border-top:1px solid var(--line);white-space:nowrap}
+.ptable th.n,.ptable td.n{text-align:right;width:58px}
+.ptable td{padding:5px 10px;border-top:1px solid var(--line);vertical-align:baseline}
+.ptable tr.p{cursor:pointer}
+.ptable tr.p:hover td{background:var(--hover)}
+.ptable tr.p:hover .go{color:var(--accent)}
+.code{font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);white-space:nowrap}
+.phase{font-weight:500}
+.next{color:var(--muted)}
+.z{color:var(--faint)}
+.go{color:var(--faint);width:20px;text-align:right}
+.tw{overflow-x:auto}
+.pn{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+.pfail{display:block;font-size:12px;color:var(--faint)}
+
+/* кто работает */
+.thr{border-top:1px solid var(--line);padding:6px 10px 7px}
+.th1{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:baseline}
+.tname{font-weight:500}
+.tname .mono{margin-right:6px}
+.th2{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:1px}
+.st{font-size:11px;font-weight:500;padding:0 6px;border-radius:3px;white-space:nowrap}
+.st.work{background:var(--green-bg);color:var(--green)}
+.st.free{background:var(--hover);color:var(--muted)}
+.st.wait{background:var(--amber-bg);color:var(--amber)}
+.st.old{background:transparent;color:var(--muted);border:1px dashed var(--line)}
+.sub{display:grid;grid-template-columns:72px minmax(0,1fr) 64px 56px;gap:8px;align-items:center;margin:4px 0 0 12px;font-size:12px}
+.sub .who{font-weight:500}
+.sub .what{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub .tt{text-align:right;color:var(--muted)}
+/* ходы против тормоза своего агента: полоса = maxTurns, риска = ориентир из ТЗ; красный .hard не используется (спека, «Решено автором») */
+.gauge{position:relative;height:5px;background:var(--hover);border-radius:3px}
+.gauge i{position:absolute;left:0;top:0;bottom:0;background:var(--green);border-radius:3px}
+.gauge.over i{background:var(--amber)}
+.gauge b{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--fg);opacity:.55}
+.alarm{margin:5px 0 0 12px;padding:4px 8px;background:var(--red-bg);color:var(--fg);border-radius:3px;font-size:12px}
+.alarm.warn{background:var(--amber-bg)}
+.alarm.warn .h{color:var(--amber)}
+.alarm .fr{float:right}
+.alarm .h{color:var(--red);font-weight:600;margin-right:6px}
+.alarm .mono{margin-right:6px}
+.alarm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:0 8px;margin:3px 0 0}
+.alarm dt{color:var(--muted)} .alarm dd{margin:0}
+.alarm .quote{display:block;color:var(--muted)}
+.foot{padding:6px 10px;border-top:1px solid var(--line);font-size:12px;color:var(--faint)}
+.legend{display:flex;gap:12px;align-items:center;padding:5px 10px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)}
+.legend .gauge{width:40px;display:inline-block;vertical-align:middle}
+
+/* заглушка окна проекта (В7) */
+.stub{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px;color:var(--muted)}
+.stub a{color:var(--accent)}
+
+@media (max-width:560px){
+  .wrow{grid-template-columns:minmax(0,1fr) auto;gap:0 10px;padding-left:12px}
+  .wrow .src{grid-column:1/-1}
+  .more{padding-left:12px}
+  .ptable .hidesm{display:none}
+  .sub{grid-template-columns:64px minmax(0,1fr) 50px;margin-left:4px}
+  .sub .gauge{display:none}
+}
+
+/* проект треда угадан по карточкам (1.4, В-1) — тихая пометка, как «без карточки» */
+.src .by{display:block;font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis}
+.src .by .mono{font-size:11px}
+.tname .by-in{font-weight:400;font-size:12px;color:var(--faint)}
