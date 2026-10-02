@@ -26,7 +26,7 @@ const PENDING = {
 };
 
 // словари с ключом-путём (не фиксированные ключи) — сверяется только, что это объект
-const DICT = ['gitCalls', 'readers.journals.unknown', 'readers.processes.unknownStatus'];
+const DICT = ['gitCalls', 'readers.journals.unknown', 'readers.processes.unknownStatus', 'readers.processes.unknownWaitingFor'];
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const keys = (o) => Object.keys(o).filter((k) => !k.startsWith('_')).sort();
 const empty = (v) => v === null || (Array.isArray(v) && v.length === 0);

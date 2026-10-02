@@ -405,3 +405,9 @@ test('В3: время последнего события сессии — по 
   const st = session([IVAN(), endWith('Готово.', '2026-10-02T10:05:00Z')]);
   assert.equal(st.thread.lastAt, '2026-10-02T10:05:00Z');
 });
+
+test('В3: последний custom-title журнала — в состоянии треда (третья ступень названия, 1.4)', () => {
+  const ct = (t) => ({ type: 'custom-title', customTitle: t, sessionId: SID });
+  assert.equal(session([ct('EXT · раз'), ct('CAR · два')]).thread.customTitle, 'CAR · два');
+  assert.equal(session([IVAN()]).thread.customTitle ?? null, null);
+});

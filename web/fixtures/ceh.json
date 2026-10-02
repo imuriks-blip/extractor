@@ -206,7 +206,8 @@
         "subagents": [],
         "marks": [],
         "waitingKind": "question",
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000002",
@@ -221,7 +222,8 @@
         "subagents": [],
         "marks": [],
         "waitingKind": "askUserQuestion",
-        "lastState": null
+        "lastState": null,
+        "projectBy": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000003",
@@ -250,7 +252,8 @@
         ],
         "procStatus": "busy",
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000004",
@@ -290,7 +293,8 @@
         ],
         "procStatus": "busy",
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000005",
@@ -305,7 +309,8 @@
         "subagents": [],
         "marks": [],
         "procStatus": null,
-        "waitingKind": null
+        "waitingKind": null,
+        "projectBy": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000006",
@@ -320,7 +325,8 @@
         "subagents": [],
         "marks": [],
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       }
     ],
     "subagentsCount": 1,

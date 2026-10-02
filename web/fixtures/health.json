@@ -35,7 +35,8 @@
       "lastError": null,
       "files": 3,
       "live": 2,
-      "unknownStatus": {}
+      "unknownStatus": {},
+      "unknownWaitingFor": {}
     },
     "desktop": {
       "lastOkAt": "2026-10-01T12:00:00.500Z",

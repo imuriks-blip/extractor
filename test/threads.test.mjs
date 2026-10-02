@@ -182,3 +182,46 @@ test('порядок: ждёт тебя → работает → свободе�
   const ss = [1, 2, 3, 4].map((n) => session({ sessionId: S(n), thread: { ...session().thread, askOpen: n === 4, lastAt: new Date(T0 - n * MIN).toISOString() } }));
   assert.deepEqual(build(procs, ss).threads.map((t) => [t.sessionId.slice(0, 8), t.state]), [['00000004', 'waiting'], ['00000002', 'busy'], ['00000001', 'idle'], ['00000003', 'stale']]);
 });
+
+// ---------- дозапрос EXT-27: status «waiting» + waitingFor (факт дирижёра 02.10, тред pid 13920) ----------
+test('status waiting: «permission prompt» — ждёт тебя (разрешение); «input needed» — ждёт тебя (вопрос); при любых (А)/(Б)', () => {
+  const p = build([live({ status: 'waiting', waitingFor: 'permission prompt' })], [session()]);
+  assert.deepEqual([p.threads[0].state, p.threads[0].waitingKind], ['waiting', 'permission']);
+  assert.deepEqual(p.unknownStatus, {}, 'waiting — известное значение');
+  const i = build([live({ status: 'waiting', waitingFor: 'input needed' })], [session()]).threads[0];
+  assert.deepEqual([i.state, i.waitingKind], ['waiting', 'askUserQuestion']);
+});
+
+test('status waiting с незнакомым waitingFor — ждёт тебя с причиной «?» и счётчик; исправный idle — свободен', () => {
+  const r = build([live({ status: 'waiting', waitingFor: 'something new' })], [session()]);
+  assert.deepEqual([r.threads[0].state, r.threads[0].waitingKind], ['waiting', '?']);
+  assert.deepEqual(r.unknownWaitingFor, { 'something new': 1 });
+  const ok = build([live({ status: 'idle', waitingFor: null })], [session()]);
+  assert.deepEqual([ok.threads[0].state, ok.threads[0].waitingKind], ['idle', null]);
+  assert.deepEqual(ok.unknownWaitingFor, {});
+});
+
+test('процессы: поле waitingFor читается из файла реестра', async () => {
+  const { r } = reader({ '101.json': sessFile({ status: 'waiting', waitingFor: 'permission prompt' }) });
+  await r.refresh();
+  assert.equal(r.entries()[0].waitingFor, 'permission prompt');
+});
+
+test('«идёт N»: первое упоминание карточки раньше старта процесса (копия сессии) — от startedAt', () => {
+  const old = new Date(T0 - 300 * MIN).toISOString();
+  const t = build([live()], [session({ ivan: { cards: { 'EXT-26': { n: 1, firstAt: old, lastAt: old } } } })]).threads[0];
+  assert.equal(t.card, 'EXT-26');
+  assert.equal(t.sinceKind, 'card');
+  assert.equal(t.since, new Date(T0 - 60 * MIN).toISOString());
+  const fresh = new Date(T0 - 30 * MIN).toISOString();
+  assert.equal(build([live()], [session({ ivan: { cards: { 'EXT-26': { n: 1, firstAt: fresh, lastAt: fresh } } } })]).threads[0].since, fresh, 'исправный случай: упоминание после старта');
+});
+
+test('проект: пометка источника — по названию / по карточкам / не определён; название — третья ступень custom-title', () => {
+  const at = new Date(T0 - 30 * MIN).toISOString();
+  assert.equal(build([live()], [session()], { desktop: () => ({ title: 'EXT · витрина' }) }).threads[0].projectBy, 'title');
+  assert.equal(build([live()], [session({ ivan: { cards: { 'EXT-26': { n: 1, firstAt: at, lastAt: at } } } })]).threads[0].projectBy, 'cards');
+  assert.equal(build([live()], [session()]).threads[0].projectBy, null);
+  const ct = build([live({ name: null })], [session({ thread: { ...session().thread, customTitle: 'CAR · портал' } })]).threads[0];
+  assert.deepEqual([ct.title, ct.project, ct.projectBy], ['CAR · портал', 'CAR', 'title']);
+});

@@ -59,7 +59,8 @@
         "marks": [],
         "procStatus": "busy",
         "waitingKind": null,
-        "lastState": null
+        "lastState": null,
+        "projectBy": "title"
       }
     ],
     "closed": []
