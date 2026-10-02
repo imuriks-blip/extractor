@@ -114,7 +114,7 @@ test('(а): вопрос (Б) — абзац с «Трурль: », AskUserQuest
   ];
   const sessions = [
     { sessionId: sA, thread: { q: { text: 'Сливаю — да?', uuid: 'u-a', at: iso(T0 - 30 * MIN) } } },
-    { sessionId: sB, thread: { ask: { text: 'Какой вариант?', uuid: 'u-b', at: iso(T0 - 2 * 60 * MIN) } } },
+    { sessionId: sB, thread: { askOpen: true, ask: { text: 'Какой вариант?', uuid: 'u-b', at: iso(T0 - 2 * 60 * MIN) } } },
     { sessionId: sC, thread: {} },
     { sessionId: sD, thread: {} },
   ];

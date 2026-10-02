@@ -44,12 +44,14 @@ function world() {
   return { root, A, S, B, WT, V, h, registry: createRegistryReader(reg) };
 }
 const short = (h) => h.slice(0, 7);
+const NO_WATCH = () => { throw new Error('без наблюдателя'); };
 const W = world();
 
 async function reader(opts = {}) {
   const calls = [];
   const git = opts.git ?? createGitRead({ onCall: (r) => calls.push(r) });
-  const r = createGitReader({ git, registry: W.registry, boardRoot: W.B, ...opts });
+  // без наблюдателя — опрос по-старому каждый проход (EXT-37); подсказки наблюдателя — test/ext37.test.mjs
+  const r = createGitReader({ git, registry: W.registry, boardRoot: W.B, watch: NO_WATCH, ...opts });
   await r.refresh();
   return { r, calls };
 }

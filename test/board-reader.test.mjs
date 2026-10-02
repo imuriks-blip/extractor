@@ -44,6 +44,14 @@ test('читатель: числа в работе / в очереди / Review 
   assert.ok(r.state().lastOkAt);
 });
 
+// EXT-37: HEAD доски читается файлами .git; «git недоступен» — и .git не читается, и процесс git падает
+const inGit = (dir, p) => path.resolve(p).toLowerCase().startsWith(path.join(path.resolve(dir), '.git').toLowerCase() + path.sep);
+function gitDirFails(isBroken) {
+  const f = Object.create(fs);
+  f.readFileSync = (p, ...a) => { if (isBroken() && /[\\/]\.git[\\/]/.test(String(p))) { const e = new Error('EBUSY'); e.code = 'EBUSY'; throw e; } return fs.readFileSync(p, ...a); };
+  return f;
+}
+
 test('читатель: новый коммит — перечитаны только файлы из diff, числа обновились', async () => {
   const dir = fixture();
   gitInitCommit(dir);
@@ -55,7 +63,7 @@ test('читатель: новый коммит — перечитаны тол�
   spy.calls.length = 0;
   await r.refresh();
   assert.deepEqual(r.counts('CAR'), { inProgress: 2, ready: 0, review: 4 });
-  const reads = spy.calls.filter((c) => c.name === 'readFileSync').map((c) => path.basename(c.path));
+  const reads = spy.calls.filter((c) => c.name === 'readFileSync' && !inGit(dir, c.path)).map((c) => path.basename(c.path));
   assert.deepEqual(reads, ['CAR-3.md']);
 });
 
@@ -67,7 +75,8 @@ test('читатель: HEAD не сменился — ни одного чте�
   await r.init();
   spy.calls.length = 0;
   await r.refresh();
-  assert.deepEqual(spy.calls, []);
+  assert.deepEqual(spy.calls.filter((c) => !inGit(dir, c.path)), [], 'файлы доски не читались');
+  assert.ok(spy.calls.length > 0 && spy.calls.every((c) => inGit(dir, c.path)), 'HEAD — файлом .git (EXT-37)');
 });
 
 test('читатель: битая шапка — счётчик ошибок, остальные посчитаны, не падение', async () => {
@@ -86,7 +95,7 @@ test('читатель: git недоступен при опросе — пре�
   const real = createGitRead();
   let broken = false;
   const git = (repo, args) => (broken ? Promise.reject(new Error('git упал')) : real(repo, args));
-  const r = createBoardReader({ root: dir, git, parseCard });
+  const r = createBoardReader({ root: dir, git, parseCard, fs: gitDirFails(() => broken) });
   await r.init();
   const okAt = r.state().lastOkAt;
   broken = true;
