@@ -8,3 +8,4 @@ probe/*.log
 probe/settings-*.json
 probe/target-*
 probe/probe-auto-dir/
+web/dist/
