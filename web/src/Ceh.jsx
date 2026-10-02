@@ -1,4 +1,5 @@
 // Экран «Цех» — по макету AdbsFQdeExwwUBEEXPbwsf (версия 3), поля — спека §3.1.
+// Свежесть, свёртка блока, тред и пометки отсюда же берёт окно проекта (Project.jsx) — одни компоненты на два экрана.
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
@@ -15,7 +16,7 @@ const STATE = {
 const STATE_WORD = { waiting: 'ждёт тебя', busy: 'работает', idle: 'свободен' };
 
 // Свежесть нескольких читателей одной строкой: самое старое lastOkAt, самый ранний failingSince.
-function mergeFresh(...list) {
+export function mergeFresh(...list) {
   const by = (k) => list.map((f) => f?.[k]).filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
   return { lastOkAt: by('lastOkAt'), failingSince: by('failingSince') };
 }
@@ -23,20 +24,20 @@ function mergeFresh(...list) {
 // Серая строка 2.7: прежние данные остаются, у блока — «данные на ЧЧ:ММ, чтение не удаётся N мин».
 // N — от failingSince читателя (сервер), если он есть; иначе — от последнего удачного чтения
 // (сбой самого запроса к ручке или читатель стоит без ошибки дольше минуты).
-function staleText(fresh, fetchFailing, now) {
+export function staleText(fresh, fetchFailing, now, staleMs = STALE_MS) {
   const { lastOkAt, failingSince } = fresh || {};
   const t = lastOkAt ? Date.parse(lastOkAt) : NaN;
   const f = failingSince ? Date.parse(failingSince) : NaN;
   if (!Number.isFinite(t)) return Number.isFinite(f) ? `данных нет, чтение не удаётся ${minutes(f, now)}` : 'чтение ещё не прошло';
   if (Number.isFinite(f)) return `данные на ${hm(lastOkAt, now)}, чтение не удаётся ${minutes(f, now)}`;
-  if (!fetchFailing && now - t <= STALE_MS) return null;
+  if (!fetchFailing && now - t <= staleMs) return null;
   return `данные на ${hm(lastOkAt, now)}, чтение не удаётся ${minutes(t, now)}`;
 }
-function Stale({ text }) {
+export function Stale({ text }) {
   return text ? <div className="foot" role="status">{text}</div> : null;
 }
 
-function Summary({ children }) {
+export function Summary({ children }) {
   return <summary><span className="car" aria-hidden="true">›</span>{children}</summary>;
 }
 
@@ -191,7 +192,7 @@ function Done({ done }) {
   return done.map((c, i) => <span key={c.hash}>{i > 0 && '; '}<span className="mono">{c.hash}</span>{c.subject}</span>);
 }
 
-function Mark({ m, now }) {
+export function Mark({ m, now }) {
   const who = m.who || m.agent;
   switch (m.kind) {
     case 'partial':
@@ -226,7 +227,7 @@ function Mark({ m, now }) {
   }
 }
 
-function Thread({ t, now }) {
+export function Thread({ t, now }) {
   const [cls, word] = STATE[t.state] || ['free', t.state];
   const showCode = t.project && !(t.title || '').startsWith(t.project);
   return (
@@ -245,6 +246,8 @@ function Thread({ t, now }) {
           : <>
               {t.card ? <span className="mono">{t.card}</span> : <span className="faint">без карточки</span>}
               <span className="num">{t.sinceKind === 'card' ? 'идёт' : 'открыт'} {dur(t.since, now)}</span>
+              {/* окно проекта (3.2): rulesFresh приходит только из /api/project; «Старые правила» — пометкой oldRules ниже */}
+              {t.rulesFresh === true && <span>правила свежие</span>}
             </>}
       </div>
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
