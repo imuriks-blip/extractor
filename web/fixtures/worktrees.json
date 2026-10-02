@@ -1,0 +1,14 @@
+[
+  {
+    "_comment": "форма §1.7; в ПТ1 ручка отдаёт пустой список, наполняет ПТ8б",
+    "repo": "C:/projects/extractor",
+    "path": "C:/projects/extractor-ext37",
+    "branch": "ext-37-idle",
+    "card": "EXT-37",
+    "eligible": true,
+    "reason": "слита, карточка done, чистая",
+    "ignored": [
+      "node_modules/"
+    ]
+  }
+]

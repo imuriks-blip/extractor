@@ -58,7 +58,8 @@ test('статика: GET / — index.html без кэша; /theme-init.js — �
   const app = await staticApp(root);
   const r = await app.inject({ method: 'GET', url: '/', headers: H });
   assert.equal(r.statusCode, 200);
-  assert.equal(r.body, '<!doctype html><title>Цех</title>');
+  // оболочка — как в сборке, плюс <meta> с токеном пульта (EXT-39, спека пульта §4.1 п.6)
+  assert.equal(r.body.replace(/<meta name="vitrina-token" content="[A-Za-z0-9_-]{43}">/, ''), '<!doctype html><title>Цех</title>');
   assert.equal(r.headers['content-type'], 'text/html; charset=utf-8');
   assert.equal(r.headers['cache-control'], 'no-store');
   const ix = await app.inject({ method: 'GET', url: '/index.html', headers: H });
