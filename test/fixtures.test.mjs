@@ -10,6 +10,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
+import { createJournalReader } from '../lib/journal-reader.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -17,14 +18,14 @@ const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web',
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
 const PENDING = {
-  ceh: { 'waiting.threads': 'В4', 'waiting.yes': 'В4', 'waiting.review': 'В4', 'workers.threads': 'В3', 'projects.phase': 'В5', 'projects.next': 'В5', 'freshness.journals': 'В2', 'freshness.mirror': 'В4' },
-  project: { beacon: 'В5', waiting: 'В4', 'workers.threads': 'В3', 'workers.closed': 'В4', 'board.inProgress': 'В5', 'board.ready': 'В5', 'board.review': 'В5', 'board.backlog': 'В5', 'board.done': 'В5', 'board.counts': 'В5', 'freshness.journals': 'В2', 'freshness.mirror': 'В4' },
+  ceh: { 'waiting.threads': 'В4', 'waiting.yes': 'В4', 'waiting.review': 'В4', 'workers.threads': 'В3', 'projects.phase': 'В5', 'projects.next': 'В5', 'freshness.mirror': 'В4' },
+  project: { beacon: 'В5', waiting: 'В4', 'workers.threads': 'В3', 'workers.closed': 'В4', 'board.inProgress': 'В5', 'board.ready': 'В5', 'board.review': 'В5', 'board.backlog': 'В5', 'board.done': 'В5', 'board.counts': 'В5', 'freshness.mirror': 'В4' },
   card: { links: 'В5', feed: 'В5' },
   health: {},
 };
 
 // словари с ключом-путём (не фиксированные ключи) — сверяется только, что это объект
-const DICT = ['gitCalls'];
+const DICT = ['gitCalls', 'readers.journals.unknown'];
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const keys = (o) => Object.keys(o).filter((k) => !k.startsWith('_')).sort();
 const empty = (v) => v === null || (Array.isArray(v) && v.length === 0);
@@ -48,11 +49,18 @@ async function realResponses() {
   fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard });
   await board.init();
-  const app = await buildApp({ port: 4317, board, registry: createRegistryReader(reg), scan: () => [] });
+  const journals = createJournalReader({ root: tmpDir('jr-'), indexDir: tmpDir('ji-') });
+  await journals.refresh();
+  const app = await buildApp({ port: 4317, board, registry: createRegistryReader(reg), journals, scan: () => [] });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
   return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health') };
 }
 const real = await realResponses();
+
+test('свежесть журналов (В2) — время последнего удачного прохода читателя, в «Цехе» и окне проекта', () => {
+  assert.match(real.ceh.freshness.journals.lastOkAt, /^\d{4}-\d\d-\d\dT/);
+  assert.equal(real.project.freshness.journals.lastOkAt, real.ceh.freshness.journals.lastOkAt);
+});
 
 test('образцы: все файлы — JSON', () => {
   for (const f of fs.readdirSync(DIR).filter((n) => n.endsWith('.json'))) assert.doesNotThrow(() => load(f), f);

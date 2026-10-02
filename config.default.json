@@ -3,7 +3,8 @@
   "paths": {
     "board": "C:/projects/unorbis-board",
     "boardLib": "C:/projects/unorbis-board/tools/lib",
-    "registry": "C:/Users/imuri/.claude/skills/unorbis-projects/tools/registry.json"
+    "registry": "C:/Users/imuri/.claude/skills/unorbis-projects/tools/registry.json",
+    "journals": "C:/Users/imuri/.claude/projects"
   },
   "pollMs": {
     "board": 5000,
@@ -20,6 +21,21 @@
   },
   "matchWindowMin": 10,
   "wakeJumpS": 90,
-  "boardWriteTools": [],
+  "boardWriteTools": [
+    {
+      "tool": "mcp__plane__create_work_item_comment",
+      "card": "work_item_id",
+      "body": "comment_html"
+    },
+    {
+      "tool": [
+        "Bash",
+        "PowerShell"
+      ],
+      "command": "plane.py",
+      "sub": "close",
+      "bodyArg": 1
+    }
+  ],
   "statsEveryMin": 10
 }

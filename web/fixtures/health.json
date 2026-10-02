@@ -13,6 +13,18 @@
       "lastOkAt": "2026-10-01T12:00:01.004Z",
       "errors": 0,
       "lastError": null
+    },
+    "journals": {
+      "lastOkAt": "2026-10-01T12:00:02.410Z",
+      "errors": 0,
+      "lastError": null,
+      "files": 551,
+      "lines": 350000,
+      "lastPassLines": 12,
+      "unknown": {
+        "2.1.286": 1
+      },
+      "runsOpen": 2
     }
   },
   "gitCalls": {
