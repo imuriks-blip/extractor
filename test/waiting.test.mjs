@@ -356,7 +356,7 @@ test('маска: строка (а) треда с проектом по карт
 
 // ---------- круг Голема на В4 ----------
 
-test('Важно 1: тред с любой пометкой (и жёлтым тактом) — выше «ждёт тебя»; marksCount — только красные', async () => {
+test('Важно 1: наверх поднимает только красная пометка (жёлтый такт — нет); marksCount — только красные', async () => {
   const { buildThreads } = await import('../lib/threads.mjs');
   const { buildCeh } = await import('../lib/ceh.mjs');
   const sA = 'aaaaaaaa-0000-4000-8000-0000000000a1';
@@ -458,4 +458,50 @@ test('Важно 4: строка без хеша — время коммита V
   const at2 = Date.parse(git(vault, 'log', '-1', '--format=%cI').trim());
   await rm.refresh();
   assert.deepEqual([Date.parse(rm.get().at), rm.get().by], [at2, 'line'], 'перепроверка на опросе');
+});
+
+// ---------- второй круг Голема на В4 ----------
+
+test('Важно 2 (круг 2): пометка «запись субагента» несёт первую строку тела записи, до 160 знаков', () => {
+  const r = { agentId: 'a2', agentType: 'golem', cards: [], starts: [], alive: true, boardWrites: [{ at: iso(T0 - 20 * MIN), refs: ['EXT-7'], firstLine: 'Вердикт: ' + 'я'.repeat(300) }] };
+  const [m] = marksOf([sess(SID1, [], { runs: [r] })]).bySession[SID1];
+  assert.equal(m.line, ('Вердикт: ' + 'я'.repeat(300)).slice(0, 160));
+});
+
+test('Важно 3 (круг 2): обрыв только в прежней сессии — снят словом Ивана в живой сессии того же десктопного треда; слово в другом треде — нет', () => {
+  const liveOf = (sid) => (sid === SID2 ? SID1 : null);
+  const brk = partialSess(SID2, null);
+  const liveWord = sess(SID1, [], { ivan: { lastAt: iso(T0 - 5 * MIN), cards: {} } });
+  assert.equal(marksOf([brk, liveWord], { liveOf }).bySession[SID1], undefined, 'слово в живой сессии того же треда — снят');
+  const liveSilent = sess(SID1, [], { ivan: { lastAt: iso(T0 - 3 * 60 * MIN), cards: {} } });
+  const other = sess(SID3, [], { ivan: { lastAt: iso(T0 - 5 * MIN), cards: {} } });
+  assert.equal(marksOf([brk, liveSilent, other], { liveOf }).bySession[SID1][0].kind, 'partial', 'слово до обрыва и в другом треде — висит');
+});
+
+test('мелочь 5 (круг 2): запись субагента из прежней сессии продолженного треда — под живым тредом; из чужой закрытой — нет', () => {
+  const r = { agentId: 'a2', agentType: 'golem', cards: [], starts: [], alive: false, boardWrites: [{ at: iso(T0 - 20 * MIN), refs: ['EXT-7'], firstLine: 'x' }] };
+  const m = marksOf([sess(SID2, [], { runs: [r] }), sess(SID3, [], { runs: [{ ...r, agentId: 'a3' }] })], { liveOf: (sid) => (sid === SID2 ? SID1 : null) });
+  assert.deepEqual(m.bySession[SID1].map((x) => [x.kind, x.card]), [['subagentWrite', 'EXT-7']]);
+  assert.deepEqual(m.closed, []);
+});
+
+test('мелочь 7 (круг 2): журнал карточки не прочитался — следующий проход доски читает его снова, хотя файлы не менялись', async () => {
+  const { dir } = await boardWith([{ id: 'EXT-1', status: 'review', title: 'Слить' }], {});
+  writeLog(dir, 'EXT-1', [entry(T0 - 30 * MIN, 'коммент', 'Ждёт «сливай».')]);
+  gitCommitAll(dir, 'запись');
+  let busy = true;
+  const fsx = { ...fs, readFileSync: (p, ...a) => { if (busy && String(p).endsWith('.log.md')) throw Object.assign(new Error('заперт'), { code: 'EBUSY' }); return fs.readFileSync(p, ...a); } };
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest, fs: fsx });
+  await board.init();
+  assert.equal(board.card('EXT-1').last, null, 'журнал заперт — записи нет');
+  busy = false;
+  await board.refresh();
+  assert.equal(board.card('EXT-1').last?.mark, 'сливай', 'перечитан на следующем проходе');
+  const reads = [];
+  const fsy = { ...fs, readFileSync: (p, ...a) => { reads.push(String(p)); return fs.readFileSync(p, ...a); } };
+  const quiet = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest, fs: fsy });
+  await quiet.init();
+  reads.length = 0;
+  await quiet.refresh();
+  assert.equal(reads.filter((p) => p.endsWith('.log.md')).length, 0, 'исправный: без ошибок проход журналы не перечитывает');
 });
