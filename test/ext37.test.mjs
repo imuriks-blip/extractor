@@ -371,3 +371,18 @@ test('Б: опрос доски — HEAD из файлов .git (ссылка, p
   assert.equal(b.state().head, h2);
   assert.equal(calls.length, 1, 'packed-refs — тоже файлом');
 });
+
+test('Б: свои записи витрины (data/vitrina своего корня) наблюдателя не будят; соседние файлы — будят', async () => {
+  const W = gitWorld();
+  const fw = fakeWatch();
+  const own = path.join(W.A, 'data', 'vitrina');
+  const { r, take, clock } = gitRig(W, { watch: fw.watch, ignore: [own] });
+  await r.refresh(); take();
+  fw.emit(W.A, path.join('data', 'vitrina', 'server.log'));
+  fw.emit(W.A, path.join('data', 'vitrina', 'index', 'journals.json.123.tmp'));
+  clock.t += 30000; await r.refresh();
+  assert.deepEqual(take(), [], 'свой server.log и индекс — тишина');
+  fw.emit(W.A, path.join('data', 'other.txt'));
+  clock.t += 30000; await r.refresh();
+  assert.deepEqual(take(), [key(W.A)]);
+});
