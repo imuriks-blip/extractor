@@ -37,6 +37,13 @@ button{font:inherit;color:inherit}
 .top a:hover{color:var(--accent)}
 .top .fresh{margin-left:auto}
 .fresh .sep{margin-inline:6px}
+.mbtn{display:inline-flex;align-items:baseline;gap:6px}
+.mbtn button{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.mbtn button:hover:not(:disabled){background:var(--hover);color:var(--fg)}
+.mbtn button:disabled{cursor:default;background:transparent}
+.mbtn-note{color:var(--red);font-size:12px}
+.mbtn-note:empty{display:none}
+.mbtn-off{font-size:12px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .seg button{background:var(--surface);border:0;padding:2px 8px;cursor:pointer;color:var(--muted)}
 .seg button+button{border-left:1px solid var(--line)}
