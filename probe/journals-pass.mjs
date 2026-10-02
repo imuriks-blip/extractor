@@ -14,9 +14,10 @@ const rules = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(im
 
 let peak = 0;
 const tick = setInterval(() => { peak = Math.max(peak, process.memoryUsage().rss); }, 50);
-const r = createJournalReader({ root, indexDir, rules });
+const r = createJournalReader({ root, indexDir, rules, indexWriteEveryS: Number(arg('--every', 60)) });
 const t0 = performance.now();
 await r.refresh();
+const firstPassLines = r.state().lastPassLines;
 const t1 = performance.now();
 await r.refresh();
 const t2 = performance.now();
@@ -38,7 +39,7 @@ console.log(`запусков субагентов: ${sum((s) => s.runs.length)}
 console.log(`записей на доску (успешных): ${sum((s) => s.boardWrites.length)}; неуспешных: ${sum((s) => s.boardWritesFailed)}; сообщений Ивана: ${sum((s) => s.ivan.count)}`);
 const marked = /^(?:▶|⏸)️?/;
 console.log(`  из них первая строка не с ▶/⏸: ${sum((s) => s.boardWrites.filter((w) => !marked.test(w.firstLine)).length)}`);
-console.log(`индекс: ${st.indexBytes} байт, запись ${st.indexWriteMs} мс`);
+console.log(`индекс: ${st.indexBytes} байт, запись ${st.indexWriteMs} мс, записей за два прохода: ${st.indexWrites}; первый проход прочёл строк: ${firstPassLines}`);
 console.log(`время: полный проход ${(t1 - t0).toFixed(0)} мс, повторный (хвосты) ${(t2 - t1).toFixed(0)} мс; память: пик RSS ${mb(peak)}, heapUsed ${mb(process.memoryUsage().heapUsed)}; индекс ${mb(fs.statSync(path.join(indexDir, 'journals.json')).size)}`);
 console.log('\nтоп-10 сессий по запускам:');
 console.table(per.sort((a, b) => b.runs - a.runs || b.lines - a.lines).slice(0, 10));

@@ -225,3 +225,57 @@ test('мелочь 6: версия непонятой строки — толь�
   await r.refresh();
   assert.deepEqual(r.state().unknown, { '?': 2 });
 });
+
+// ---------- решение дирижёра 02.10: индекс пишется не чаще раза в N с и при штатной остановке ----------
+
+test('индекс: не чаще раза в интервал; «убийство» без записи и рестарт — числа как у одного прохода', async () => {
+  const t = tree(MAIN.slice(0, 20));
+  const indexDir = tmpDir('index-');
+  let clock = Date.parse('2026-10-02T10:00:00Z');
+  const now = () => new Date(clock);
+  const r1 = createJournalReader({ root: t.root, indexDir, rules: RULES, now, indexWriteEveryS: 60 });
+  await r1.refresh();
+  const written = fs.statSync(path.join(indexDir, 'journals.json')).mtimeMs;
+  const size1 = fs.statSync(path.join(indexDir, 'journals.json')).size;
+  fs.appendFileSync(t.main, MAIN.slice(20).map((l) => l + '\n').join(''));
+  clock += 10000;
+  await r1.refresh();
+  assert.equal(fs.statSync(path.join(indexDir, 'journals.json')).size, size1, 'через 10 с индекс не переписан');
+  assert.ok(written);
+  // процесс «убит» без записи: r1 брошен. Рестарт дочитывает от записанного смещения.
+  const r2 = createJournalReader({ root: t.root, indexDir, rules: RULES, now, indexWriteEveryS: 60 });
+  await r2.refresh();
+  const whole = reader(tree().root);
+  await whole.refresh();
+  assert.equal(r2.state().lines, whole.state().lines);
+  assert.deepEqual(strip(r2.sessions()), strip(whole.sessions()));
+});
+
+test('индекс: через интервал — запись; flush() при остановке — запись сразу', async () => {
+  const t = tree(MAIN.slice(0, 20));
+  const indexDir = tmpDir('index-');
+  const file = path.join(indexDir, 'journals.json');
+  let clock = Date.parse('2026-10-02T10:00:00Z');
+  const r = createJournalReader({ root: t.root, indexDir, rules: RULES, now: () => new Date(clock), indexWriteEveryS: 60 });
+  await r.refresh();
+  const s1 = fs.statSync(file).size;
+  fs.appendFileSync(t.main, MAIN.slice(20, 30).map((l) => l + '\n').join(''));
+  clock += 61000;
+  await r.refresh();
+  const s2 = fs.statSync(file).size;
+  assert.notEqual(s2, s1, 'через 61 с — записан');
+  fs.appendFileSync(t.main, MAIN.slice(30).map((l) => l + '\n').join(''));
+  clock += 1000;
+  await r.refresh();
+  assert.equal(fs.statSync(file).size, s2);
+  r.flush();
+  assert.notEqual(fs.statSync(file).size, s2, 'flush пишет сразу');
+  const r2 = reader(t.root, indexDir);
+  await r2.refresh();
+  assert.equal(r2.state().lastPassLines, 0);
+});
+
+test('config.default.json: интервал записи индекса — настройка', () => {
+  const c = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'config.default.json'), 'utf8'));
+  assert.equal(c.indexWriteEveryS, 60);
+});

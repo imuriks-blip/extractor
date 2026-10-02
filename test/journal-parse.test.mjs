@@ -282,3 +282,46 @@ test('мелочь 2: SendMessage без запуска в журнале — з
   assert.equal(st.runs[GOLEM].continuations, 1);
   assert.equal(st.runs['golem-по-имени'], undefined);
 });
+
+// ---------- решение дирижёра 02.10: сообщение Ивана, пришедшее вложением queued_command (commandMode: prompt) ----------
+
+test('2.1: вложение queued_command с commandMode prompt (журнал дирижёра, стр. 767) — сообщение Ивана, с номерами карточек', () => {
+  const [q] = lines('queued-prompt.jsonl');
+  assert.equal(q.attachment.commandMode, 'prompt');
+  const withCard = clone(q);
+  withCard.attachment.prompt = 'заглушка EXT-26 заглушка';
+  const st = session([withCard]);
+  assert.equal(st.ivan.count, 1);
+  assert.deepEqual(Object.keys(st.ivan.cards), ['EXT-26']);
+  assert.equal(st.ivan.lastAt, q.timestamp);
+});
+
+test('2.1: вложение и следом строка user с тем же текстом — одно сообщение; с другим текстом — два', () => {
+  const [q] = lines('queued-prompt.jsonl');
+  const ivan = clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
+  ivan.message.content = q.attachment.prompt;
+  assert.equal(session([q, ivan]).ivan.count, 1);
+  const other = clone(ivan);
+  other.message.content = 'другая заглушка';
+  assert.equal(session([q, other]).ivan.count, 2, 'исправный случай: разные тексты — два сообщения');
+});
+
+test('2.1: вложение queued_command с уведомлением — не сообщение Ивана', () => {
+  const [att] = lines('notification-attachment.jsonl');
+  assert.equal(session([att]).ivan.count, 0);
+  const [q] = lines('queued-prompt.jsonl');
+  const notif = clone(q);
+  notif.attachment.prompt = att.attachment.prompt;
+  assert.equal(session([notif]).ivan.count, 0, 'даже с commandMode prompt');
+});
+
+test('2.1: тот же текст позже окна (10 мин) — новое сообщение Ивана, не повтор вложения', () => {
+  const [q] = lines('queued-prompt.jsonl');
+  const later = clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
+  later.message.content = q.attachment.prompt;
+  later.timestamp = new Date(Date.parse(q.timestamp) + 10 * 60000).toISOString();
+  assert.equal(session([q, later]).ivan.count, 2);
+  const soon = clone(later);
+  soon.timestamp = new Date(Date.parse(q.timestamp) + 30000).toISOString();
+  assert.equal(session([q, soon]).ivan.count, 1, 'через 30 с — тот же');
+});
