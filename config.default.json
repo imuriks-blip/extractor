@@ -4,7 +4,13 @@
     "board": "C:/projects/unorbis-board",
     "boardLib": "C:/projects/unorbis-board/tools/lib",
     "registry": "C:/Users/imuri/.claude/skills/unorbis-projects/tools/registry.json",
-    "journals": "C:/Users/imuri/.claude/projects"
+    "journals": "C:/Users/imuri/.claude/projects",
+    "sessions": "C:/Users/imuri/.claude/sessions",
+    "desktopIndex": [
+      "C:/Users/imuri/AppData/Roaming/Claude/claude-code-sessions",
+      "C:/Users/imuri/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude/claude-code-sessions"
+    ],
+    "agents": "C:/Users/imuri/.claude/agents"
   },
   "pollMs": {
     "board": 5000,

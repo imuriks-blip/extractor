@@ -372,3 +372,36 @@ test('2.1: картинка вложением и следом та же кар�
   assert.equal(session([IMG_QUEUED, otherImage(same)]).ivan.count, 2, 'исправный случай: другое содержимое — два');
   assert.equal(session([IMG_QUEUED, MAIN.find((d) => d.type === 'assistant'), same]).ivan.count, 2, 'после ответа ассистента — новое сообщение');
 });
+
+// ---------- В3 (EXT-27): что журнал сессии даёт состоянию треда (2.1, правила (А) и (Б)) ----------
+// thread-state.jsonl — три строки живой формы, тексты — заглушки: вызов AskUserQuestion (журнал 040635f3-…),
+// его результат с ответом, ответ ассистента end_turn одной частью text. Факт прохода 02.10 по журналам сессий:
+// stop_reason стоит на каждой строке сообщения (thinking/text/tool_use) и равен итоговому; вызовов AskUserQuestion 348,
+// все — stop_reason tool_use, без результата — 1.
+const [ASK_USE, ASK_RES, END_TEXT] = lines('thread-state.jsonl');
+const IVAN = () => clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
+const endWith = (text, at) => { const x = clone(END_TEXT); x.message.content[0].text = text; if (at) x.timestamp = at; x.message.id = `msg_${text.length}_${at ?? ''}`; return x; };
+
+test('В3 (А): открытый AskUserQuestion — в состоянии сессии; результат на него закрывает', () => {
+  assert.equal(ASK_USE.message.stop_reason, 'tool_use');
+  assert.equal(ASK_USE.message.content[0].name, 'AskUserQuestion');
+  const open = session([IVAN(), ASK_USE]).thread;
+  assert.equal(open.askOpen, true);
+  assert.equal(open.askAt, ASK_USE.timestamp);
+  assert.equal(session([IVAN(), ASK_USE, ASK_RES]).thread.askOpen, false, 'исправный случай: ответ получен');
+});
+
+test('В3 (Б): end_turn с «?» в последнем абзаце после сообщения Ивана — вопрос; «?» не в последнем абзаце — нет; новое слово Ивана снимает', () => {
+  assert.equal(END_TEXT.message.stop_reason, 'end_turn');
+  const q = session([IVAN(), endWith('Сделано.\n\nСливаю — да?')]).thread;
+  assert.equal(q.endTurnQ, true);
+  assert.equal(session([IVAN(), endWith('Вопрос был?\n\nСделано, слито.')]).thread.endTurnQ, false);
+  assert.equal(session([IVAN(), endWith('Сливаю — да?'), IVAN()]).thread.endTurnQ, null, 'после нового слова Ивана ответа ещё нет');
+  // последнее end_turn важнее прежнего: ответ на уведомление без вопроса снимает «ждёт»
+  assert.equal(session([IVAN(), endWith('Да?', '2026-10-02T10:00:00Z'), endWith('Готово.', '2026-10-02T10:05:00Z')]).thread.endTurnQ, false);
+});
+
+test('В3: время последнего события сессии — по последней строке', () => {
+  const st = session([IVAN(), endWith('Готово.', '2026-10-02T10:05:00Z')]);
+  assert.equal(st.thread.lastAt, '2026-10-02T10:05:00Z');
+});
