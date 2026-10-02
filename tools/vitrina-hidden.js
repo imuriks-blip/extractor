@@ -4,7 +4,9 @@
 // Starts "node server.mjs" in <root> (the folder above this file) with a hidden window (window style 0: the console
 // is created hidden, no flash - not "powershell -WindowStyle Hidden", see rake T4). node.exe comes as an absolute path
 // from the installer, so PATH at Windows logon does not matter.
-// stdout and stderr of node go to <root>\data\vitrina\console.log (appended; emptied first when over 1 MB).
+// node gets --console-log: it appends its own output and an uncaught error to <root>\data\vitrina\console.log
+// line by line (no cmd ">>" redirect: that file stayed locked by the first instance and a second start failed
+// with code 1 before node ran - V9 probe). The launcher empties console.log first when it is over 1 MB.
 // The vitrina writes its own events to data\vitrina\server.log; a second start exits 0 with an "already" line there.
 // Default: do not wait (the launcher exits at once). --wait: wait for node and return its exit code (probes).
 // If node cannot be started, one ASCII line goes to console.log and the exit code is 9009.
@@ -38,10 +40,7 @@ try {
 
 try {
   if (!node || !fso.FileExists(node)) throw { message: 'no such file: ' + node };
-  var cmd = sh.ExpandEnvironmentStrings('%SystemRoot%') + '\\System32\\cmd.exe';
-  var server = fso.BuildPath(root, 'server.mjs');
-  // cmd /s /c "<line>": the outer quotes are stripped, the inner ones stay; /d - no AutoRun commands
-  var line = '"' + cmd + '" /d /s /c ""' + node + '" "' + server + '" >> "' + out + '" 2>&1"';
+  var line = '"' + node + '" "' + fso.BuildPath(root, 'server.mjs') + '" --console-log';
   sh.CurrentDirectory = root;
   rc = sh.Run(line, 0, wait);
   if (!wait) rc = 0;

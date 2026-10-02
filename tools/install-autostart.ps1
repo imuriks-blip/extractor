@@ -12,6 +12,8 @@
 #   2. HKCU\Software\Classes\AppUserModelId\<AppId>  DisplayName = "Extractor" in Russian (+ IconUri if -IconPath):
 #      the vitrina shows its toasts from this id when the key exists (config toastAppId, lib/toast.mjs),
 #      otherwise from Windows PowerShell as before.
+#   (-Remove also drops HKCU\...\Notifications\Settings\<AppId>, which Windows itself creates at the first toast.)
+# -Remove does not stop a running vitrina: stop it first (pid from /api/health) if it has to go now.
 # -Start: also runs the shortcut once now (the vitrina exits 0 by itself if it already answers on its port).
 # Probe: a trial -Name and -AppId and a trial clone as -Root with its own port in data\vitrina\config.json.
 # The real autostart (default names, C:\projects\extractor) is put by the conductor with Ivan's yes only.
@@ -50,6 +52,9 @@ if ($Remove) {
   else { Write-Output "not found: $lnk" }
   if (Test-Path -LiteralPath $appKey) { Remove-Item -LiteralPath $appKey -Recurse -Force; Write-Output "removed: $appKey" }
   else { Write-Output "not found: $appKey" }
+  # Windows' own per-sender notification settings, created at the first toast from this id
+  $winKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\' + $AppId
+  if (Test-Path -LiteralPath $winKey) { Remove-Item -LiteralPath $winKey -Recurse -Force; Write-Output "removed: $winKey" }
   exit 0
 }
 

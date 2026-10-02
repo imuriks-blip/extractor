@@ -143,3 +143,35 @@ test('4.1/В9: без appId — отправитель PowerShell, как в В8
   showToast({ title: 't' }, { spawn: (c, a, o) => { calls.push(o); return { on() {} }; }, url: 'u' });
   assert.equal(calls[0].env.EXTRACTOR_TOAST_APPID, '');
 });
+
+// ---------- вывод скрытого запуска: node пишет сам, дописыванием (без замка на файл) ----------
+
+test('В9: redirectConsole — console.log/error дописываются в файл; второй писатель в тот же файл не заперт', async () => {
+  const { redirectConsole } = await import('../lib/console-log.mjs');
+  const { EventEmitter } = await import('node:events');
+  const file = path.join(tmpDir('v9c-'), 'console.log');
+  const a = { log() {}, error() {} };
+  const b = { log() {}, error() {} };
+  redirectConsole({ file, target: a, proc: new EventEmitter() });
+  redirectConsole({ file, target: b, proc: new EventEmitter() });
+  a.log('первый', 1);
+  b.error('второй');
+  a.error('третий');
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /^\d{4}-\d\d-\d\dT\S+ первый 1$/);
+  assert.match(lines[1], / второй$/);
+});
+
+test('В9: redirectConsole — неперехваченная ошибка: стек в файл и выход 1', async () => {
+  const { redirectConsole } = await import('../lib/console-log.mjs');
+  const { EventEmitter } = await import('node:events');
+  const file = path.join(tmpDir('v9c-'), 'console.log');
+  const proc = new EventEmitter();
+  const codes = [];
+  proc.exit = (c) => codes.push(c);
+  redirectConsole({ file, target: { log() {}, error() {} }, proc });
+  proc.emit('uncaughtException', new Error('упало'));
+  assert.deepEqual(codes, [1]);
+  assert.match(fs.readFileSync(file, 'utf8'), /uncaught: Error: упало/);
+});
