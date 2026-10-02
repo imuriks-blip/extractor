@@ -844,7 +844,7 @@ function launcherBoard() {
 const mirrorBody = (extra = {}) => ({ body: { action: 'mirror', intentId: nextIntent(), ...extra } });
 const getMirror = async (app) => (await app.inject({ method: 'GET', url: '/api/mirror', headers: { host: `127.0.0.1:${PORT}` } })).json();
 
-test('mirror: запуск — wscript //B //Nologo //E:JScript <доска>\\tools\\mirror-hidden.js <node> --changed --log <data>\\mirror-run.log; отсоединённо, без окна, unref', async () => {
+test('mirror: запуск — wscript //B //Nologo //E:JScript <доска>\\tools\\mirror-hidden.js <node> --changed --root <доска> --log <data>\\mirror-run.log; отсоединённо, без окна, unref', async () => {
   const root = launcherBoard();
   const spawn = fakeSpawn();
   const { app, data } = await setup({ boardRoot: root, spawn });
@@ -856,7 +856,8 @@ test('mirror: запуск — wscript //B //Nologo //E:JScript <доска>\\to
   const [c] = spawn.calls;
   assert.equal(path.basename(c.cmd).toLowerCase(), 'wscript.exe');
   assert.ok(path.isAbsolute(c.cmd), 'wscript — полным путём, не поиском по PATH');
-  assert.deepEqual(c.args, ['//B', '//Nologo', '//E:JScript', path.join(root, 'tools', 'mirror-hidden.js'), process.execPath, '--changed', '--log', path.join(data, 'mirror-run.log')]);
+  // --root — корень доски явно (как install-mirror-task.ps1): BOARD_ROOT окружения витрины проход не уводит
+  assert.deepEqual(c.args, ['//B', '//Nologo', '//E:JScript', path.join(root, 'tools', 'mirror-hidden.js'), process.execPath, '--changed', '--root', root, '--log', path.join(data, 'mirror-run.log')]);
   assert.ok(!c.args.includes('--exit-with-parent'), 'проход живёт после рестарта витрины');
   assert.equal(c.opts.detached, true);
   assert.equal(c.opts.windowsHide, true);
