@@ -315,13 +315,21 @@ test('2.1: вложение queued_command с уведомлением — не 
   assert.equal(session([notif]).ivan.count, 0, 'даже с commandMode prompt');
 });
 
-test('2.1: тот же текст позже окна (10 мин) — новое сообщение Ивана, не повтор вложения', () => {
+test('2.1: «да» вложением → ответ ассистента → «да» строкой user — два сообщения (повтор Ивана, не дубль)', () => {
   const [q] = lines('queued-prompt.jsonl');
-  const later = clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
-  later.message.content = q.attachment.prompt;
-  later.timestamp = new Date(Date.parse(q.timestamp) + 10 * 60000).toISOString();
-  assert.equal(session([q, later]).ivan.count, 2);
-  const soon = clone(later);
-  soon.timestamp = new Date(Date.parse(q.timestamp) + 30000).toISOString();
-  assert.equal(session([q, soon]).ivan.count, 1, 'через 30 с — тот же');
+  const reply = MAIN.find((d) => d.type === 'assistant');
+  const again = clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
+  again.message.content = q.attachment.prompt;
+  again.timestamp = new Date(Date.parse(q.timestamp) + 120000).toISOString(); // через 2 мин
+  const st = session([q, reply, again]);
+  assert.equal(st.ivan.count, 2);
+  assert.equal(st.ivan.lastAt, again.timestamp, 'время последнего сообщения Ивана сдвинулось');
+});
+
+test('2.1: склейка — по связи «тот же пакет ввода» (между вложением и строкой нет assistant), не по времени', () => {
+  const [q] = lines('queued-prompt.jsonl');
+  const same = clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
+  same.message.content = q.attachment.prompt;
+  same.timestamp = new Date(Date.parse(q.timestamp) + 10 * 60000).toISOString(); // 10 мин, ответа между нет
+  assert.equal(session([q, same]).ivan.count, 1);
 });
