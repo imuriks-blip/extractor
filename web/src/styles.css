@@ -137,3 +137,8 @@ details.grp>summary .cnt{color:var(--fg)}
   .sub{grid-template-columns:64px minmax(0,1fr) 50px;margin-left:4px}
   .sub .gauge{display:none}
 }
+
+/* проект треда угадан по карточкам (1.4, В-1) — тихая пометка, как «без карточки» */
+.src .by{display:block;font-size:12px;color:var(--faint);overflow:hidden;text-overflow:ellipsis}
+.src .by .mono{font-size:11px}
+.tname .by-in{font-weight:400;font-size:12px;color:var(--faint)}

@@ -69,7 +69,9 @@ function Waiting({ w, now, stale }) {
         <Group id="threads" title="Тред ждёт ответа" count={w.threads.length}>
           {w.threads.map((r) => (
             <div className="wrow" key={r.key}>
-              <span className="src" title={r.title}><span className="k">тред</span>{r.title}</span>
+              <span className="src" title={r.title}><span className="k">тред</span>{r.title}
+                {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
+              </span>
               <span>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
             </div>
@@ -114,7 +116,8 @@ function Waiting({ w, now, stale }) {
 
 /* ---------- Проекты ---------- */
 
-const phaseTip = (p) => [p.phase?.full ?? 'фаза не указана в карточке проекта', p.next && `→ ${p.next.full}`].filter(Boolean).join('\n');
+const noPhase = (p) => (p.inRegistry === false ? 'проект не описан в реестре' : 'фаза не указана в карточке проекта');
+const phaseTip = (p) => [p.phase?.full ?? noPhase(p), p.next && `→ ${p.next.full}`].filter(Boolean).join('\n');
 
 const n0 = (v) => <td className={v ? 'n num' : 'n num z'}>{v ?? 0}</td>;
 
@@ -136,7 +139,7 @@ function Projects({ projects, now, stale, onOpen }) {
                   <span className="pn" title={phaseTip(p)}>
                     {p.phase
                       ? <span className="phase">{p.phase.short}</span>
-                      : <span className="faint">фаза не указана в карточке проекта</span>}
+                      : <span className="faint">{noPhase(p)}</span>}
                     {(p.phase || p.next) && <> <span className="next">→ {p.next?.short ?? '—'}</span></>}
                   </span>
                   {p.phaseFailingSince && (
@@ -197,7 +200,7 @@ function Mark({ m, now }) {
           <span className="h">Обрыв · PARTIAL</span>{who}{m.card && `, ${m.card}`} — закончил в {hm(m.endedAt, now)}
           {m.waitingWord && <span className="st wait fr">ждёт твоего слова</span>}
           <dl>
-            <dt>сделано</dt><dd><Done done={m.done} />{m.lastText && <span className="quote">{m.lastText.slice(0, 200)}</span>}</dd>
+            <dt>сделано</dt><dd><Done done={m.done} />{m.lastText && <span className="quote">{m.lastText}</span>}</dd>
             <dt>осталось</dt><dd>{m.left || 'агент не указал'}</dd>
             <dt>причина</dt><dd>{m.reason || `тормоз ${m.turnLimit} ходов; продолжить можно`}</dd>
           </dl>
@@ -231,6 +234,7 @@ function Thread({ t, now }) {
       <div className="th1">
         <span className="tname">
           {showCode && <span className="mono">{t.project}</span>}{t.title || 'без названия'}
+          {t.project && t.projectBy === 'cards' && <span className="by-in"> · по карточкам</span>}
           {!t.project && <span className="faint"> · проект не определён</span>}
         </span>
         <span className={`st ${cls}`}>{word}</span>
