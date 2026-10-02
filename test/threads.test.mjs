@@ -237,3 +237,57 @@ test('проект по названию: равно коду или код + п
   for (const title of ['CARS', 'LETGER', 'Портал: CAR new', 'CARS · x']) assert.deepEqual(p(title), ['EXT', 'cards'], title);
   assert.deepEqual(build([live()], [session()], { desktop: () => ({ title: 'LETGER' }) }).threads[0].project, null, 'исправный: ни кода, ни карточек — не определён');
 });
+
+// ---------- вердикт Голема на EXT-27 ----------
+test('Важно 1: «устарело» — по журналу этого треда: чужой не читается — свой тред не устарел; свой не читается 16 мин — устарел', () => {
+  const fresh = new Date(T0).toISOString();
+  const old = new Date(T0 - 16 * MIN).toISOString();
+  const other = { ...session(), sessionId: 'bbbbbbbb-2222-4000-8000-000000000002', okAt: old };
+  assert.equal(build([live()], [session({ okAt: fresh }), other]).threads[0].state, 'idle');
+  const own = build([live()], [session({ okAt: old })]).threads[0];
+  assert.deepEqual([own.state, own.lastState, own.lastSeenAt], ['stale', 'idle', old]);
+  assert.equal(build([live()], [session({ okAt: fresh })]).threads[0].state, 'idle', 'исправный');
+});
+
+test('мелочь: status нет (первые секунды процесса) — известное значение, не в unknownStatus', () => {
+  const r = build([live({ status: null })], [session()]);
+  assert.equal(r.threads[0].state, 'idle');
+  assert.deepEqual(r.unknownStatus, {});
+});
+
+test('для В4: строка треда несёт statusUpdatedAt — ключ уведомления «ждёт разрешения» (sessionId + statusUpdatedAt)', () => {
+  const t = build([live({ status: 'waiting', waitingFor: 'permission prompt', statusUpdatedAt: T0 - MIN })], [session()]).threads[0];
+  assert.equal(t.statusUpdatedAt, new Date(T0 - MIN).toISOString());
+});
+
+test('Важно 2: время старта — один вызов за раз: зависший вызов не плодит новых, файлы читаются дальше', async () => {
+  let calls = 0;
+  const r = createProcessReader({ dir: 'C:/s', fs: fakeFs({ '101.json': sessFile() }), now: () => T0, isAlive: () => true, procStartOf: () => { calls++; return new Promise(() => {}); } });
+  r.refresh();
+  for (let i = 0; i < 5; i++) await r.refresh();
+  assert.equal(calls, 1);
+  assert.equal(r.entries()[0].observedAt, T0);
+});
+
+test('Важно 2: отказ вызова — отсрочка 60 с на pid, потом повтор', async () => {
+  const clock = { t: T0 };
+  let calls = 0;
+  const r = createProcessReader({ dir: 'C:/s', fs: fakeFs({ '101.json': sessFile() }), now: () => clock.t, isAlive: () => true, procStartOf: async () => { calls++; throw new Error('отказ'); } });
+  for (let i = 0; i < 5; i++) { clock.t += 2000; await r.refresh(); }
+  assert.equal(calls, 1);
+  clock.t = T0 + 70000;
+  await r.refresh();
+  assert.equal(calls, 2);
+});
+
+test('мелочь: файл процесса исчез — сверка забыта; вернулся с тем же pid — сверка заново', async () => {
+  const files = { '101.json': sessFile() };
+  const { r, calls } = reader(files);
+  await r.refresh();
+  delete files['101.json'];
+  await r.refresh();
+  assert.equal(r.entries().length, 0);
+  files['101.json'] = sessFile();
+  await r.refresh();
+  assert.equal(calls.length, 2);
+});

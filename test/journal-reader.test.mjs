@@ -82,7 +82,7 @@ test('хвост: незаконченная строка не читается,
   assert.equal(run.alive, false);
   const whole = reader(tree().root);
   await whole.refresh();
-  const strip = (ss) => ss.map(({ file, ...x }) => x);
+  const strip = (ss) => ss.map(({ file, okAt, ...x }) => x);
   assert.deepEqual(strip(r.sessions()), strip(whole.sessions()));
 });
 
@@ -95,7 +95,7 @@ test('индекс смещений: новый процесс с тем же и
   const r2 = reader(t.root, indexDir);
   await r2.refresh();
   assert.equal(r2.state().lastPassLines, 0, 'после рестарта — ничего не перечитано');
-  assert.deepEqual(r2.sessions().map(({ file, ...x }) => x), r1.sessions().map(({ file, ...x }) => x));
+  assert.deepEqual(r2.sessions().map(({ file, okAt, ...x }) => x), r1.sessions().map(({ file, okAt, ...x }) => x));
   fs.appendFileSync(t.main, MAIN[2] + '\n');
   await r2.refresh();
   assert.equal(r2.state().lastPassLines, 1);
@@ -128,7 +128,7 @@ test('журналы только читаются: дерево источни�
 
 // ---------- правки по вердикту Голема (EXT-26, круг 1) ----------
 
-const strip = (ss) => ss.map(({ file, ...x }) => x);
+const strip = (ss) => ss.map(({ file, okAt, ...x }) => x);
 
 test('Критично 1: ошибка записи индекса (rename) не роняет проход — errors 1, данные целы; исправный рядом', async () => {
   const t = tree();

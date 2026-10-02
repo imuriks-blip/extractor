@@ -186,7 +186,7 @@ test('/api/ceh: activityAt — самое свежее updated карточек 
 });
 
 test('В3: строка треда в /api/ceh маскируется сетью своего проекта; тред без кода проекта — строгой сетью (ветка IPTV)', async () => {
-  const t = (project, title) => ({ sessionId: 's-' + String(project), title, project, state: 'idle', procStatus: 'idle', card: null, since: null, sinceKind: 'opened', lastSeenAt: null, subagents: [{ agent: 'terminus', who: 'Терминус', description: FLOW_LINE, turns: 1, maxTurns: 90, target: null }], marks: [], waitingKind: null, lastState: null });
+  const t = (project, title) => ({ sessionId: 's-' + String(project), title, project, projectBy: project ? 'title' : null, state: 'idle', procStatus: 'idle', card: null, since: null, sinceKind: 'opened', lastSeenAt: null, subagents: [{ agent: 'terminus', who: 'Терминус', description: FLOW_LINE, turns: 1, maxTurns: 90, target: null }], marks: [], waitingKind: null, lastState: null });
   const threads = { list: () => ({ threads: [t(null, FLOW_LINE), t('EXT', 'EXT · ' + FLOW_LINE)], subagentsCount: 2, unknownStatus: {} }), state: () => ({ processes: null, desktop: null }) };
   const { app } = await setup({ threads });
   const j = (await app.inject({ method: 'GET', url: '/api/ceh', headers: H })).json();
@@ -194,4 +194,14 @@ test('В3: строка треда в /api/ceh маскируется сетью
   assert.ok(!none.title.includes(FLOW_ID), 'без проекта — скрыто');
   assert.ok(!none.subagents[0].description.includes(FLOW_ID), 'и в описании субагента');
   assert.ok(ext.title.includes(FLOW_ID), 'исправный случай: у EXT id по признаку виден (класс 4) — тест зрячий');
+});
+
+test('мелочь Голема: тред с проектом «по карточкам» — строгая сеть (догадка ослабления не даёт), в «Цехе» и в окне проекта', async () => {
+  const t = { sessionId: 's-c', title: FLOW_LINE, project: 'EXT', projectBy: 'cards', state: 'idle', procStatus: 'idle', statusUpdatedAt: null, card: null, since: null, sinceKind: 'opened', lastSeenAt: null, subagents: [], marks: [], waitingKind: null, lastState: null };
+  const threads = { list: () => ({ threads: [t], subagentsCount: 0, unknownStatus: {} }), state: () => ({ processes: null, desktop: null }) };
+  const { app } = await setup({ threads });
+  for (const url of ['/api/ceh', '/api/project/EXT']) {
+    const j = (await app.inject({ method: 'GET', url, headers: H })).json();
+    assert.ok(!j.workers.threads[0].title.includes(FLOW_ID), url);
+  }
 });

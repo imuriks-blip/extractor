@@ -199,6 +199,7 @@
         "project": "CAR",
         "state": "waiting",
         "procStatus": "idle",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "card": "CAR-264",
         "since": "2026-10-01T08:30:00+03:00",
         "sinceKind": "card",
@@ -215,6 +216,7 @@
         "project": null,
         "state": "waiting",
         "procStatus": "busy",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "card": null,
         "since": "2026-09-30T08:10:00+03:00",
         "sinceKind": "opened",
@@ -251,6 +253,7 @@
           }
         ],
         "procStatus": "busy",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
         "lastState": null,
         "projectBy": "title"
@@ -292,6 +295,7 @@
           }
         ],
         "procStatus": "busy",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
         "lastState": null,
         "projectBy": "title"
@@ -309,6 +313,7 @@
         "subagents": [],
         "marks": [],
         "procStatus": null,
+        "statusUpdatedAt": null,
         "waitingKind": null,
         "projectBy": null
       },
@@ -318,6 +323,7 @@
         "project": "BW",
         "state": "idle",
         "procStatus": "idle",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "card": "BW-41",
         "since": "2026-10-01T07:45:00+03:00",
         "sinceKind": "card",
