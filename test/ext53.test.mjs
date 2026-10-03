@@ -59,9 +59,11 @@ test('дрейф: уведомление без <task-id> — +1 по <task-type
   assert.equal(ok.noteForeignId, undefined);
 });
 
-test('дрейф: id уведомления не среди запусков — agentCall, если tool-use-id одного из стартов запуска, иначе other', () => {
+test('дрейф: id уведомления не среди запусков — agentCall, если tool-use-id одного из стартов запуска; иначе agentShape (id формы агента) или other', () => {
   assert.deepEqual(driftOf([...launch(), note({ id: 'a9999999999999999', tu: 'toolu_A' })]).noteForeignId, { agentCall: 1 });
   assert.deepEqual(driftOf([...launch(), note({ id: 'b77777777', tu: 'toolu_B' })]).noteForeignId, { other: 1 });
+  assert.deepEqual(driftOf([...launch(), note({ id: 'a1111111111111111', tu: 'toolu_B' })]).noteForeignId, { agentShape: 1 });
+  assert.deepEqual(driftOf([...launch(), note({ id: 'a111111111111111', tu: null })]).noteForeignId, { other: 1 }, '15 hex — не форма агента');
   assert.equal(driftOf([...launch(), note({ id: AG, tu: 'toolu_A' })]).noteForeignId, undefined);
 });
 
@@ -92,6 +94,14 @@ test('дрейф: повтор той же строки (тот же uuid, ко�
   const st = feed([...lines, ...lines]);
   assert.deepEqual(st.drift.noteStatus, { 'zzz-new': 1 });
   assert.deepEqual(st.drift.originKind, { robot: 1 });
+});
+
+test('дрейф: алфавит значения — [A-Za-z0-9_.:-] и «—», прочее — «?» (до обрезки)', () => {
+  assert.deepEqual(driftOf([ivan('new kind (тест)')]).originKind, { 'new?kind???????': 1 });
+  assert.deepEqual(driftOf([ivan('ok_kind.v2:x-y')]).originKind, { 'ok_kind.v2:x-y': 1 });
+  assert.deepEqual(driftOf([...launch(), note({ id: null })]).noteNoId, { '—': 1 });
+  const d = driftOf([ivan('я'.repeat(100))]).originKind;
+  assert.deepEqual(Object.keys(d), ['?'.repeat(39) + '…']);
 });
 
 test('дрейф: значение обрезано до 40 знаков; в словаре не больше 20 значений, остальное — «другие»', () => {
@@ -160,6 +170,30 @@ test('читатель: рестарт из индекса — счёт сохр
   fs.appendFileSync(t.main, JSON.stringify(ivan('robot')) + '\n');
   await r2.refresh({ full: true }); // полный обход: горячесть журнала по mtime не зависит от подменённых часов
   assert.deepEqual(r2.state().drift.originKind, { robot: 2 });
+});
+
+test('читатель: сумма словарей по журналам не портит готовые ключи — «другие» и обрезка «…» те же, что в журнале', async () => {
+  const t = tree([ivan('x'.repeat(60)), ...Array.from({ length: 25 }, (_, i) => ivan(`k${i}`))]);
+  const r = createJournalReader({ root: t.root, indexDir: tmpDir('index-'), now: () => new Date(T0) });
+  await r.refresh();
+  const d = r.state().drift.originKind;
+  assert.equal(d['другие'], 6);
+  assert.equal(d['x'.repeat(39) + '…'], 1);
+});
+
+test('читатель: вызов Agent до рестарта, результат после — launchName пуст (имя из ждущего вызова в индексе, не «?»)', async () => {
+  const t = tree([callLine('Agent', 'toolu_A')]);
+  const indexDir = tmpDir('index-');
+  const r1 = createJournalReader({ root: t.root, indexDir, now: () => new Date(T0) });
+  await r1.refresh();
+  r1.flush();
+  const r2 = createJournalReader({ root: t.root, indexDir, now: () => new Date(T0) });
+  await r2.refresh();
+  assert.equal(r2.state().lastPassLines, 0, 'вызов не перечитан — имя только в индексе');
+  fs.appendFileSync(t.main, JSON.stringify(resultLine('toolu_A', { status: 'completed', agentId: AG })) + '\n');
+  await r2.refresh({ full: true });
+  assert.deepEqual(r2.state().drift.launchName, {});
+  assert.ok(r2.sessions()[0].runs.find((x) => x.agentId === AG), 'запуск соединён');
 });
 
 // ---------- runsOpen = runsLive + runsSilent ----------

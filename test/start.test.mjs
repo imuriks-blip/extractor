@@ -50,6 +50,7 @@ test('старт: слушает 127.0.0.1, Host проверяется, server.
   assert.ok(git[path.resolve(board).toLowerCase()].peakPerMin >= 1);
   // EXT-53: в строке stats — uuidKeys, runsLive, runsSilent (git= — по-прежнему последним); та же строка — в stats.log
   assert.match(st, / uuidKeys=\d+ /);
+  assert.match(st, / rss=\d+ heapUsed=\d+ external=\d+ /, 'память по частям (Мелочь 6 ревью EXT-53)');
   assert.match(st, / runsLive=\d+ runsSilent=\d+ /);
   assert.match(st, / git=\{.*\}$/);
   const statsLog = fs.readFileSync(path.join(dataDir, 'stats.log'), 'utf8').split('\n').filter(Boolean);
