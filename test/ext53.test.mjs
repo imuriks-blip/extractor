@@ -252,3 +252,19 @@ test('stats.log: после переполнения держит не мень�
   const first = Number(kept[0].match(/rss=(\d+)/)[1]);
   assert.deepEqual(kept.map((l) => Number(l.match(/rss=(\d+)/)[1])), Array.from({ length: kept.length }, (_, i) => first + i), 'подряд, без дыр');
 });
+
+// ---------- такт 2 EXT-53: мелочи вердикта Голема на В10 ----------
+
+test('мелочь 1 (В10): полный обход, запрошенный во время горячего прохода (пробуждение), выполняется сразу после него, а не поглощается', async () => {
+  const t = tree([ivan('human')]);
+  const clock = Date.now() + 2 * 3600000; // все журналы холодные: mtime старше hotMs по часам читателя
+  const r = createJournalReader({ root: t.root, indexDir: tmpDir('index-'), now: () => new Date(clock), fullEveryMs: 24 * 3600000 });
+  await r.refresh(); // первый проход — полный
+  fs.appendFileSync(t.main, JSON.stringify(ivan('robot')) + '\n');
+  await r.refresh();
+  assert.deepEqual(r.state().drift.originKind, {}, 'исправный случай: горячий проход холодный журнал не читает');
+  const hot = r.refresh();
+  const full = r.refresh({ full: true }); // readAll пробуждения пришёл, пока идёт горячий
+  await Promise.all([hot, full]);
+  assert.deepEqual(r.state().drift.originKind, { robot: 1 }, 'полный обход прошёл после горячего');
+});

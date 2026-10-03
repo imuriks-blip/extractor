@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig } from './lib/config.mjs';
 import { launch } from './lib/start.mjs';
 import { redirectConsole } from './lib/console-log.mjs';
+import { watchStopRequest, STOP_FILE } from './lib/stop-request.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(ROOT, 'data', 'vitrina');
@@ -23,6 +24,12 @@ const { server: s, exitCode } = await launch({ config, dataDir });
 if (!s) process.exit(exitCode);
 console.log(`витрина: http://127.0.0.1:${config.port}/  (данные: ${dataDir})`);
 
-const shutdown = async () => { await s.stop(); process.exit(0); };
+// остановка одна: сигнал и просьба файлом (tools/update.ps1) не зовут stop() дважды
+let stopping = null;
+const shutdown = () => (stopping ??= s.stop().finally(() => process.exit(0)));
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+// штатная остановка для tools/update.ps1: data/vitrina/stop.request со своим pid (мелочь 5 Голема на В10).
+// Старая просьба от упавшего скрипта убирается при старте — иначе новая витрина с тем же pid остановилась бы (ревью такта 2).
+fs.rmSync(path.join(dataDir, STOP_FILE), { force: true });
+watchStopRequest({ file: path.join(dataDir, STOP_FILE), pid: process.pid, onStop: shutdown });

@@ -1115,3 +1115,22 @@ test('GET /api/mirror: живой замок и progress этого проход
   const m = await getMirror(app);
   assert.deepEqual([m.running, m.kind, m.phase, m.cardsDone, m.cardsTotal, m.requests, m.rpm, m.startedAt], [true, 'changed', 'comments', 12, 55, 40, 23, iso(now - 89000)]);
 });
+
+// мелочь 2 Голема на В10 (EXT-53, такт 2): lastError прохода зеркала — текст mirror.mjs, источник «неизвестный»
+// (спека витрины 6.2) — строгой сетью. Id флоу по слову-признаку строгая сеть (IPTV) закрывает, мягкая — нет.
+test('GET /api/mirror: lastError — строгой маской: id флоу по признаку закрыт, ghp_ закрыт, обычный текст цел', async () => {
+  const FLOW_ID = '1a2b3c4d5e6f7g8h';
+  const dir = tmpDir('mirror-');
+  const st = (lastError) => fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: new Date(Date.now() - 6 * 60000).toISOString(), kind: 'changed', lastError }));
+  const { app } = await setup({ mirrorDir: dir });
+  const get = async () => (await app.inject({ method: 'GET', url: '/api/mirror', headers: { host: `127.0.0.1:${PORT}` } })).json();
+  st(`проход красный: flow id ${FLOW_ID}`);
+  const flow = (await get()).lastError;
+  assert.ok(!flow.includes(FLOW_ID), flow);
+  assert.match(flow, /^проход красный: flow id \[скрыто: [^\]]+\]$/);
+  st(`проход красный: ключ ${SECRET}`);
+  const gh = (await get()).lastError;
+  assert.ok(!gh.includes(SECRET), gh);
+  st('проход красный — см. last-report.txt');
+  assert.equal((await get()).lastError, 'проход красный — см. last-report.txt');
+});

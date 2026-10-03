@@ -12,7 +12,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead, checkArgs } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { normHead, localMarks, acceptState, B_HINT } from '../lib/pult/accept.mjs';
+import { normHead, localMarks, acceptState, B_HINT, createPlaneSpawn } from '../lib/pult/accept.mjs';
 import { validQ } from '../lib/pult/actions.mjs';
 import { restoreIntents } from '../lib/pult/routes.mjs';
 import { localIso } from '../lib/pult/actions-log.mjs';
@@ -88,7 +88,8 @@ function fakeSpawn() {
 
 // plane — начальное состояние подменного plane.py: карточка в Review, последний коммент — тот самый вопрос
 // log — строки actions.log до старта (рестарт витрины посреди действия)
-async function setup(plane = {}, { log = null } = {}) {
+// planeSpawn — подменный spawn запуска plane.py (мелочь 3 Голема на В10): createPlaneSpawn с ним вместо настоящего
+async function setup(plane = {}, { log = null, planeSpawn = null } = {}) {
   const data = tmpDir('acc-data-');
   const pdir = tmpDir('acc-plane-');
   fs.copyFileSync(path.join(HERE, 'fake-plane.mjs'), path.join(pdir, 'fake-plane.mjs'));
@@ -102,7 +103,7 @@ async function setup(plane = {}, { log = null } = {}) {
   const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, gitRead: createGitRead(),
     pult: { enabled: true, words: false, actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
-    pultSeams: { spawn } });
+    pultSeams: { spawn, ...(planeSpawn ? { planeRun: createPlaneSpawn({ python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs'), spawn: planeSpawn }) } : {}) } });
   const r = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
   const token = r.body.match(/name="vitrina-token" content="([^"]+)"/)[1];
   const press = (body) => app.inject({ method: 'POST', url: '/api/act', payload: JSON.stringify({ intentId: nextIntent(), ...body }),
@@ -559,4 +560,26 @@ test('мелочь 8: карточка с открытой развилкой �
   assert.notEqual(st.hint, B_HINT);
   assert.match(st.hint, /развилк/);
   assert.equal(acceptState({ status: 'review', last: { mark: 'сливай' } }, null).hint, B_HINT);
+});
+
+// мелочь 3 Голема на В10 (EXT-53, такт 2): spawn бросил синхронно (EPERM, EINVAL) — понятный отказ, а не 500
+test('мелочь 3 (В10): запуск plane.py бросил синхронно — createPlaneSpawn отвечает code null и spawnError, не исключением', async () => {
+  const thrower = () => { throw Object.assign(new Error('spawn'), { code: 'EPERM' }); };
+  const run = createPlaneSpawn({ planePy: 'x.py', spawn: thrower });
+  const r = await run(['show', 'EXT-7', '--last']);
+  assert.deepEqual({ code: r.code, spawnError: r.spawnError }, { code: null, spawnError: 'EPERM' });
+});
+
+test('мелочь 3 (В10): «Принять», plane.py не запустился синхронно — 200, outcome error «свежая сверка не удалась: EPERM», строки asked/fresh/error в actions.log', async () => {
+  const s = await setup({}, { planeSpawn: () => { throw Object.assign(new Error('spawn'), { code: 'EPERM' }); } });
+  const r = await s.press({ action: 'accept', card: 'EXT-7', q: Q });
+  assert.equal(r.statusCode, 200, r.body);
+  const b = r.json();
+  assert.equal(b.outcome, 'error');
+  assert.equal(b.message, 'свежая сверка не удалась: EPERM');
+  assert.match(b.id, /^W-\d{6}-\d{6}-[0-9a-f]{4}$/);
+  const steps = s.lines().map((l) => l.step);
+  assert.deepEqual(steps, ['asked', 'fresh', 'error']);
+  assert.deepEqual(s.lines()[1].result.line, 'EPERM');
+  assert.equal(s.pl().calls, undefined, 'настоящий plane.py не звался');
 });
