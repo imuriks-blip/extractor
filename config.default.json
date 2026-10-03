@@ -44,6 +44,15 @@
       "command": "plane.py",
       "sub": "close",
       "bodyArg": 1
+    },
+    {
+      "tool": [
+        "Bash",
+        "PowerShell"
+      ],
+      "command": "plane.py",
+      "sub": "comment",
+      "bodyArg": 0
     }
   ],
   "pult": {
