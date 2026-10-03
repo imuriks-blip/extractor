@@ -379,8 +379,10 @@ test('2.1: картинка вложением и следом та же кар�
 // stop_reason стоит на каждой строке сообщения (thinking/text/tool_use) и равен итоговому; вызовов AskUserQuestion 348,
 // все — stop_reason tool_use, без результата — 1.
 const [ASK_USE, ASK_RES, END_TEXT] = lines('thread-state.jsonl');
-const IVAN = () => clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human'));
-const endWith = (text, at) => { const x = clone(END_TEXT); x.message.content[0].text = text; if (at) x.timestamp = at; x.message.id = `msg_${text.length}_${at ?? ''}`; return x; };
+// IVAN() и endWith() — новые строки из одной живой: каждой свой uuid (одинаковый uuid — повтор строки, EXT-41)
+let fresh = 0;
+const IVAN = () => ({ ...clone(MAIN.find((d) => d.type === 'user' && d.origin?.kind === 'human')), uuid: `ivan-${++fresh}` });
+const endWith = (text, at) => { const x = clone(END_TEXT); x.uuid = `end-${++fresh}`; x.message.content[0].text = text; if (at) x.timestamp = at; x.message.id = `msg_${text.length}_${at ?? ''}`; return x; };
 
 test('В3 (А): открытый AskUserQuestion — в состоянии сессии; результат на него закрывает', () => {
   assert.equal(ASK_USE.message.stop_reason, 'tool_use');
@@ -410,4 +412,46 @@ test('В3: последний custom-title журнала — в состоян�
   const ct = (t) => ({ type: 'custom-title', customTitle: t, sessionId: SID });
   assert.equal(session([ct('EXT · раз'), ct('CAR · два')]).thread.customTitle, 'CAR · два');
   assert.equal(session([IVAN()]).thread.customTitle ?? null, null);
+});
+
+// ---------- EXT-41: повтор цепочки после /compact — закончившийся запуск не оживает ----------
+// Фикстура — строки журнала дирижёра 2fea3135 (02.10) про запуск Терминуса a25ac62d1aea17698 («EXT-28 vitrina В4
+// waiting»): первые 18 — исходная история (стр. 2996–3410: старт, отчёт и уведомление, продолжение KXeY, сообщение
+// AV8 в живой заход, отчёт и уведомление, сообщение 019bq завершённому агенту, отчёт и уведомление без tool-use-id,
+// продолжение PMPB, отчёт и уведомление 09:31:47), затем 12 строк повтора (стр. 8057–8133) — Claude Code при /compact
+// 17:11 дописал в журнал копию цепочки 30.09–02.10 09:21 с теми же uuid и временами, и граница сжатия (стр. 8136).
+// Ожидания посчитаны по исходным строкам руками: продолжений 3 (KXeY, 019bq, PMPB), запуск завершён.
+const AGENT_41 = 'a25ac62d1aea17698';
+const REPLAY = lines('replay-after-compact.jsonl');
+const ORIGINAL_41 = REPLAY.slice(0, 18);
+
+test('EXT-41: исходная история запуска — завершён, продолжений 3 (контроль фикстуры)', () => {
+  const run = session(ORIGINAL_41).runs[AGENT_41];
+  assert.equal(run.alive, false);
+  assert.equal(run.continuations, 3);
+  assert.equal(run.lastEndAt, '2026-10-02T09:31:47.049Z');
+});
+
+test('EXT-41: строки повтора с уже прочитанными uuid состояние не меняют — запуск не оживает', () => {
+  const run = session(REPLAY).runs[AGENT_41];
+  assert.equal(run.alive, false, 'повтор цепочки после /compact оживил закончившийся запуск');
+  assert.deepEqual(session(REPLAY).runs, session(ORIGINAL_41).runs);
+});
+
+test('EXT-41: повтор после рестарта (состояние из индекса, JSON) — тоже узнаётся', () => {
+  const st = JSON.parse(JSON.stringify(session(ORIGINAL_41)));
+  for (const d of REPLAY.slice(18)) feedSession(st, d, { rules: RULES });
+  assert.equal(st.runs[AGENT_41].alive, false);
+  assert.equal(st.runs[AGENT_41].continuations, 3);
+});
+
+test('EXT-41: новая строка с новым uuid — разбирается как прежде (исправный случай)', () => {
+  const st = session(ORIGINAL_41);
+  const send = clone(REPLAY[10]); const res = clone(REPLAY[11]); // 019bq: сообщение завершённому агенту
+  send.uuid = 'new-uuid-send'; res.uuid = 'new-uuid-res';
+  for (const p of send.message.content) p.id = 'toolu_new';
+  for (const p of res.message.content) p.tool_use_id = 'toolu_new';
+  feedSession(st, send, { rules: RULES }); feedSession(st, res, { rules: RULES });
+  assert.equal(st.runs[AGENT_41].alive, true, 'настоящее новое продолжение — живой');
+  assert.equal(st.runs[AGENT_41].continuations, 4);
 });
