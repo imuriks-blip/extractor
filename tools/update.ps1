@@ -15,7 +15,9 @@
 #      server answers 503, after a pull without the build it shows the old interface).
 #      Exit 1 on any npm failure. NOTE: npm ci deletes node_modules first - the running vitrina keeps working from
 #      memory, but a new start (logon, reboot) fails until the update succeeds: repeat update.ps1 before rebooting.
-#   3. Re-checks step 1 (same pid, still ours), stops that one process, starts tools\vitrina-hidden.js through
+#   3. Re-checks step 1 (same pid, still ours), stops that one process gracefully (tools\vitrina-stop.ps1: its pid
+#      goes to data\vitrina\stop.request, the vitrina runs stop() - last "stats" line, index, "stop" line - and
+#      exits; Stop-Process -Force only if it is still alive after 10 s), starts tools\vitrina-hidden.js through
 #      wscript.exe (no window) and waits up to 60 s for /api/health with a new pid.
 #      Exit 0 - restarted, 2 - did not answer in time (see data\vitrina\console.log and server.log).
 # -NoRestart: steps 1-2 only (for a first install: build, then install-autostart.ps1).
@@ -27,6 +29,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'vitrina-checks.ps1')
+. (Join-Path $PSScriptRoot 'vitrina-stop.ps1')
 
 if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 $Root = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\')
@@ -96,8 +99,8 @@ if ($st2.State -eq 'foreign' -or ($st.State -eq 'own' -and $st2.State -eq 'own' 
 $oldPid = $null
 if ($st2.State -eq 'own') {
   $oldPid = $st2.Pid
-  Stop-Process -Id $oldPid -Force
-  Write-Output "stopped: vitrina pid $oldPid"
+  $how = Stop-VitrinaGracefully -DataDir (Join-Path $Root 'data\vitrina') -ProcessId $oldPid -TimeoutSec 10
+  Write-Output "stopped: vitrina pid $oldPid ($how)"
   $deadline = (Get-Date).AddSeconds(15)
   while (((Get-ListenerPids $port).Count -gt 0) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 300 }
 }
