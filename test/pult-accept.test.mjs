@@ -40,9 +40,13 @@ const logWith = (body) => `### 2026-10-03 12:00 +03:00 · plane · коммен�
 const boardDir = makeBoard(tmpDir('acc-board-'), { codes: ['EXT', 'CAR'], cards: [
   { id: 'EXT-7', status: 'review', title: 'Семь' }, { id: 'EXT-8', status: 'review', markB: true }, { id: 'EXT-9', status: 'review' },
   { id: 'EXT-10', status: 'review' }, { id: 'EXT-11', status: 'review' }, { id: 'EXT-12', status: 'review' }, { id: 'EXT-13', status: 'review' },
+  { id: 'EXT-14', status: 'review' },
 ] });
 for (const id of ['EXT-7', 'EXT-8', 'EXT-9', 'EXT-10', 'EXT-12', 'EXT-13']) fs.writeFileSync(path.join(boardDir, 'EXT', `${id}.log.md`), logWith(Q_MD));
 fs.rmSync(path.join(boardDir, 'EXT', 'EXT-11.log.md'));
+// EXT-14: две записи, последняя — длинная многострочная (head — первые 60 знаков тела)
+const LONG = 'Готово: **ветка** `ext-14-x` слита, тесты 396/396, вердикт Голема без замечаний.\n\nСмотри?';
+fs.writeFileSync(path.join(boardDir, 'EXT', 'EXT-14.log.md'), logWith('старая запись') + `\n### 2026-10-03 12:30 +03:00 · plane · коммент\n\n${LONG}\n`);
 gitInitCommit(boardDir);
 fs.mkdirSync(path.join(boardDir, '.mirror'));
 fs.writeFileSync(path.join(boardDir, '.mirror', 'index.json'), '{}');
@@ -222,6 +226,39 @@ test('q обязателен у «Принять»/«Вернуть»; q.at — 
   assert.deepEqual(validQ({ at: '2026-10-02T19:40+03:00', head: 'x' }), { at: '2026-10-02T19:40+03:00', head: 'x' });
   assert.deepEqual(validQ({ at: '2026-10-03T09:00:41.018Z', head: 'x' }), { at: '2026-10-03T09:00:41.018Z', head: 'x' });
   assert.equal(s.pl().calls?.length ?? 0, 0);
+});
+
+// ---------------- готовый q в данных (для интерфейса) ----------------
+
+test('q в данных: строки (б)/(в) /api/ceh и /api/project, pult.q карточки — {at, head} последней записи зеркала или {at: null}; отправленный как есть — проходит сверку', async () => {
+  const s = await setup();
+  const ceh = await s.get('/api/ceh');
+  const row = (id) => ceh.waiting.review.find((x) => x.id === id) ?? ceh.waiting.yes.find((x) => x.id === id);
+  // ожидаемое — из положенного в доску: заголовок 12:00 +03:00 = 09:00Z, тело Q_MD
+  assert.deepEqual(row('EXT-7').q, { at: Q_AT, head: Q_MD });
+  assert.deepEqual(row('EXT-8').q, { at: Q_AT, head: Q_MD }, 'строка (б) тоже несёт q');
+  assert.deepEqual(row('EXT-11').q, { at: null }, 'записей нет — {at: null}');
+  assert.deepEqual(row('EXT-14').q, { at: '2026-10-03T09:30:00.000Z', head: [...LONG].slice(0, 60).join('') }, 'последняя запись, первые 60 знаков тела');
+  assert.equal([...row('EXT-14').q.head].length, 60);
+  assert.deepEqual((await s.get('/api/card/EXT-7')).pult.q, { at: Q_AT, head: Q_MD });
+  assert.deepEqual((await s.get('/api/card/EXT-11')).pult.q, { at: null });
+  assert.deepEqual((await s.get('/api/project/EXT')).waiting.find((x) => x.id === 'EXT-14').q, row('EXT-14').q);
+  // исправный случай: q из данных, отправленный как есть, — сверка пройдена
+  const ok = await s.press({ action: 'accept', card: 'EXT-7', q: row('EXT-7').q });
+  assert.equal(ok.statusCode, 200);
+  assert.equal(ok.json().outcome, 'ok');
+  assert.deepEqual(s.lines().find((l) => l.id === ok.json().id && l.step === 'asked').q, { at: Q_AT, head: Q_MD });
+  // карточка с новой записью в Plane (новее записи зеркала) — тот же q → new-question, коммента нет
+  const fresh = await setup({ comments: [{ id: 'q1', created_at: '2026-10-03T09:00:41Z', html: Q_HTML }, { id: 'q2', created_at: '2026-10-03T09:12:00Z', html: '<p>А это проверил?</p>' }] });
+  const q = (await fresh.get('/api/ceh')).waiting.review.find((x) => x.id === 'EXT-7').q;
+  const r = await fresh.press({ action: 'accept', card: 'EXT-7', q });
+  assert.equal(r.json().outcome, 'refused');
+  assert.equal(fresh.lines().at(-1).refusal, 'new-question');
+  assert.equal(fresh.pl().comments.length, 2);
+  // и EXT-14: q из данных против того же текста в Plane (HTML) — проходит
+  const long = await setup({ comments: [{ id: 'q1', created_at: '2026-10-03T09:30:12Z', html: '<p>Готово: <strong>ветка</strong> <code>ext-14-x</code> слита, тесты 396/396, вердикт Голема без замечаний.</p><p>Смотри?</p>' }] });
+  const q14 = (await long.get('/api/ceh')).waiting.review.find((x) => x.id === 'EXT-14').q;
+  assert.equal((await long.press({ action: 'return', card: 'EXT-14', q: q14, text: 'доделать' })).json().outcome, 'ok');
 });
 
 // ---------------- частичный и неясный исход (§3.1) ----------------
