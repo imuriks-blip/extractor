@@ -326,7 +326,8 @@
         "marks": [],
         "waitingKind": "question",
         "lastState": null,
-        "projectBy": "title"
+        "projectBy": "title",
+        "rulesReread": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000002",
@@ -343,7 +344,8 @@
         "marks": [],
         "waitingKind": "askUserQuestion",
         "lastState": null,
-        "projectBy": null
+        "projectBy": null,
+        "rulesReread": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000003",
@@ -377,7 +379,8 @@
         "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
         "lastState": null,
-        "projectBy": "title"
+        "projectBy": "title",
+        "rulesReread": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000004",
@@ -431,7 +434,8 @@
         "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
         "lastState": null,
-        "projectBy": "title"
+        "projectBy": "title",
+        "rulesReread": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000005",
@@ -448,7 +452,8 @@
         "procStatus": null,
         "statusUpdatedAt": null,
         "waitingKind": null,
-        "projectBy": null
+        "projectBy": null,
+        "rulesReread": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000006",
@@ -465,7 +470,8 @@
         "marks": [],
         "waitingKind": null,
         "lastState": null,
-        "projectBy": "title"
+        "projectBy": "title",
+        "rulesReread": null
       }
     ],
     "subagentsCount": 1,

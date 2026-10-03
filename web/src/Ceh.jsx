@@ -284,6 +284,8 @@ export function Thread({ t, now }) {
               <span className="num">{t.sinceKind === 'card' ? 'идёт' : 'открыт'} {dur(t.since, now)}</span>
               {/* окно проекта (3.2): rulesFresh приходит только из /api/project; «Старые правила» — пометкой oldRules ниже */}
               {t.rulesFresh === true && <span>правила свежие</span>}
+              {/* EXT-54: тред до «правила обновлены», но сам перечитал правила после — серая строка вместо пометки */}
+              {t.rulesReread && <span className="faint">правила перечитаны {dm(t.rulesReread)}</span>}
             </>}
       </div>
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
