@@ -34,7 +34,7 @@
     "id": null,
     "step": null,
     "outcome": "error",
-    "message": "«Принять» ещё не подключено"
+    "message": "«Новая карточка / мысль» ещё не подключено"
   },
   "error": {
     "id": "W-261002-195400-0b2d",
@@ -57,5 +57,62 @@
       },
       "mirrorAt": "2026-10-02T19:52:46+03:00"
     }
+  },
+  "_pt3": "ПТ3 (EXT-43): «Принять» {action: \"accept\", intentId, card, q} и «Вернуть» {action: \"return\", intentId, card, q, text: причина ≤ 500}. q обязателен: {at: ISO-время записи-вопроса, head: ≤ 60 знаков} или {at: null}. Ответ 200; outcome ok | partial | refused | error. pull: true — показать кнопку «дотянуть» (Обновить). Повтор после partial или error — новым intentId: сервер сам зовёт только state, если запись уже легла. Во время запроса — «идёт» (7–8 с).",
+  "accept-ok": {
+    "id": "W-261003-104210-5c1e",
+    "step": "done",
+    "outcome": "ok",
+    "message": "принято · Done в Plane 10:42 · зеркало: ждёт"
+  },
+  "return-ok": {
+    "id": "W-261003-104512-a0b3",
+    "step": "done",
+    "outcome": "ok",
+    "message": "возвращено · In Progress в Plane 10:45 · тред увидит при открытии (звонок — после ПТ4)"
+  },
+  "accept-partial": {
+    "id": "W-261003-104210-5c1e",
+    "step": "partial",
+    "outcome": "partial",
+    "message": "частично: запись есть, статус не сменился — повторить (Traceback (most recent call last):)"
+  },
+  "accept-not-written": {
+    "id": "W-261003-104210-5c1e",
+    "step": "error",
+    "outcome": "error",
+    "message": "не найдено в последнем комменте — проверь карточку (Доска ответила 429: {\"error\":\"rate limited\"})"
+  },
+  "accept-stale-status": {
+    "id": "W-261003-104210-5c1e",
+    "step": "refused",
+    "outcome": "refused",
+    "message": "в Plane сейчас In Progress; зеркало от 03.10 01:31 — дотянуть?",
+    "pull": true
+  },
+  "accept-new-question": {
+    "id": "W-261003-104210-5c1e",
+    "step": "refused",
+    "outcome": "refused",
+    "message": "на карточке новое сообщение от 10:31 — посмотри и ответь заново",
+    "pull": true
+  },
+  "accept-b-deal": {
+    "id": "W-261003-104210-5c1e",
+    "step": "refused",
+    "outcome": "refused",
+    "message": "«Принять» нет: Б-карточка ждёт слияния: «сливай» или «выкатывай»"
+  },
+  "accept-not-merged": {
+    "id": "W-261003-104210-5c1e",
+    "step": "refused",
+    "outcome": "refused",
+    "message": "«Принять» нет: ветка ext-43-accept не слита в main — Б-карточка ждёт слияния: «сливай» или «выкатывай»"
+  },
+  "return-secret": {
+    "id": "W-261003-104512-a0b3",
+    "step": "refused",
+    "outcome": "refused",
+    "message": "похоже на секрет: префикс — на доску не пишется"
   }
 }
