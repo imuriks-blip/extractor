@@ -60,14 +60,37 @@
       "title": "Витрина: правила «Ждёт меня»",
       "since": "2026-10-01T11:20:00+03:00",
       "status": "review",
-      "key": "EXT-24|2026-10-01 11:20 +03:00 · plane · коммент"
+      "key": "EXT-24|2026-10-01 11:20 +03:00 · plane · коммент",
+      "accept": {
+        "can": false,
+        "why": "b-deal",
+        "hint": "Б-карточка ждёт слияния: «сливай» или «выкатывай»",
+        "branch": null
+      },
+      "pultMark": null,
+      "answered": false
     },
     {
       "group": "review",
       "id": "EXT-23",
       "title": "Зеркало: --changed без перечитывания незакрытых",
       "at": "2026-10-01T10:30:00+03:00",
-      "project": "EXT"
+      "project": "EXT",
+      "accept": {
+        "can": true,
+        "why": null,
+        "hint": null,
+        "branch": null
+      },
+      "pultMark": {
+        "id": "W-261003-104210-5c1e",
+        "action": "accept",
+        "at": "2026-10-03T07:42:10.000Z",
+        "state": "Done",
+        "missing": true,
+        "text": "зеркало не видит запись W-261003-104210-5c1e"
+      },
+      "answered": true
     }
   ],
   "workers": {
@@ -222,7 +245,8 @@
   },
   "waitingCount": {
     "count": 2,
-    "more": 1
+    "more": 0
   },
-  "_waiting": "плоский список без заголовков групп (2.4): group thread | yes | review; если тред проекта не ждёт — интерфейс пишет «Тред <КОД> не ждёт ответа»"
+  "_waiting": "плоский список без заголовков групп (2.4): group thread | yes | review; если тред проекта не ждёт — интерфейс пишет «Тред <КОД> не ждёт ответа»",
+  "_pult": "ПТ3 (EXT-43): accept — можно ли «Принять» (В7): {can: true|false|null, why: null|\"not-review\"|\"b-deal\"|\"not-merged\"|\"checking\", hint, branch}; can null — ветка ещё проверяется (кнопку не показывать). pultMark — местная отметка §3.2 (null — нет) {id, action: accept|return, at, state, missing, text}; missing true — красная «зеркало не видит запись <id>». answered — строка в подгруппе «отвечено, ждёт зеркала»: серым, не входит в count/more. mark у строки (б) — по-прежнему её метка («сливай», «Б», «развилка»)."
 }

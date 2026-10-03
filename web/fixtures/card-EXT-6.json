@@ -114,5 +114,22 @@
     "failingSince": null
   },
   "logError": null,
+  "pult": {
+    "accept": {
+      "can": true,
+      "why": null,
+      "hint": null,
+      "branch": null
+    },
+    "mark": {
+      "id": "W-261003-104210-5c1e",
+      "action": "accept",
+      "at": "2026-10-03T07:42:10.000Z",
+      "state": "Done",
+      "missing": false,
+      "text": "принято · Done в Plane 10:42 · зеркало ещё не видело"
+    }
+  },
+  "_pult": "ПТ3 (EXT-43): accept — можно ли «Принять» (В7): {can: true|false|null, why: null|\"not-review\"|\"b-deal\"|\"not-merged\"|\"checking\", hint, branch}; can null — ветка ещё проверяется (кнопку не показывать). pult.mark — местная отметка §3.2 (null — нет) {id, action: accept|return, at, state, missing, text}; missing true — красная «зеркало не видит запись <id>». answered — строка в подгруппе «отвечено, ждёт зеркала»: серым, не входит в count/more. mark у строки (б) — по-прежнему её метка («сливай», «Б», «развилка»).",
   "_note": "project — код проекта из папки карточки (2.6 «проект»). body — markdown; в HTML с очисткой (без сырого HTML и скриптов, ссылки rel=\"noreferrer\") переводит вёрстка (2.6). Время в ленте — ISO UTC. feedGit.readAt null — коммиты ещё не читали (первый проход опроса не прошёл), а не «коммитов нет»; feedGit.failingSince не null — серая строка 2.7 у коммитов ленты; logError — журнал карточки не прочитан: комменты прежние. Сеть маски: свои тексты — сетью проекта, коммиты общих и чужих репозиториев, заголовки карточек других проектов и description запусков — строгой."
 }

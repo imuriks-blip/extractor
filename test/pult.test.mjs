@@ -348,7 +348,8 @@ test('pult.words = false: слово («да») → 503 без записи; pin
   assert.equal(yes.statusCode, 503);
   assert.match(yes.json().message, /после правки правил/);
   assert.equal(lines().length, 0);
-  assert.equal((await act(app, token, { body: { action: 'accept', intentId: nextIntent(), card: 'EXT-6' } })).statusCode, 501);
+  // «Принять» флагом слов не держится: без q — 400 по форме (ПТ3), не 503
+  assert.equal((await act(app, token, { body: { action: 'accept', intentId: nextIntent(), card: 'EXT-6' } })).statusCode, 400);
   assert.equal((await act(app, token)).statusCode, 200);
 });
 
@@ -359,13 +360,14 @@ test('config.default.json: pult.enabled и pult.words — false', () => {
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------
 
+// «Принять» и «Вернуть» подключены в ПТ3 — их проверки в test/pult-accept.test.mjs
 test('словарь §1.3: тринадцать действий таблицы и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
   assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'return', 'take', 'yes'].sort());
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай'].sort());
   const { app, lines } = await setup();
   const token = await pageToken(app);
   const body = { yes: { card: 'EXT-6' }, go: { card: 'EXT-6' }, merge: { card: 'EXT-6' }, deploy: { card: 'EXT-6' }, no: { card: 'EXT-6' }, reply: { card: 'EXT-6', text: 'ответ' },
-    accept: { card: 'EXT-6' }, return: { card: 'EXT-6', text: 'причина' }, take: { card: 'EXT-6' }, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
+    take: { card: 'EXT-6' }, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
   for (const [action, extra] of Object.entries(body)) {
     const r = await act(app, token, { body: { action, intentId: nextIntent(), ...extra } });
     assert.equal(r.statusCode, 501, action);

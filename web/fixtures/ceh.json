@@ -46,7 +46,15 @@
         "since": "2026-10-01T11:05:00+03:00",
         "project": "LEDGER",
         "status": "review",
-        "key": "LEDGER-168|2026-10-01 11:05 +03:00 · plane · коммент"
+        "key": "LEDGER-168|2026-10-01 11:05 +03:00 · plane · коммент",
+        "accept": {
+          "can": false,
+          "why": "b-deal",
+          "hint": "Б-карточка ждёт слияния: «сливай» или «выкатывай»",
+          "branch": null
+        },
+        "pultMark": null,
+        "answered": false
       },
       {
         "id": "INFRA-80",
@@ -55,7 +63,15 @@
         "since": "2026-09-30T17:20:00+03:00",
         "project": "INFRA",
         "status": "review",
-        "key": "INFRA-80|2026-09-30 17:20 +03:00 · plane · коммент"
+        "key": "INFRA-80|2026-09-30 17:20 +03:00 · plane · коммент",
+        "accept": {
+          "can": false,
+          "why": "b-deal",
+          "hint": "Б-карточка ждёт слияния: «сливай» или «выкатывай»",
+          "branch": null
+        },
+        "pultMark": null,
+        "answered": false
       },
       {
         "id": "BW-41",
@@ -64,7 +80,15 @@
         "since": "2026-09-29T14:02:00+03:00",
         "project": "BW",
         "status": "review",
-        "key": "BW-41|2026-09-29 14:02 +03:00 · plane · коммент"
+        "key": "BW-41|2026-09-29 14:02 +03:00 · plane · коммент",
+        "accept": {
+          "can": false,
+          "why": "b-deal",
+          "hint": "Б-карточка ждёт слияния: «сливай» или «выкатывай»",
+          "branch": null
+        },
+        "pultMark": null,
+        "answered": false
       }
     ],
     "review": [
@@ -72,17 +96,41 @@
         "id": "EXT-23",
         "title": "Зеркало: --changed без перечитывания незакрытых",
         "at": "2026-10-01T10:30:00+03:00",
-        "project": "EXT"
+        "project": "EXT",
+        "accept": {
+          "can": true,
+          "why": null,
+          "hint": null,
+          "branch": null
+        },
+        "pultMark": {
+          "id": "W-261003-104210-5c1e",
+          "action": "accept",
+          "at": "2026-10-03T07:42:10.000Z",
+          "state": "Done",
+          "missing": false,
+          "text": "принято · Done в Plane 10:42 · зеркало ещё не видело"
+        },
+        "answered": true
       },
       {
         "id": "CAR-260",
         "title": "FRONT · Галерея фото: порядок и обложка",
         "at": "2026-09-25T16:44:00+03:00",
-        "project": "CAR"
+        "project": "CAR",
+        "accept": {
+          "can": false,
+          "why": "not-merged",
+          "hint": "ветка car-260-gallery не слита в main — Б-карточка ждёт слияния: «сливай» или «выкатывай»",
+          "branch": "car-260-gallery"
+        },
+        "pultMark": null,
+        "answered": false
       }
     ],
     "count": 6,
-    "more": 2
+    "more": 1,
+    "_pult": "ПТ3 (EXT-43): accept — можно ли «Принять» (В7): {can: true|false|null, why: null|\"not-review\"|\"b-deal\"|\"not-merged\"|\"checking\", hint, branch}; can null — ветка ещё проверяется (кнопку не показывать). pultMark — местная отметка §3.2 (null — нет) {id, action: accept|return, at, state, missing, text}; missing true — красная «зеркало не видит запись <id>». answered — строка в подгруппе «отвечено, ждёт зеркала»: серым, не входит в count/more. mark у строки (б) — по-прежнему её метка («сливай», «Б», «развилка»)."
   },
   "projects": [
     {
