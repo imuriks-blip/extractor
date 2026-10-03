@@ -5,6 +5,7 @@ import { streamSource, useSource } from './data.js';
 import { ageShort, dd, dm, hm, minutes, plural } from './format.js';
 import { mdToHtml } from './md.js';
 import { staleText } from './Ceh.jsx';
+import Pult, { PultMark } from './Pult.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8): серая строка у коммитов — после трёх пропущенных проходов
 
@@ -181,6 +182,10 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
             <span>проект {project}</span>
           </div>
         )}
+        {/* «Принять»/«Вернуть» — у карточки в Review (§1.4); q null (битая шапка) — кнопок нет; отметка §3.2 — при любом статусе */}
+        {h?.status === 'review' && data?.pult
+          ? <Pult card={id} q={data.pult.q ?? null} accept={data.pult.accept} mark={data.pult.mark} />
+          : data?.pult?.mark && <div className="pult"><PultMark m={data.pult.mark} /></div>}
         {stale && <div className="note">{stale}</div>}
       </div>
       <div className="pb">{body}</div>

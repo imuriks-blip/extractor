@@ -5,6 +5,7 @@ import { useOpen } from './prefs.js';
 import { ageShort, hm, minutes, plural } from './format.js';
 import { Mark, Stale, Summary, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
 import CardPanel from './CardPanel.jsx';
+import { PultMark } from './Pult.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
 const DONE_SHOWN = 5; // 2.5: в Done видны 5 последних, остальные — поиском
@@ -150,9 +151,10 @@ function WRow({ r, now, sel, onOpen }) {
   }
   const yes = r.group === 'yes';
   return (
-    <button type="button" className="prow" aria-current={sel === r.id ? 'true' : undefined} onClick={() => onOpen(r.id)}>
+    <button type="button" className={r.answered ? 'prow ans' : 'prow'} aria-current={sel === r.id ? 'true' : undefined} onClick={() => onOpen(r.id)}>
       <span className="src">{r.id}</span>
-      <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}</span>
+      <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}
+        {r.answered && <PultMark m={r.pultMark} />}</span>
       <span className="age num">{ageShort(yes ? r.since : r.at, now)}</span>
     </button>
   );
@@ -162,8 +164,10 @@ function PWaiting({ code, rows, cnt, now, stale, sel, onOpen }) {
   const o = useOpen('pwaiting');
   const threadWaits = rows.some((r) => r.group === 'thread');
   // (а) и (б) — целиком; (в) Review — 10 свежих и «Показать ещё N», как на «Цехе»
-  const [review, moreReview] = useShowMore(rows.filter((r) => r.group === 'review'), undefined, 'more flat');
-  const shown = [...rows.filter((r) => r.group !== 'review'), ...review];
+  // отвечено с витрины, ждёт зеркала (§3.2) — серым в конце, вне числа
+  const answered = rows.filter((r) => r.answered);
+  const [review, moreReview] = useShowMore(rows.filter((r) => r.group === 'review' && !r.answered), undefined, 'more flat');
+  const shown = [...rows.filter((r) => r.group !== 'review' && !r.answered), ...review];
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
       <Summary>
@@ -173,6 +177,8 @@ function PWaiting({ code, rows, cnt, now, stale, sel, onOpen }) {
       {!threadWaits && <div className="empty">Тред {code} не ждёт ответа</div>}
       {shown.map((r) => <WRow key={r.key || `${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} />)}
       {moreReview}
+      {answered.length > 0 && <div className="empty">Отвечено, ждёт зеркала · {answered.length}</div>}
+      {answered.map((r) => <WRow key={`a-${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} />)}
       <Stale text={stale} />
     </details>
   );

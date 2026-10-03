@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
+import Pult, { PultMark } from './Pult.jsx';
 
 const STALE_MS = 60_000; // данные читателя старше минуты — серая строка 2.7 (опрос доски 5 с, журналов 1–2 с)
 const REVIEW_SHOWN = 10; // «Готово, посмотри» на живой доске — десятки строк; остальное по кнопке
@@ -67,10 +68,34 @@ export function useShowMore(list, n = REVIEW_SHOWN, className = 'more') {
   return [shown, button];
 }
 
+// Отвечено с витрины, ждёт зеркала (§3.2): строки (б)/(в) с местной отметкой — серым, свёрнуто, вне крупного числа
+function Answered({ rows, now }) {
+  const o = useOpen('grp-answered', false);
+  if (!rows.length) return null;
+  const missing = rows.filter((r) => r.pultMark?.missing).length;
+  return (
+    <details className="grp ans" open={o.open} onToggle={o.onToggle}>
+      <Summary>Отвечено, ждёт зеркала <span className="cnt num">{rows.length}</span>
+        {missing > 0 && <span className="hint red">зеркало не видит {missing}</span>}
+      </Summary>
+      {rows.map((r) => (
+        <div className="wrow" key={`a-${r.id}`}>
+          <span className="src mono">{r.id}</span>
+          <span>{r.title}<PultMark m={r.pultMark} /></span>
+          <span className="age num">{ageShort(r.pultMark?.at ?? r.at ?? r.since, now)}</span>
+        </div>
+      ))}
+    </details>
+  );
+}
+
 function Waiting({ w, now, stale }) {
   const o = useOpen('waiting');
-  const [review, moreReview] = useShowMore(w.review);
-  const empty = !w.threads.length && !w.yes.length && !w.review.length;
+  const yes = w.yes.filter((r) => !r.answered);
+  const open = w.review.filter((r) => !r.answered);
+  const answered = [...w.yes, ...w.review].filter((r) => r.answered);
+  const [review, moreReview] = useShowMore(open);
+  const empty = !w.threads.length && !yes.length && !open.length;
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
       <Summary>
@@ -93,9 +118,9 @@ function Waiting({ w, now, stale }) {
         </Group>
       )}
 
-      {w.yes.length > 0 && (
-        <Group id="yes" title="Нужно твоё «да»" count={w.yes.length}>
-          {w.yes.map((r) => (
+      {yes.length > 0 && (
+        <Group id="yes" title="Нужно твоё «да»" count={yes.length}>
+          {yes.map((r) => (
             <div className="wrow" key={r.key}>
               <span className="src mono">{r.id}</span>
               <span><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
@@ -105,19 +130,21 @@ function Waiting({ w, now, stale }) {
         </Group>
       )}
 
-      {w.review.length > 0 && (
-        <Group id="review" title="Готово, посмотри" count={w.review.length} hint="Review">
+      {open.length > 0 && (
+        <Group id="review" title="Готово, посмотри" count={open.length} hint="Review">
           {review.map((r) => (
-            <div className="wrow" key={r.id}>
+            <div className="wrow pr" key={r.id}>
               <span className="src mono">{r.id}</span>
-              <span>{r.title}</span>
+              <span className="tt">{r.title}</span>
               <span className="age num">{ageShort(r.at, now)}</span>
+              <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} />
             </div>
           ))}
           {moreReview}
         </Group>
       )}
 
+      <Answered rows={answered} now={now} />
       {empty && <div className="foot">Ничего не ждёт.</div>}
       <Stale text={stale} />
     </details>
