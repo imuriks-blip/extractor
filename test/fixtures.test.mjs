@@ -30,7 +30,9 @@ const PENDING = {
 // лента карточки — разнородный список: образец каждого вида сверяется с элементом того же вида у ручки
 const BY_KIND = ['feed'];
 // словари с ключом-путём (не фиксированные ключи) — сверяется только, что это объект
-const DICT = ['gitCalls', 'readers.journals.unknown', 'readers.processes.unknownStatus', 'readers.processes.unknownWaitingFor'];
+// словари «значение → число» дрейфа разбора (EXT-53) — ключи меняются, сверяется только то, что это словарь
+const DRIFT_DICT = ['noteStatus', 'noteNoId', 'noteForeignId', 'resultStatus', 'launchName', 'originKind'].map((k) => `readers.journals.drift.${k}`);
+const DICT = ['gitCalls', 'readers.journals.unknown', 'readers.processes.unknownStatus', 'readers.processes.unknownWaitingFor', ...DRIFT_DICT];
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const keys = (o) => Object.keys(o).filter((k) => !k.startsWith('_')).sort();
 const empty = (v) => v === null || (Array.isArray(v) && v.length === 0);

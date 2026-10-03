@@ -31,6 +31,22 @@
         "2.1.286": 1
       },
       "runsOpen": 2,
+      "runsLive": 1,
+      "runsSilent": 1,
+      "drift": {
+        "noteStatus": {},
+        "noteNoId": {
+          "local_bash": 3
+        },
+        "noteForeignId": {
+          "other": 40
+        },
+        "resultStatus": {},
+        "launchName": {},
+        "originKind": {},
+        "agentLaunchErrors": 2,
+        "orphanAgentJournals": 0
+      },
       "indexBytes": 2097152,
       "indexWriteMs": 48,
       "indexWrites": 14,

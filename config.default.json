@@ -25,7 +25,8 @@
     "taktYellowMin": 60,
     "taktRedMin": 180,
     "waitingOverDayHours": 24,
-    "staleMin": 15
+    "staleMin": 15,
+    "runSilentMin": 30
   },
   "matchWindowMin": 10,
   "wakeJumpS": 90,
