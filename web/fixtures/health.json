@@ -33,7 +33,9 @@
       "runsOpen": 2,
       "indexBytes": 2097152,
       "indexWriteMs": 48,
-      "indexWrites": 14
+      "indexWrites": 14,
+      "rereadFiles": 3,
+      "rereadOff": null
     },
     "processes": {
       "lastOkAt": "2026-10-01T12:00:01.900Z",

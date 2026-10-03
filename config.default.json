@@ -54,7 +54,8 @@
   "rulesReread": {
     "files": [
       "CLAUDE.md",
-      "unorbis/_meta/Субагенты Claude Code.md"
+      "unorbis/_meta/Субагенты Claude Code.md",
+      "~/.claude/CLAUDE.md"
     ]
   }
 }

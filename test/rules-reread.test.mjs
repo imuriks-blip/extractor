@@ -1,8 +1,8 @@
 // «Правила перечитаны» (EXT-54, спека витрины 2.3): тред по старым правилам, который после момента «правила
 // обновлены» сам прочитал (Read в журнале сессии, результат без ошибки) каждый файл набора rulesReread.files, —
 // без красной пометки oldRules, с серой строкой «правила перечитаны ДД.ММ ЧЧ:ММ». Фикстура — обезличенные строки
-// журнала дирижёра 2fea3135 (03.10): Read протокола 10:16 и CLAUDE.md Vault 10:32 — до момента 13:37 по Риге,
-// оба снова в 14:01 — после.
+// журнала дирижёра 2fea3135 (03.10), время по Риге (UTC+3): Read протокола 13:16 и CLAUDE.md Vault 13:32 — до момента
+// 13:37, оба снова в 14:01 — после. Константы ниже — в UTC (как в журнале).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -18,6 +18,7 @@ const FX = path.join(ROOT, 'fixtures', 'journals');
 const LINES = fs.readFileSync(path.join(FX, 'rules-reread.jsonl'), 'utf8').split('\n').filter(Boolean);
 const lines = () => LINES.map((l) => JSON.parse(l));
 const SID = '2fea3135-c7db-442b-9907-4d619949881d';
+const HOME = 'C:\\Users\\imuri';
 const VAULT = 'C:\\Users\\imuri\\Documents\\Obsidian Vault';
 const PROTO = `${VAULT}\\unorbis\\_meta\\Субагенты Claude Code.md`;
 const RULES_MD = `${VAULT}\\CLAUDE.md`;
@@ -167,4 +168,39 @@ test('EXT-54 тред без проекта (правило (3)) — без «С
   assert.deepEqual(by['s-none-read'].marks, []);
   assert.equal(by['s-cards'].projectBy, 'cards');
   assert.deepEqual(by['s-cards'].marks, [{ kind: 'oldRules', rulesUpdatedAt: MOMENT }], 'проект по карточкам — цеховой, пометка есть');
+});
+
+// Набор файлов «перечитаны» (дозапрос после ревью Голема): «~/» — от домашней папки, остальное — от vault_root;
+// любой неразрешимый элемент выключает функцию целиком, с причиной (журнал сервера и /api/health).
+test('EXT-54 набор: три файла по умолчанию разрешаются; «~/CLAUDE.md» совпадает с путём, который пишет Read', async () => {
+  const { resolveReread } = await import('../lib/rules-reread.mjs');
+  const def = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'config.default.json'), 'utf8')).rulesReread.files;
+  const r = resolveReread(def, { vaultRoot: VAULT, home: HOME });
+  assert.equal(r.off, null);
+  const { pathKey } = await import('../lib/journal-parse.mjs');
+  // пути — как в file_path вызовов Read журнала 2fea3135 (03.10, строки 10997, 10999, 10618)
+  assert.deepEqual(r.files.map(pathKey).sort(), [RULES_MD, `${HOME}\\.claude\\CLAUDE.md`, PROTO].map(pathKey).sort());
+});
+
+test('EXT-54 набор: пустой путь, нестроковый элемент, неразрешимый «~/» или относительный без vault_root — функция выключена с причиной', async () => {
+  const { resolveReread } = await import('../lib/rules-reread.mjs');
+  const env = { vaultRoot: VAULT, home: HOME };
+  for (const [files, o] of [[['CLAUDE.md', ''], env], [['CLAUDE.md', null], env], [['CLAUDE.md', 7], env],
+    [['~/.claude/CLAUDE.md'], { vaultRoot: VAULT, home: null }], [['CLAUDE.md'], { vaultRoot: null, home: env.home }], [[], env], ['CLAUDE.md', env]]) {
+    const r = resolveReread(files, o);
+    assert.deepEqual(r.files, [], JSON.stringify(files));
+    assert.equal(typeof r.off, 'string', JSON.stringify(files));
+  }
+  // исправный рядом: полный набор — включена
+  assert.equal(resolveReread(['CLAUDE.md', '~/.claude/CLAUDE.md', 'C:/x/y.md'], env).files.length, 3);
+});
+
+test('EXT-54 /api/health: читатель журналов называет число файлов набора и причину выключения', async () => {
+  const root = tmpDir('journals-');
+  const on = createJournalReader({ root, indexDir: tmpDir('index-'), reread: SET });
+  assert.equal(on.state().rereadFiles, 2);
+  assert.equal(on.state().rereadOff, null);
+  const off = createJournalReader({ root, indexDir: tmpDir('index-'), reread: [], rereadOff: 'NO_VAULT_ROOT' });
+  assert.equal(off.state().rereadFiles, 0);
+  assert.equal(off.state().rereadOff, 'NO_VAULT_ROOT');
 });
