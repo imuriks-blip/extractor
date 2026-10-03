@@ -81,7 +81,7 @@
     "id": "W-261003-104210-5c1e",
     "step": "error",
     "outcome": "error",
-    "message": "не записано: Доска ответила 429: {\"error\":\"rate limited\"}"
+    "message": "не найдено в последнем комменте — проверь карточку (Доска ответила 429: {\"error\":\"rate limited\"})"
   },
   "accept-stale-status": {
     "id": "W-261003-104210-5c1e",

@@ -68,7 +68,7 @@ export default function MirrorButton({ label }) {
       setNote({ text: 'пульт отказал, перезапусти витрину', title: 'ответ 403 дважды подряд' });
       return;
     }
-    clear403();
+    clear403(id);
     if (r.status === 503) {
       store.set(localStorage, OFF_KEY, mark(token()));
       setPhase('off');
@@ -97,7 +97,10 @@ export default function MirrorButton({ label }) {
   pressRef.current = press;
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
-  useEffect(() => (off ? undefined : setPuller(() => { if (phaseRef.current === 'idle') pressRef.current(); })), [off]);
+  useEffect(() => (off ? undefined : setPuller(() => {
+    if (phaseRef.current === 'idle') { pressRef.current(); return 'started'; }
+    return phaseRef.current === 'off' ? 'off' : 'busy';
+  })), [off]);
 
   if (off) return null;
   if (phase === 'off') return <span className="mbtn-off faint" role="status">пульт выключен</span>;

@@ -29,7 +29,7 @@ async function send(payload) {
     setAct(card, { phase: 'error', action: payload.action, msg: 'пульт отказал, перезапусти витрину (ответ 403 дважды подряд)' });
     return;
   }
-  clear403();
+  clear403(payload.intentId);
   const b = r.body || {};
   if (r.status === 503) { setAct(card, { phase: 'refused', action: payload.action, msg: b.message || 'пульт выключен' }); return; }
   const outcome = r.status === 200 ? b.outcome : r.status === 409 || r.status === 429 ? 'refused' : 'error';
@@ -43,13 +43,15 @@ async function send(payload) {
 // новое намерение — новый ключ (§1.1 п.3); «повторить» после partial — тоже новый: сервер сам зовёт только state
 const fresh = (p) => ({ ...p, intentId: crypto.randomUUID() });
 
-// после перезагрузки на 403 — то же намерение тем же ключом; один раз на загрузку страницы
-let resumed = false;
-function resume403() {
-  if (resumed) return;
-  resumed = true;
-  const p = take403((x) => x.action === 'accept' || x.action === 'return');
-  if (p?.card) send(p);
+// после перезагрузки на 403 — то же намерение тем же ключом (§1.1 п.3). Шлёт его кнопка той карточки, когда её строка
+// или панель на экране: исход виден там, где Иван нажимал. Карточки на экране нет (за «Показать ещё», другой экран) —
+// повтор ждёт её до 60 с свежести записи, потом намерение забывается без запроса (п.12 ревью Голема)
+const resumed = new Set(); // ключи, уже отправленные повтором в этой загрузке страницы
+function resume403(card) {
+  const p = take403((x) => (x.action === 'accept' || x.action === 'return') && x.card === card);
+  if (!p || resumed.has(p.intentId)) return;
+  resumed.add(p.intentId);
+  send(p);
 }
 
 /* ---------- вид ---------- */
@@ -77,12 +79,8 @@ function ReturnForm({ onSend, onCancel }) {
 // Отметка §3.2 из данных: «принято · Done в Plane ЧЧ:ММ · зеркало ещё не видело»; missing — красная
 export function PultMark({ m }) {
   if (!m) return null;
-  return (
-    <span className="pmark">
-      {m.text}
-      {m.missing && <span className="pbad"> · зеркало не видит запись <span className="mono">{m.id}</span></span>}
-    </span>
-  );
+  // missing: сервер уже кладёт в text «зеркало не видит запись <id>» — тот же текст, красным
+  return <span className={m.missing ? 'pmark pbad' : 'pmark'}>{m.text}</span>;
 }
 
 // card, q (null — кнопок нет), accept {can, why, hint}, mark — местная отметка из данных (есть — кнопок нет, видна она)
@@ -91,7 +89,7 @@ export default function Pult({ card, q, accept, mark }) {
   const [form, setForm] = useState(false);
   const retBtn = useRef(null);
   const backFocus = useRef(false);
-  useEffect(resume403, []);
+  useEffect(() => { resume403(card); }, [card]);
   useEffect(() => { if (!form && backFocus.current) { backFocus.current = false; retBtn.current?.focus(); } }, [form]);
 
   const phase = st?.phase;
@@ -126,7 +124,13 @@ export default function Pult({ card, q, accept, mark }) {
     note = (
       <span className="pnote" role="status">
         <span className="pamb">отказ:</span> {st.msg}
-        {st.pull && canPull() && <> <button type="button" className="pbtn" onClick={() => { pull(); setAct(card, null); }}>дотянуть</button></>}
+        {st.pull && canPull() && !st.pullNote && <> <button type="button" className="pbtn" onClick={() => {
+          const r = pull();
+          if (r === 'started') setAct(card, null);
+          // «Обновить» занята — отказ не стираем, говорим почему ничего не случилось (п.13 ревью Голема)
+          else setAct(card, { ...st, pullNote: r === 'off' ? 'пульт выключен — дотянуть нечем' : 'обновление уже идёт — смотри «Обновить» вверху' });
+        }}>дотянуть</button></>}
+        {st.pullNote && <span> · {st.pullNote}</span>}
       </span>
     );
   } else if (phase === 'error') {
