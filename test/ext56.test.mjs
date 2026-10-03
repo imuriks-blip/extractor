@@ -91,6 +91,14 @@ test('EXT-56: plane.py comment «▶ выдан» (PowerShell, двойные к
   assert.deepEqual(takts(plainBoard, st.boardWrites).map((m) => [m.card, m.agent, m.level]), [['EXT-7', 'golem', 'yellow']]);
 });
 
+test('EXT-56: путь к plane.py в кавычках распознаётся (comment и close); без кавычек — как прежде', () => {
+  const use = (command) => ({ type: 'tool_use', id: 'q', name: 'PowerShell', input: { command } });
+  assert.equal(parseBoardWrite(use(`python "C:\\x y\\plane.py" comment '<p>⏸ получен: terminus · ext-7</p>' EXT-7`), RULES)?.firstLine, '⏸ получен: terminus · ext-7');
+  assert.deepEqual(parseBoardWrite(use(`python 'C:\\x\\plane.py' close Review '<p>▶ выдан: golem · ext-7</p>' EXT-7`), RULES)?.refs, ['EXT-7']);
+  assert.equal(parseBoardWrite(use(`python C:\\x\\plane.py comment '<p>a</p>' EXT-7`), RULES)?.firstLine, 'a');
+  assert.equal(parseBoardWrite(use(`python "C:\\x\\plane.py" show EXT-7 --last`), RULES), null, 'show — не запись');
+});
+
 test('EXT-56: plane.py comment через переменную ($t) — ни ▶, ни ⏸; ошибкой не считается', () => {
   const use = (command) => ({ type: 'tool_use', id: 'x', name: 'Bash', input: { command } });
   const w = parseBoardWrite(use('t="<p>⏸ получен: terminus · ext-7 · готово</p>"; python plane.py comment "$t" EXT-7'), RULES);
