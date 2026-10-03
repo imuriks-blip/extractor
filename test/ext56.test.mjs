@@ -99,6 +99,37 @@ test('EXT-56: путь к plane.py в кавычках распознаётся 
   assert.equal(parseBoardWrite(use(`python "C:\\x\\plane.py" show EXT-7 --last`), RULES), null, 'show — не запись');
 });
 
+test('EXT-56: упоминание plane.py comment в тексте команды без вызова python — не запись (Голем, Важно 2)', () => {
+  const use = (command) => ({ type: 'tool_use', id: 'g', name: 'Bash', input: { command } });
+  assert.equal(parseBoardWrite(use('git -C x commit -m "fix: plane.py comment — вызов записи на доску (EXT-7)"'), RULES), null);
+  assert.equal(parseBoardWrite(use('git -C x commit -m "plane.py close Review — пакетом (EXT-7)"'), RULES), null);
+  assert.deepEqual(parseBoardWrite(use(`C:\\Py311\\python.exe C:\\x\\plane.py comment '<p>a</p>' EXT-7`), RULES)?.refs, ['EXT-7'], 'полный путь к python.exe — вызов');
+});
+
+test('EXT-56: доска прочиталась с ⏸, потом журнал карточки заперт — такт остаётся закрытым (Голем, Важно 3)', async () => {
+  let locked = false;
+  const fsx = { ...fs, readFileSync: (p, ...a) => { if (locked && String(p).endsWith('.log.md')) throw Object.assign(new Error('заперт'), { code: 'EBUSY' }); return fs.readFileSync(p, ...a); } };
+  const dir = makeBoard(tmpDir('e56b-'), { codes: ['EXT'], cards: [{ id: 'EXT-7', status: 'in-progress', title: 'Карточка' }] });
+  const log = path.join(dir, 'EXT', 'EXT-7.log.md');
+  fs.writeFileSync(log, entry(T0 - 100 * MIN, '⏸', '⏸ получен: terminus · ext-7 · готово'));
+  gitInitCommit(dir);
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest, fs: fsx });
+  await board.init();
+  assert.deepEqual(takts(board, [on(T0 - 200 * MIN)]), [], 'первое чтение — закрыт');
+  locked = true;
+  fs.appendFileSync(log, entry(T0 - 90 * MIN, 'коммент', 'ещё')); // журнал изменился — читатель полезет перечитывать
+  gitInitCommit(dir);
+  await board.refresh();
+  assert.ok(board.state().logErrors >= 1, 'ошибка чтения действительно была');
+  assert.deepEqual(takts(board, [on(T0 - 200 * MIN)]), [], 'после ошибки чтения — прежний pauseAt, закрыт');
+});
+
+test('EXT-56: ⏸ в доске в ту же минуту, что ▶, но раньше по секундам — такт не закрывается доской', async () => {
+  const onAt = T0 - 200 * MIN + 30000; // ▶ в :30 с; доска хранит минуты — ⏸ на той же минуте выглядит «:00»
+  const board = await boardWith({ 'EXT-7': [entry(T0 - 200 * MIN, '⏸', '⏸ получен: terminus · ext-7 · прошлый')] });
+  assert.deepEqual(takts(board, [on(onAt)]).map((m) => m.card), ['EXT-7']);
+});
+
 test('EXT-56: plane.py comment через переменную ($t) — ни ▶, ни ⏸; ошибкой не считается', () => {
   const use = (command) => ({ type: 'tool_use', id: 'x', name: 'Bash', input: { command } });
   const w = parseBoardWrite(use('t="<p>⏸ получен: terminus · ext-7 · готово</p>"; python plane.py comment "$t" EXT-7'), RULES);
