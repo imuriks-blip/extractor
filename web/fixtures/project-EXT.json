@@ -131,7 +131,8 @@
         "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,
         "lastState": null,
-        "projectBy": "title"
+        "projectBy": "title",
+        "rulesReread": null
       }
     ],
     "closed": [

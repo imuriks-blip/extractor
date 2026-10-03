@@ -50,5 +50,11 @@
     "words": false
   },
   "statsEveryMin": 10,
-  "indexWriteEveryS": 60
+  "indexWriteEveryS": 60,
+  "rulesReread": {
+    "files": [
+      "CLAUDE.md",
+      "unorbis/_meta/Субагенты Claude Code.md"
+    ]
+  }
 }

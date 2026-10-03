@@ -362,9 +362,9 @@ test('Важно 1: наверх поднимает только красная 
   const { buildCeh } = await import('../lib/ceh.mjs');
   const sA = 'aaaaaaaa-0000-4000-8000-0000000000a1';
   const sB = 'bbbbbbbb-0000-4000-8000-0000000000b2';
-  const proc = (sid, status) => ({ pid: 1, sessionId: sid, status, startedAt: T0 - DAY, statusUpdatedAt: T0, observedAt: T0, live: true });
+  const proc = (sid, status) => ({ pid: 1, sessionId: sid, name: 'EXT', status, startedAt: T0 - DAY, statusUpdatedAt: T0, observedAt: T0, live: true });
   const thr = (sid) => ({ sessionId: sid, ivan: { cards: {} }, boardWrites: [], runs: [], thread: { lastAt: iso(T0 - MIN) } });
-  const b = { hasCode: () => false, hasCard: () => false };
+  const b = { hasCode: (c) => c === 'EXT', hasCard: () => false }; // треды цеховые: без проекта «Старых правил» нет (EXT-54)
   const yellow = { kind: 'takt', level: 'yellow', card: 'EXT-7', agent: 'terminus', issuedAt: iso(T0 - 70 * MIN) };
   const order = (marks) => buildThreads({ procs: [proc(sA, 'waiting'), proc(sB, 'idle')], sessions: [thr(sA), thr(sB)], board: b, now: T0, marks: { [sB]: marks } }).threads.map((t) => t.sessionId);
   assert.deepEqual(order([yellow]), [sA, sB], 'жёлтый такт тред не поднимает (слово Ивана 02.10 «только красные»)');
