@@ -12,8 +12,10 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead, checkArgs } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { normHead } from '../lib/pult/accept.mjs';
+import { normHead, localMarks, acceptState, B_HINT } from '../lib/pult/accept.mjs';
 import { validQ } from '../lib/pult/actions.mjs';
+import { restoreIntents } from '../lib/pult/routes.mjs';
+import { localIso } from '../lib/pult/actions-log.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, writeCard, gitInitCommit, git, gitCommitAll, fakeGit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -85,7 +87,8 @@ function fakeSpawn() {
 }
 
 // plane — начальное состояние подменного plane.py: карточка в Review, последний коммент — тот самый вопрос
-async function setup(plane = {}) {
+// log — строки actions.log до старта (рестарт витрины посреди действия)
+async function setup(plane = {}, { log = null } = {}) {
   const data = tmpDir('acc-data-');
   const pdir = tmpDir('acc-plane-');
   fs.copyFileSync(path.join(HERE, 'fake-plane.mjs'), path.join(pdir, 'fake-plane.mjs'));
@@ -94,6 +97,7 @@ async function setup(plane = {}) {
   const web = tmpDir('acc-web-');
   fs.writeFileSync(path.join(web, 'index.html'), '<!doctype html><html><head><meta name="vitrina-token" content="__VITRINA_TOKEN__"></head><body></body></html>');
   const actionsLog = path.join(data, 'actions.log');
+  if (log) fs.writeFileSync(actionsLog, log.map((l) => JSON.stringify(l) + '\n').join(''));
   const spawn = fakeSpawn();
   const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, gitRead: createGitRead(),
     pult: { enabled: true, words: false, actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
@@ -303,7 +307,7 @@ test('неясный: comment не лёг (код 3) → show --last без <id>
   const s = await setup({ fail: { comment: 'unclear-before' } });
   const r = await s.press({ action: 'accept', card: 'EXT-7', q: Q });
   assert.equal(r.json().outcome, 'error');
-  assert.match(r.json().message, /^не записано: неясный исход: таймаут/);
+  assert.match(r.json().message, /^не найдено в последнем комменте — проверь карточку \(неясный исход: таймаут\)$/);
   assert.equal(s.lines().at(-1).step, 'error');
   assert.equal(s.pl().comments.length, 1);
   s.setPlane({ fail: {}, calls: [] });
@@ -316,7 +320,7 @@ test('отказ доски на comment (код 1, 429) → show --last, ком
   const s = await setup({ fail: { comment: 'refuse' } });
   const r = await s.press({ action: 'accept', card: 'EXT-7', q: Q });
   assert.equal(r.json().outcome, 'error');
-  assert.match(r.json().message, /Доска ответила 429/);
+  assert.match(r.json().message, /^не найдено в последнем комменте — проверь карточку \(Доска ответила 429/);
   assert.deepEqual(cmds(s.pl().calls), ['show', 'comment', 'show']);
 });
 
@@ -437,4 +441,122 @@ test('дотяжка: run.lock занят (проход идёт) → --card н�
   assert.equal(s.spawn.calls.length, 1);
   assert.ok(s.spawn.calls[0].args.includes('EXT-13'));
   fs.rmSync(runs);
+});
+
+// ---------------- ревью Голема на ПТ3 ----------------
+
+// Критично 1: незавершённое старое нажатие не подставляется в новое, если последний коммент в Plane — не его запись
+const Q2_AT = '2026-10-03T09:40:00.000Z';
+const Q2 = 'Тред вернул: поправил тесты, принимай?';
+for (const [action, extra] of [['accept', {}], ['return', { text: 'вторая причина' }]]) {
+  test(`Критично 1 (${action}): partial → тред вернул и снова Review с новым вопросом Q2 → новое нажатие пишет новую запись с новым номером, не берёт старый`, async () => {
+    const s = await setup({ fail: { state: 'net' } });
+    const r1 = await s.press({ action, card: 'EXT-7', q: Q, ...(action === 'return' ? { text: 'первая причина' } : {}) });
+    assert.equal(r1.json().outcome, 'partial');
+    s.setPlane({ fail: {}, calls: [], clock: '2026-10-03T09:50:00.123456Z',
+      comments: [...s.pl().comments, { id: 'q2', created_at: '2026-10-03T09:40:12Z', html: `<p>${Q2}</p>` }] });
+    const r2 = await s.press({ action, card: 'EXT-7', q: { at: Q2_AT, head: Q2 }, ...extra });
+    assert.equal(r2.json().outcome, 'ok');
+    assert.deepEqual(cmds(s.pl().calls), ['show', 'comment', `state ${action === 'accept' ? 'Done' : 'In Progress'}`]);
+    const html = s.pl().comments.at(-1).html;
+    assert.ok(html.startsWith(`<p><b>Слово Ивана · кнопка витрины · ${r2.json().id}</b>`), html);
+    assert.ok(html.includes(`«${Q2}»`), 'запись отвечает на Q2');
+    if (action === 'return') assert.ok(html.includes('<p>Причина: вторая причина</p>'), html);
+    assert.equal(s.lines().at(-1).result.record, r2.json().id);
+  });
+}
+
+// Важно 2: красная — только от проходов changed/full (не dry) и своего --card
+test('Важно 2: «зеркало не видит» — не от assets, dry и чужого --card; от changed/full и своего --card — да', () => {
+  const T = Date.parse('2026-10-03T10:00:00Z');
+  const lines = [{ id: 'W-261003-130000-aaaa', step: 'done', at: '2026-10-03T13:00:00+03:00', action: 'accept', card: 'EXT-7',
+    result: { outcome: 'ok', record: 'W-261003-130000-aaaa', state: 'Done', planeAt: new Date(T).toISOString(), pull: 'launched' } }];
+  const run = (kind, startS, endS = startS + 5) => ({ kind, start: T + startS * 1000, end: T + endS * 1000, code: 0 });
+  const mk = (runs, launches = new Map([['EXT-7', [T]]])) => localMarks({ lines, readLog: () => ({ entries: [] }), runs, now: T + 3600000, launches }).get('EXT-7');
+  assert.equal(mk([run('assets', 10)]).missing, false, 'assets');
+  assert.equal(mk([run('changed · dry', 10)]).missing, false, 'dry');
+  assert.equal(mk([run('card', 600)]).missing, false, 'чужой --card: начался через 10 мин после запуска');
+  assert.equal(mk([run('card', 2)], new Map()).missing, false, 'запуска не было — --card не свой');
+  assert.equal(mk([run('card', 2)]).missing, true, 'свой --card без записи');
+  assert.equal(mk([run('changed', 10)]).missing, true);
+  assert.equal(mk([run('full', 10)]).missing, true);
+  assert.equal(mk([{ ...run('changed', 10), code: 1 }]).missing, false, 'неудачный проход не в счёт');
+});
+
+test('Важно 2: проход assets после действия — ни красной, ни строки mirror-missing', async () => {
+  const s = await setup();
+  const r = await s.press({ action: 'accept', card: 'EXT-13', q: Q });
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  const t = Date.now();
+  fs.writeFileSync(runs, `${new Date(t + 1000).toISOString()} · начало · assets · pid 7\n${new Date(t + 2000).toISOString()} · конец · assets · pid 7 · код 0 · 1 с · запросов 3\n`);
+  assert.equal((await s.get('/api/card/EXT-13')).pult.mark.missing, false);
+  await s.app.pult.tick();
+  assert.equal(s.lines().filter((l) => l.id === r.json().id && l.step === 'mirror-missing').length, 0);
+  fs.rmSync(runs);
+});
+
+// Важно 3: рестарт посреди действия (comment лёг, исхода нет)
+test('Важно 3: рестарт после comment (код 0) без исхода — тот же intentId → «исход неизвестен», Plane не зовётся; новый → только state, коммент один', async () => {
+  const W = 'W-261003-121500-beef';
+  const intent = uuid(9001);
+  const at = localIso(new Date(Date.now() - 60000));
+  const base = { id: W, at, action: 'accept', card: 'EXT-7', project: 'EXT', mode: 'mirror' };
+  const log = [
+    { ...base, step: 'asked', q: Q, client: { intentId: intent } },
+    { ...base, step: 'fresh', fresh: { status: 'Review', last: null }, result: { code: 0 } },
+    { ...base, step: 'plane', cmd: 'comment', result: { code: 0, line: `EXT-7 · коммент c9 · 2026-10-03T09:10:00Z` } },
+  ];
+  const s = await setup({ comments: [{ id: 'q1', created_at: '2026-10-03T09:00:41Z', html: Q_HTML },
+    { id: 'c9', created_at: '2026-10-03T09:10:00Z', html: `<p><b>Слово Ивана · кнопка витрины · ${W}</b>: «принято»</p>` }] }, { log });
+  const same = await s.press({ action: 'accept', card: 'EXT-7', q: Q, intentId: intent });
+  assert.match(same.json().message, /исход неизвестен/);
+  assert.equal(s.pl().calls?.length ?? 0, 0, 'тот же intentId — в Plane ни одного вызова');
+  const again = await s.press({ action: 'accept', card: 'EXT-7', q: Q });
+  assert.equal(again.json().outcome, 'ok');
+  assert.deepEqual(cmds(s.pl().calls), ['show', 'state Done']);
+  assert.equal(s.pl().comments.length, 2, 'коммент один');
+  assert.equal(s.lines().at(-1).result.record, W);
+});
+
+test('Важно 3, мелочь 5: restoreIntents — partial, error (не записано) и error UNCLEAR («исход неясен»)', () => {
+  const now = Date.now();
+  const at = localIso(new Date(now - 60000));
+  const one = (id, intent, last) => [{ id, at, step: 'asked', action: 'accept', client: { intentId: intent } }, { id, at, action: 'accept', ...last }];
+  const m = restoreIntents([
+    ...one('W-261003-120000-0001', uuid(9101), { step: 'partial', result: { outcome: 'partial', record: 'W-261003-120000-0001' } }),
+    ...one('W-261003-120000-0002', uuid(9102), { step: 'error', result: { outcome: 'error', code: 'NOT_WRITTEN' } }),
+    ...one('W-261003-120000-0003', uuid(9103), { step: 'error', result: { outcome: 'error', code: 'UNCLEAR' } }),
+  ], now);
+  return Promise.all([uuid(9101), uuid(9102), uuid(9103)].map((k) => m.get(k).promise)).then(([p, e, u]) => {
+    assert.equal(p.code, 200); assert.equal(p.body.outcome, 'partial');
+    assert.equal(e.code, 200); assert.equal(e.body.outcome, 'error'); assert.doesNotMatch(e.body.message, /неясен/);
+    assert.equal(u.body.outcome, 'error'); assert.match(u.body.message, /исход неясен/);
+  });
+});
+
+// мелочь 7: отложенная дотяжка переживает рестарт
+test('мелочь 7: дотяжка в очереди (queued) до рестарта — после рестарта и «конец» в runs.log запускается один раз', async () => {
+  const W = 'W-261003-121600-cafe';
+  const at = localIso(new Date(Date.now() - 30000));
+  const log = [
+    { id: W, at, step: 'asked', action: 'accept', card: 'EXT-13', project: 'EXT', mode: 'mirror', q: Q, client: { intentId: uuid(9201) } },
+    { id: W, at, step: 'done', action: 'accept', card: 'EXT-13', mode: 'mirror', result: { outcome: 'ok', record: W, state: 'Done', planeAt: new Date(Date.now() - 30000).toISOString(), pull: 'queued' } },
+  ];
+  const s = await setup({}, { log });
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  fs.writeFileSync(runs, `${new Date(Date.now() - 5000).toISOString()} · конец · changed · pid 3 · код 0 · 9 с · запросов 3\n`);
+  await s.app.pult.tick();
+  await s.app.pult.tick();
+  assert.equal(s.spawn.calls.length, 1);
+  assert.ok(s.spawn.calls[0].args.includes('EXT-13'));
+  fs.rmSync(runs);
+});
+
+// мелочь 8: развилка — своя подсказка
+test('мелочь 8: карточка с открытой развилкой — подсказка про развилку, не «ждёт слияния»', () => {
+  const st = acceptState({ status: 'review', last: { mark: 'развилка' } }, null);
+  assert.equal(st.can, false);
+  assert.notEqual(st.hint, B_HINT);
+  assert.match(st.hint, /развилк/);
+  assert.equal(acceptState({ status: 'review', last: { mark: 'сливай' } }, null).hint, B_HINT);
 });

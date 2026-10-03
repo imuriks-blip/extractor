@@ -19,8 +19,14 @@ const fail = st.fail ?? {};
 let n = st.seq ?? 0;
 const now = () => st.clock ?? new Date().toISOString().replace('Z', '123Z');
 // как plain() у plane.py: блочные теги → пробел, прочие прочь, сущности, пробелы схлопнуть
-const plain = (h) => String(h ?? '').replace(/<(?:br|hr|\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|pre))\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '')
-  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+// BLOCK_TAG plane.py: br, hr, p, div, li, ul, ol, h1–h6, blockquote, pre, tr, td, th, table; затем html.unescape
+// (именованные и числовые сущности), пробельные (и неразрывный) — в один, края обрезать
+const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', laquo: '«', raquo: '»', mdash: '—', ndash: '–', hellip: '…' };
+const unescape = (t) => t.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (m, e) => (e[0] === '#'
+  ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
+  : NAMED[e.toLowerCase()] ?? m));
+const plain = (h) => unescape(String(h ?? '').replace(/<(?:br|hr|\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|pre|tr|td|th|table))\b[^>]*>/gi, ' ')
+  .replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
 
 const [cmd] = args;
 if (cmd === 'show') {
