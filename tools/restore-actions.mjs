@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inspectLog, sha256, parseShaLine, freeName, SHA_SUFFIX } from '../lib/backup.mjs';
 import { readConfig } from '../lib/config.mjs';
 import { checkPort } from '../lib/port.mjs';
+import { removeFile } from '../lib/remove-file.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = '127.0.0.1';
@@ -89,7 +90,7 @@ export async function main(argv, { out = console.log, err = console.error, probe
     try { fs.renameSync(tmp, target); } catch (e) { if (aside) fs.renameSync(aside, target); throw e; }
     if (sha256(fs.readFileSync(target)) !== sha256(buf)) throw new Error('записанный файл не совпал с копией');
   } catch (e) {
-    try { fs.rmSync(tmp, { force: true }); } catch { /* временного файла нет */ }
+    try { removeFile(tmp); } catch { /* временного файла нет */ }
     err(`запись не удалась: ${e.code ?? e.message}`);
     return 4;
   }

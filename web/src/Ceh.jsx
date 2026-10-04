@@ -261,6 +261,24 @@ export function Mark({ m, now }) {
       );
     case 'oldRules':
       return <div className="alarm"><span className="h">Старые правила</span>тред открыт до «правила обновлены» {dm(m.rulesUpdatedAt)}</div>;
+    case 'collision': {
+      // EXT-60 (§2.3): жёлтая; путь — short, полный — подсказкой; время — правка другого треда (otherAt)
+      const files = m.files || [];
+      const other = <>правит и {m.other?.title || 'без названия'}{m.other?.closed && <span className="muted"> (тред закрыт)</span>}</>;
+      const path = (f) => <span className="mono" title={f.path}>{f.short || f.path}</span>;
+      if (files.length === 1) {
+        return <div className="alarm warn"><span className="h">Общий файл</span>{path(files[0])}{other} · {hm(files[0].otherAt, now)}</div>;
+      }
+      return (
+        <div className="alarm warn">
+          <span className="h">Общий файл</span>{other}
+          <ul className="files">
+            {files.map((f) => <li key={f.path}>{path(f)}<span className="muted">{hm(f.otherAt, now)}</span></li>)}
+            {m.more > 0 && <li className="muted">и ещё {m.more}</li>}
+          </ul>
+        </div>
+      );
+    }
     default:
       return <div className="alarm"><span className="h">{m.kind}</span></div>;
   }

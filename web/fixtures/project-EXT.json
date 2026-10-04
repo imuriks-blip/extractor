@@ -166,7 +166,29 @@
             "target": 50
           }
         ],
-        "marks": [],
+        "marks": [
+          {
+            "kind": "oldRules",
+            "rulesUpdatedAt": "2026-10-01T10:15:00+03:00"
+          },
+          {
+            "kind": "collision",
+            "other": {
+              "sessionId": "00000000-0000-4000-8000-000000000009",
+              "title": "EXT · закрытый",
+              "closed": true
+            },
+            "files": [
+              {
+                "path": "C:/projects/extractor/lib/waiting.mjs",
+                "short": "lib/waiting.mjs",
+                "mineAt": "2026-10-01T11:48:10+03:00",
+                "otherAt": "2026-10-01T11:40:02+03:00"
+              }
+            ],
+            "at": "2026-10-01T11:48:10+03:00"
+          }
+        ],
         "procStatus": "busy",
         "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
         "waitingKind": null,

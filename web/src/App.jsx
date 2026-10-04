@@ -81,8 +81,11 @@ function Header({ route, freshness, name }) {
       {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}
       {freshness && mirror && <MirrorButton label={mirror} />}
       <ThemeSwitch />
-      <Glossary />
-      <Help />
+      {/* «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64) */}
+      <span className="tbtns">
+        <Glossary />
+        <Help />
+      </span>
     </header>
   );
 }
