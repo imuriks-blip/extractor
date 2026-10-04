@@ -1,6 +1,7 @@
 // Кнопка «Словарь» в шапке и окно «Словарь цеха» (§2.10, EXT-61). Источник — GET /api/glossary (сервер читает
-// unorbis/Словарь.md); окно только читает. Запрос — при первом открытии, удачный ответ помнится до перезагрузки
-// страницы; ответ с error или сбой сети — при следующем открытии спросим снова. Окно — общее с памяткой (dialog.js).
+// unorbis/Словарь.md); окно только читает. Запрос — при каждом открытии (сервер держит кэш по времени изменения
+// файла, повтор дешёвый): термин, дописанный Демоном, виден без перезагрузки; пока ответ идёт — прежний удачный.
+// Окно — общее с памяткой (dialog.js).
 import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import { useDialog } from './dialog.js';
 import { plural } from './format.js';
@@ -8,7 +9,7 @@ import { plural } from './format.js';
 const TITLE = 'Словарь цеха';
 const COLS = [['term', 'термин'], ['ru', 'по-русски'], ['meaning', 'что это у нас'], ['example', 'пример']];
 
-let cache = null; // удачный ответ на время страницы
+let cache = null; // последний удачный ответ — показ, пока идёт новый запрос
 
 // `код` → моноширинно; прочее — текстом как есть
 function Ticks({ text }) {
@@ -26,7 +27,6 @@ export default function Glossary() {
   const [q, setQ] = useState('');
 
   const load = useCallback(async () => {
-    if (cache) return;
     setFail(null);
     try {
       const r = await fetch('/api/glossary', { cache: 'no-store' });
