@@ -331,12 +331,35 @@ test('short: от корня репозитория кода или общего
   });
 });
 
+// ---------- ответ /api/ceh: доска, реестр, приложение ----------
+
+// list — что отдаёт threads.list() (итог buildWorkers); ответ /api/ceh разобранным JSON и сырой текст
+async function cehOf(list) {
+  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека' }] });
+  gitInitCommit(dir);
+  const bd = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
+  await bd.init();
+  const regFile = path.join(tmpDir('reg-'), 'registry.json');
+  fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
+  const threads = { list: () => list(bd), state: () => ({ processes: null, desktop: null }) };
+  const app = await buildApp({ port: 4317, board: bd, registry: createRegistryReader(regFile), threads, scan });
+  const res = await app.inject({ method: 'GET', url: '/api/ceh', headers: { host: '127.0.0.1:4317' } });
+  return { json: res.json(), body: res.body };
+}
+
 // ---------- не красная ----------
 
-test('пометка жёлтая: isRedMark ложь, тред не поднимается, значок (marksCount) не растёт', async () => {
+test('пометка жёлтая: isRedMark ложь, тред не поднимается, счётчик красных пометок /api/ceh (marksCount) её не считает', async () => {
   const t = tree({ [A]: edit(A, 1, 'Edit', FILE, at(2 * H)), [B]: edit(B, 1, 'Edit', FILE, at(H)) });
   const w = await workers(t, { procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')] });
+  assert.equal(collisions(w, A).length, 1);
   assert.equal(collisions(w, A).every((m) => !isRedMark(m)), true);
+  // настоящий marksCount (lib/ceh.mjs через /api/ceh): две жёлтые пометки — 0; добавленная красная — 1 (счётчик живой)
+  const yellow = await cehOf(() => w);
+  assert.equal(yellow.json.workers.threads.flatMap((x) => x.marks).filter((m) => m.kind === 'collision').length, 2);
+  assert.equal(yellow.json.workers.marksCount, 0, 'жёлтая «Общий файл» в счётчик не входит');
+  const withRed = { ...w, threads: w.threads.map((x) => (x.sessionId === A ? { ...x, marks: [...x.marks, { kind: 'oldRules', at: at(H) }] } : x)) };
+  assert.equal((await cehOf(() => withRed)).json.workers.marksCount, 1, 'красная — входит');
   assert.equal(isRedMark({ kind: 'collision' }), false);
   assert.equal(isRedMark({ kind: 'oldRules' }), true, 'прежние пометки красные, как были');
   assert.equal(isRedMark({ kind: 'takt', level: 'yellow' }), false);
@@ -433,6 +456,74 @@ test('маска: строки пометки (название другого �
   assert.ok(mark, 'пометка в ответе');
   assert.match(mark.other.title, /\[скрыто: /);
   assert.match(mark.files[0].path, /\[скрыто: /);
+});
+
+// Вердикт Голема, Важно 1: в пометке чужой тред и чужие пути — строгая сеть (6.2), а не сеть треда-владельца.
+// Признак — id флоу по слову-признаку: сеть проекта EXT его прощает (класс 4), строгая (IPTV) — нет (класс 5).
+const FLOW_ID = '1a2b3c4d5e6f7g8h';
+
+test('маска пометки — строгой сетью: id флоу по признаку в пути и названии другого треда скрыт, хотя сеть треда EXT его прощает', async () => {
+  const flowFile = `C:\\projects\\app\\flow id ${FLOW_ID}.txt`;
+  const t = tree({ [A]: edit(A, 1, 'Edit', flowFile, at(2 * H)), [B]: edit(B, 1, 'Edit', flowFile, at(H)) });
+  const r = mkReader(t.root);
+  await r.refresh();
+  const procs = [proc(A, `EXT · первый flow id ${FLOW_ID}`), proc(B, `EXT · второй flow id ${FLOW_ID}`)];
+  const { json } = await cehOf((bd) => buildWorkers({ procs, sessions: r.sessions(), board: bd, now: NOW }));
+  const a = json.workers.threads.find((x) => x.sessionId === A);
+  // исправный случай рядом: свой текст треда EXT — сетью проекта, признак виден (сеть треда действительно мягче)
+  assert.equal(a.project, 'EXT');
+  assert.equal(a.title, `EXT · первый flow id ${FLOW_ID}`, 'своё название треда — сетью EXT, id флоу виден');
+  const mark = a.marks.find((m) => m.kind === 'collision');
+  assert.ok(mark, 'пометка в ответе');
+  assert.equal(mark.other.title, 'EXT · второй flow id [скрыто: сеть3]');
+  assert.equal(mark.files[0].path, 'C:/projects/app/flow id [скрыто: сеть3].txt');
+  assert.equal(mark.files[0].short, mark.files[0].path, 'корней нет — короткий путь полный, тоже под строгой маской');
+});
+
+// ---------- правки только своей сессии (вердикт Голема, Важно 2) ----------
+// Продолженный тред (resume, сжатие, десктопное продолжение) несёт в своём файле копии строк прежних сессий с их sessionId
+// (те же uuid). Правка сессии — только из строк со своим sessionId; без десктопной связи иначе вышло бы «правит и <он же>».
+const OWN = 'C:\\projects\\app\\own.js'; // своя правка продолженного треда — другой файл
+
+test('копия строк прежней сессии в журнале нового треда (без десктопной связи) — не его правка: пометки «сам с собой» нет', async () => {
+  const prev = edit(C, 1, 'Edit', FILE, at(3 * H)); // правка прежней сессии C — строки с sessionId C
+  const t = tree({ [C]: prev, [A]: [...prev, ...edit(A, 2, 'Edit', OWN, at(H))] });
+  const w = await workers(t, { procs: [proc(A, 'EXT · первый')] });
+  assert.deepEqual(collisions(w, A), [], 'копия правки C в файле A — не правка A');
+});
+
+test('исправный случай рядом: настоящий другой тред с той же правкой — пометка есть; своя правка того же файла после продолжения — тоже', async () => {
+  const prev = edit(C, 1, 'Edit', FILE, at(3 * H));
+  const t = tree({ [C]: prev, [A]: [...prev, ...edit(A, 2, 'Edit', OWN, at(H))], [B]: edit(B, 1, 'Write', FILE, at(2 * H)) });
+  const w = await workers(t);
+  assert.deepEqual(collisions(w, A), [], 'у A — только копия правки C');
+  assert.deepEqual(collisions(w, B).map((m) => [m.other.sessionId, m.other.closed]), [[C, true]], 'B правит тот же файл, что закрытый C; A не в паре');
+  // A сам (своей строкой) правит тот же файл — столкновение и с B, и с C
+  const t2 = tree({ [C]: prev, [A]: [...prev, ...edit(A, 2, 'Edit', FILE, at(H))], [B]: edit(B, 1, 'Write', FILE, at(2 * H)) });
+  const w2 = await workers(t2);
+  assert.deepEqual(collisions(w2, A).map((m) => m.other.sessionId).sort(), [B, C].sort());
+  assert.deepEqual(collisions(w2, A).find((m) => m.other.sessionId === C).files[0].mineAt, at(H), 'время — своей строки A');
+});
+
+test('субагент продолженного треда: копия запуска в журнале нового треда не делает его вторым владельцем — у другого треда одна пометка, не две', async () => {
+  const start = launch(C, 'ccc1', at(5 * H)); // запуск в прежней сессии C; журнал субагента — в C/subagents
+  const t = tree({
+    [C]: start,
+    [`${C}/ccc1`]: edit(C, 1, 'Write', FILE, at(3 * H)),
+    [A]: [...start, ...edit(A, 2, 'Edit', OWN, at(H))], // продолжение: копия строк запуска
+    [B]: edit(B, 1, 'Edit', FILE, at(2 * H)),
+  });
+  const w = await workers(t);
+  assert.deepEqual(collisions(w, B).map((m) => m.other.sessionId), [C], 'правка субагента — владельцу C, по своей сессии');
+  assert.deepEqual(collisions(w, A), [], 'A — не владелец субагента C');
+  // журнала своей сессии C нет (только каталог субагента) — запасной путь по agentId даёт единственного владельца: A
+  const orphan = tree({
+    [`${C}/ccc1`]: edit(C, 1, 'Write', FILE, at(3 * H)),
+    [A]: [...start, ...edit(A, 2, 'Edit', OWN, at(H))],
+    [B]: edit(B, 1, 'Edit', FILE, at(2 * H)),
+  });
+  const w2 = await workers(orphan);
+  assert.deepEqual(collisions(w2, B).map((m) => m.other.sessionId), [A], 'второго владельца нет — правка субагента у A');
 });
 
 // ---------- образцы ----------
