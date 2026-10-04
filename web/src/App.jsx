@@ -35,6 +35,15 @@ function ThemeSwitch() {
   );
 }
 
+// «1 битая строка», «2–4 битые строки», «5+ / 11–14 битых строк»
+const badLines = (n) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} битая строка`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} битые строки`;
+  return `${n} битых строк`;
+};
+
 function Header({ route, freshness, name }) {
   const read = oldest(freshness?.board?.lastOkAt, freshness?.journals?.lastOkAt);
   const mirror = freshness?.mirror?.label;
@@ -55,7 +64,15 @@ function Header({ route, freshness, name }) {
               <span className={freshness.backup.stale ? 'fresh-bad' : undefined}
                 title={freshness.backup.stale ? 'Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна или в журнале битые строки — причина в /api/health' : 'Суточная копия журнала нажатий пульта'}>
                 копия журнала нажатий · {freshness.backup.lastOkAt ? dm(freshness.backup.lastOkAt) : 'нет'}{freshness.backup.stale ? ' — проверь' : ''}
-              </span></>
+              </span>
+              {/* битые строки самого журнала — жёлтым отдельно от сбоя копии (вердикт Голема, Важно 3) */}
+              {freshness.backup.journalBad && (
+                <><span className="sep">·</span>
+                  <span className="fresh-warn" title="Строки журнала нажатий, которые не читаются как запись (обрыв записи при сбое питания). Копии при этом верные; журнал — первичный факт и не правится">
+                    в журнале {badLines(freshness.backup.journalBad.count)} (первая — строка {freshness.backup.journalBad.first})
+                  </span></>
+              )}
+            </>
           )}
         </span>
       )}
