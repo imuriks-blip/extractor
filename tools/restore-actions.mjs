@@ -1,12 +1,12 @@
 // Восстановление журнала действий пульта из суточной копии (EXT-50):
 //   node tools/restore-actions.mjs <копия> [--to <путь>] [--data-dir <папка>]
-// Копия проверяется тем же способом, что и сразу после снятия (каждая строка — JSON): печатаются число строк и id
-// последней. По умолчанию пишется <папка данных>/actions.restored.log — живой actions.log не трогается.
+// Печатаются число строк и id последней JSON-строки; строки не JSON — их число и номера, восстановлению они не мешают:
+// копия пишется как есть, байт в байт (записанное сверяется по SHA-256). По умолчанию пишется <папка данных>/actions.restored.log — живой actions.log не трогается.
 // --to <путь> (например data/vitrina/actions.log) — только если витрина не отвечает на своём порту
 // (GET http://127.0.0.1:<port>/api/health; порт — из config.json с умолчаниями, как читает server.mjs); отвечает — отказ.
 // Файл, который --to заменяет, не пропадает: уходит рядом под именем …replaced-<время>.
 // --data-dir — только для другой папки данных (по умолчанию <репозиторий>/data/vitrina; тесты).
-// Коды: 0 готово · 1 копия не годится · 2 неверный вызов · 3 витрина отвечает — отказ · 4 запись не удалась.
+// Коды: 0 готово · 1 копия не читается · 2 неверный вызов · 3 витрина отвечает — отказ · 4 запись не удалась.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -59,8 +59,12 @@ export async function main(argv, { out = console.log, err = console.error, probe
   let buf;
   try { buf = fs.readFileSync(path.resolve(o.copy)); } catch (e) { err(`копия не читается: ${e.code ?? e.message}`); return 1; }
   const info = inspectLog(buf);
-  if (!info.ok) { err(`копия не годится: строка ${info.badLine} не JSON — ничего не записано`); return 1; }
   out(`копия ${path.basename(o.copy)} · строк: ${info.lines} · последний id: ${info.lastId ?? '—'}`);
+  // битые строки восстановлению не мешают: копия верна журналу, каким он был, — восстанавливается как есть
+  if (!info.ok) {
+    const more = info.badLines.length > 20 ? ` и ещё ${info.badLines.length - 20}` : '';
+    out(`битых строк: ${info.badLines.length} (строки ${info.badLines.slice(0, 20).join(', ')}${more}) — восстанавливаются как есть`);
+  }
 
   const target = o.to ? path.resolve(o.to) : path.join(o.dataDir, 'actions.restored.log');
   if (o.to) {
