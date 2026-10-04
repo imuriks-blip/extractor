@@ -31,15 +31,33 @@ async function lockAlive(lock, { isAlive, procStartOf }) {
   try { return (await procStartOf([lock.pid])).get(lock.pid) === lock.procStart; } catch { return false; }
 }
 
-// /api/health → bell.waiters: живые замки в папке звонка
-export async function countLiveLocks({ dir, fs = nodeFs, isAlive = pidAlive, procStartOf = procStartsWindows }) {
-  let names;
-  try { names = fs.readdirSync(dir).filter((n) => n.endsWith('.lock') && UUID_RE.test(n.slice(0, -5))); } catch { return 0; }
-  const locks = names.map((n) => readJson(fs, path.join(dir, n))).filter((l) => l && Number.isInteger(l.pid) && typeof l.procStart === 'string' && isAlive(l.pid));
-  if (!locks.length) return 0;
-  let starts;
-  try { starts = await procStartOf(locks.map((l) => l.pid)); } catch { return null; }
-  return locks.filter((l) => starts.get(l.pid) === l.procStart).length;
+// /api/health → bell.waiters: живые замки в папке звонка. Счётчик сервера держит проверенные пары pid|procStart
+// (как verified в lib/processes.mjs): пара, раз проверенная, не перепроверяется, пока pid жив — время старта (PowerShell)
+// спрашивается только за новые пары; умер pid — пара забыта без вызова.
+export function createLockCounter({ fs = nodeFs, isAlive = pidAlive, procStartOf = procStartsWindows } = {}) {
+  const verified = new Map(); // `${pid}|${procStart}` → true/false
+  return {
+    async count({ dir }) {
+      let names;
+      try { names = fs.readdirSync(dir).filter((n) => n.endsWith('.lock') && UUID_RE.test(n.slice(0, -5))); } catch { return 0; }
+      const locks = names.map((n) => readJson(fs, path.join(dir, n))).filter((l) => l && Number.isInteger(l.pid) && typeof l.procStart === 'string');
+      const key = (l) => `${l.pid}|${l.procStart}`;
+      for (const k of [...verified.keys()]) if (!isAlive(Number(k.split('|')[0]))) verified.delete(k);
+      const live = locks.filter((l) => isAlive(l.pid));
+      const need = live.filter((l) => !verified.has(key(l)));
+      if (need.length) {
+        let starts;
+        try { starts = await procStartOf([...new Set(need.map((l) => l.pid))]); } catch { return null; }
+        for (const l of need) verified.set(key(l), starts.get(l.pid) === l.procStart);
+      }
+      return live.filter((l) => verified.get(key(l)) === true).length;
+    },
+  };
+}
+
+// разовый счёт (без памяти между вызовами)
+export function countLiveLocks({ dir, fs = nodeFs, isAlive = pidAlive, procStartOf = procStartsWindows }) {
+  return createLockCounter({ fs, isAlive, procStartOf }).count({ dir });
 }
 
 // GET http://127.0.0.1:<port>/api/bell/<sid> — с Host, без Origin и Sec-Fetch-Site (иначе 403, §4.1)
@@ -73,11 +91,15 @@ export async function runWaiter({ sid, port = DEFAULTS.port, bellDir = DEFAULTS.
 
   if (fs.existsSync(stopFile)) { log('stop'); return 0; }
 
-  // замок: эксклюзивное создание; занят — живой чужой → skip, мёртвый → забрать (один повтор)
-  let myStart = null;
-  try { myStart = (await procStartOf([pid])).get(pid) ?? null; } catch { /* время старта не узнано — замок без него, чужие сочтут мёртвым */ }
-  const mine = { pid, procStart: myStart, bootAt: new Date(now() - os.uptime() * 1000).toISOString(), at: new Date(now()).toISOString() };
+  // замок: сначала чужой (дешёвая проверка pid, время старта — только у живого pid); живой → skip без своего времени
+  // старта. Решено брать — своё время старта; не узналось → замок не берётся (чужой ждущий счёл бы его мёртвым и
+  // поднял бы второго), skip с причиной. Затем эксклюзивное создание; гонка — ещё одна сверка (один повтор).
   fs.mkdirSync(bellDir, { recursive: true });
+  if (fs.existsSync(lockFile) && await lockAlive(readJson(fs, lockFile), { isAlive, procStartOf })) { log('skip'); return 0; }
+  let myStart = null;
+  try { myStart = (await procStartOf([pid])).get(pid) ?? null; } catch { /* не узнано */ }
+  if (typeof myStart !== 'string') { log('skip', { reason: 'no-proc-start' }); return 0; }
+  const mine = { pid, procStart: myStart, bootAt: new Date(now() - os.uptime() * 1000).toISOString(), at: new Date(now()).toISOString() };
   let took = false;
   for (let i = 0; i < 2 && !took; i++) {
     try { fs.writeFileSync(lockFile, JSON.stringify(mine), { flag: 'wx' }); took = true; } catch (e) {

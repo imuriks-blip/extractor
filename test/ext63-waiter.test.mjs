@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { runWaiter, countLiveLocks } from '../bell/waiter.mjs';
+import { runWaiter, countLiveLocks, createLockCounter } from '../bell/waiter.mjs';
 import { tmpDir } from './helpers.mjs';
 
 const SID = '00000000-0000-4000-8000-000000000001';
@@ -22,6 +22,7 @@ function mk({ owner = { pid: OWNER, sessionId: SID, procStart: START[OWNER], sta
   let clock = Date.parse('2026-10-04T12:00:00Z');
   const gets = [];
   const errs = [];
+  const psCalls = []; // вызовы времени старта (на деле PowerShell), по списку pid
   const hooks = { onTick: () => {}, onStderr: () => {} };
   if (owner) fs.writeFileSync(path.join(sessionsDir, `${owner.pid}.json`), JSON.stringify(owner));
   let tick = 0;
@@ -30,7 +31,7 @@ function mk({ owner = { pid: OWNER, sessionId: SID, procStart: START[OWNER], sta
     now: () => clock,
     sleep: async (ms) => { clock += ms; tick++; hooks.onTick(tick); },
     isAlive: (pid) => alive.has(pid),
-    procStartOf: async (pids) => new Map(pids.map((p) => [p, alive.has(p) ? starts[p] ?? null : null])),
+    procStartOf: async (pids) => { psCalls.push([...pids]); return new Map(pids.map((p) => [p, alive.has(p) ? starts[p] ?? null : null])); },
     get: async (sid) => { gets.push({ sid, at: clock }); const ids = served(); return { status: getStatus, json: { ids, text: ids.length ? `ТЕКСТ ${ids.join(',')}` : null } }; },
     stderr: (s) => { errs.push(s); hooks.onStderr(s); },
     maxTicks: 60,
@@ -40,7 +41,7 @@ function mk({ owner = { pid: OWNER, sessionId: SID, procStart: START[OWNER], sta
   const signals = (sid = SID) => { try { return fs.readdirSync(path.join(bellDir, sid)).sort(); } catch { return []; } };
   const lockFile = path.join(bellDir, `${SID}.lock`);
   const setOwner = (patch) => fs.writeFileSync(path.join(sessionsDir, `${OWNER}.json`), JSON.stringify({ ...owner, ...patch }));
-  return { env, bellDir, sessionsDir, alive, starts, gets, errs, hooks, log, signal, signals, lockFile, setOwner, clock: () => clock };
+  return { env, bellDir, sessionsDir, alive, starts, gets, errs, psCalls, hooks, log, signal, signals, lockFile, setOwner, clock: () => clock };
 }
 
 const A = 'W-261004-120000-a001';
@@ -235,4 +236,55 @@ test('§1.7: живые ждущие — по замкам: pid жив и procSt
   const n = await countLiveLocks({ dir, isAlive: (p) => alive.has(p), procStartOf: async (pids) => new Map(pids.map((p) => [p, starts[p] ?? null])) });
   assert.equal(n, 1);
   assert.equal(await countLiveLocks({ dir: path.join(dir, 'нет'), isAlive: () => true, procStartOf: async () => new Map() }), 0);
+});
+
+// ---------------- второй круг Голема: время старта — только когда нужно ----------------
+
+test('2.1: живой чужой замок — своё время старта не спрашивается (0 вызовов за свой pid), чужой — один вызов', async () => {
+  const s = mk();
+  s.alive.add(6001); s.starts[6001] = '134000000000000600';
+  fs.writeFileSync(s.lockFile, JSON.stringify({ pid: 6001, procStart: '134000000000000600' }));
+  assert.equal(await runWaiter(s.env), 0);
+  assert.equal(s.psCalls.filter((c) => c.includes(ME)).length, 0);
+  assert.deepEqual(s.psCalls, [[6001]]);
+});
+
+test('2.1: чужой замок с мёртвым pid — время старта мёртвого не спрашивается (дешёвая проверка pid), замок взят', async () => {
+  const s = mk();
+  fs.writeFileSync(s.lockFile, JSON.stringify({ pid: 6002, procStart: '134000000000000600' }));
+  s.hooks.onTick = (n) => { if (n === 1) s.alive.delete(OWNER); };
+  assert.equal(await runWaiter(s.env), 0);
+  assert.equal(s.psCalls.filter((c) => c.includes(6002)).length, 0);
+  assert.equal(s.log()[0].event, 'start');
+});
+
+test('2.1: своё время старта не узналось — замок не взят, skip с причиной, выход 0, к витрине не ходил', async () => {
+  const s = mk({ served: () => [A] });
+  delete s.starts[ME];
+  s.signal(A);
+  assert.equal(await runWaiter(s.env), 0);
+  assert.equal(fs.existsSync(s.lockFile), false);
+  assert.deepEqual(s.log().map((l) => [l.event, l.reason]), [['skip', 'no-proc-start']]);
+  assert.deepEqual(s.gets, []);
+});
+
+test('§1.7: счётчик живых замков сервера — проверенная пара pid|procStart не перепроверяется, пока pid жив', async () => {
+  const dir = tmpDir('waiter-counter-');
+  const alive = new Set([1, 2]);
+  const starts = { 1: '11', 2: '22', 3: '33' };
+  const calls = [];
+  const counter = createLockCounter({ isAlive: (p) => alive.has(p), procStartOf: async (pids) => { calls.push([...pids]); return new Map(pids.map((p) => [p, starts[p] ?? null])); } });
+  fs.writeFileSync(path.join(dir, `${SID}.lock`), JSON.stringify({ pid: 1, procStart: '11' }));
+  fs.writeFileSync(path.join(dir, `${SID2}.lock`), JSON.stringify({ pid: 2, procStart: '99' }));
+  assert.equal(await counter.count({ dir }), 1);
+  assert.equal(calls.length, 1);
+  assert.equal(await counter.count({ dir }), 1, 'тот же ответ');
+  assert.equal(calls.length, 1, 'повторный такт с теми же замками — 0 новых вызовов');
+  alive.delete(1);
+  assert.equal(await counter.count({ dir }), 0);
+  assert.equal(calls.length, 1, 'умер pid — без вызова');
+  alive.add(3);
+  fs.writeFileSync(path.join(dir, '00000000-0000-4000-8000-000000000003.lock'), JSON.stringify({ pid: 3, procStart: '33' }));
+  assert.equal(await counter.count({ dir }), 1);
+  assert.deepEqual(calls.at(-1), [3], 'новая пара — один вызов только за неё');
 });
