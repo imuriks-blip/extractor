@@ -8,7 +8,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { createTraceChecker, hashesIn, hasLine } from '../lib/trace.mjs';
+import { createTraceChecker, hashesIn, hasLine, findContract, deliveryText } from '../lib/trace.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, gitCommitAll, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -454,4 +454,28 @@ test('ручки: trace у строк (в) /api/ceh и waiting[] окна про
   assert.equal((await get('/api/card/EXT-20')).pult.trace, null);
   assert.equal(s.calls.length, n, 'запросы страниц git не звали');
   await app.close();
+});
+
+// ---------- второй круг Голема (правка дирижёра) ----------
+
+test('Важно 1 круга 2: после контракта «▶ выдан» — newTakt (контракт мог устареть); «⏸» и цитата «▶» — нет', () => {
+  const contract = { ms: 1, index: 0, body: '<p><b>Закрытие</b></p>\n- **Доставка:** 2e2f446\n- **Откат:** revert' };
+  const takt = { ms: 2, index: 1, body: '<p>▶ выдан: terminus · car-235 · второй круг</p>' };
+  const pause = { ms: 3, index: 2, body: '<p>⏸ получен: terminus · car-235</p>' };
+  const quoted = { ms: 4, index: 3, body: '> ▶ выдан: старая цитата\nответ' };
+  assert.equal(findContract([contract, takt, pause]).newTakt, true);
+  assert.equal(findContract([contract, pause, quoted]).newTakt, false);
+  // такт Демона (знание) и Тихого (пост) после контракта — законный порядок, контракт не устаревает
+  const demon = { ms: 5, index: 4, body: '<p>▶ выдан: demon · main · знание по CAR-235</p>' };
+  const tikhiy = { ms: 6, index: 5, body: '▶ выдан: tikhiy · пост' };
+  assert.equal(findContract([contract, demon, tikhiy]).newTakt, false);
+  assert.equal(findContract([contract, demon, takt]).newTakt, true);
+  assert.equal(findContract([contract]).later, 0);
+});
+
+test('мелочь 4 круга 2: вложенная строка контракта («- Откат проверен: …») внутри «Доставки» не обрывает сбор', () => {
+  const body = ['- **Доставка:**', '    - extractor 2e2f446', '    - Откат проверен: revert на копии', '    - Vault 8a7f299', '- **Знание:** f86edec'].join('\n');
+  const d = deliveryText(body);
+  assert.match(d, /8a7f299/);
+  assert.doesNotMatch(d, /f86edec/);
 });
