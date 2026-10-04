@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, hm, minutes, plural } from './format.js';
-import { Mark, Stale, Summary, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
+import { Mark, Stale, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
+import { Summary } from './Summary.jsx';
 import CardPanel from './CardPanel.jsx';
 import { PultMark } from './Pult.jsx';
+import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
 const DONE_SHOWN = 5; // 2.5: в Done видны 5 последних, остальные — поиском
@@ -136,7 +138,25 @@ function Board({ code, b, sel, onOpen, now, stale }) {
 
 /* ---------- ждёт меня по проекту: плоский список (2.4) ---------- */
 
-function WRow({ r, now, sel, onOpen }) {
+const ageOf = (r, now) => ageShort(r.group === 'review' ? r.at : r.since, now);
+
+// «Отложить» (EXT-47) — у строки с key, кроме «отвечено, ждёт зеркала»: строка-кнопка карточки и «Отложить» рядом,
+// не вложенно; давность и «Отложить» — одной колонкой справа (давность над кнопкой), чтобы текст не сжимался
+function WRow(props) {
+  const { r, now, options } = props;
+  if (!r.key || r.keyTemp || r.answered) return <WRowBody {...props} />;
+  return (
+    <div className="pwr">
+      <WRowBody {...props} noAge />
+      <span className="age num">{ageOf(r, now)}</span>
+      <DeferBtn rowKey={r.key} options={options} name={r.group === 'thread' ? `тред ${r.title || ''}`.trim() : r.id} />
+      <DeferNote rowKey={r.key} />
+    </div>
+  );
+}
+
+function WRowBody({ r, now, sel, onOpen, noAge = false }) {
+  const age = noAge ? null : <span className="age num">{ageOf(r, now)}</span>;
   if (r.group === 'thread') {
     return (
       <div className="prow" title={r.title}>
@@ -145,7 +165,7 @@ function WRow({ r, now, sel, onOpen }) {
           {r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
           {r.projectBy === 'cards' && <span className="faint"> · по карточкам</span>}
         </span>
-        <span className="age num">{ageShort(r.since, now)}</span>
+        {age}
       </div>
     );
   }
@@ -155,12 +175,12 @@ function WRow({ r, now, sel, onOpen }) {
       <span className="src">{r.id}</span>
       <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}
         {r.answered && <PultMark m={r.pultMark} />}</span>
-      <span className="age num">{ageShort(yes ? r.since : r.at, now)}</span>
+      {age}
     </button>
   );
 }
 
-function PWaiting({ code, rows, cnt, now, stale, sel, onOpen }) {
+function PWaiting({ code, rows, cnt, deferred, options, now, stale, sel, onOpen }) {
   const o = useOpen('pwaiting');
   const threadWaits = rows.some((r) => r.group === 'thread');
   // (а) и (б) — целиком; (в) Review — 10 свежих и «Показать ещё N», как на «Цехе»
@@ -175,10 +195,11 @@ function PWaiting({ code, rows, cnt, now, stale, sel, onOpen }) {
         {cnt?.more > 0 && <span className="hint">+ {cnt.more} посмотреть</span>}
       </Summary>
       {!threadWaits && <div className="empty">Тред {code} не ждёт ответа</div>}
-      {shown.map((r) => <WRow key={r.key || `${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} />)}
+      {shown.map((r) => <WRow key={r.key || `${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} options={options} />)}
       {moreReview}
       {answered.length > 0 && <div className="empty">Отвечено, ждёт зеркала · {answered.length}</div>}
       {answered.map((r) => <WRow key={`a-${r.group}-${r.id}`} r={r} now={now} sel={sel} onOpen={onOpen} />)}
+      <Deferred list={deferred} flat />
       <Stale text={stale} />
     </details>
   );
@@ -225,7 +246,7 @@ export default function Project({ code, data, failing, now, cardId, onOpenCard, 
           <Board code={code} b={data.board || {}} sel={cardId} onOpen={onOpenCard} now={now} stale={staleText(f.board, failing, now)} />
         </div>
         <div className="col">
-          <PWaiting code={code} rows={data.waiting || []} cnt={data.waitingCount} now={now} sel={cardId} onOpen={onOpenCard}
+          <PWaiting code={code} rows={data.waiting || []} cnt={data.waitingCount} deferred={data.deferred} options={data.deferOptions} now={now} sel={cardId} onOpen={onOpenCard}
             stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
           <PWorkers code={code} w={data.workers || {}} now={now} stale={staleText(f.journals, failing, now)} />
         </div>
