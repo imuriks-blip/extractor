@@ -58,11 +58,11 @@ function Header({ route, freshness, name }) {
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
           {mirror && <><span className="sep">·</span><span title="Зеркало доски обновляется вручную: файлы доски отстают от Plane на время с последнего прохода">{mirror}</span></>}
           {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
-              неудачна или в журнале битые строки; причина — /api/health → backup.lastError */}
+              неудачна, журнал стал короче или пропал, хранимая копия не читается; причина — /api/health → backup.lastError */}
           {route.name === 'ceh' && freshness.backup && (
             <><span className="sep">·</span>
               <span className={freshness.backup.stale ? 'fresh-bad' : undefined}
-                title={freshness.backup.stale ? 'Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна или в журнале битые строки — причина в /api/health' : 'Суточная копия журнала нажатий пульта'}>
+                title={freshness.backup.stale ? 'Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна, журнал стал короче или пропал, либо хранимая копия не читается или повреждена — причина в /api/health' : 'Суточная копия журнала нажатий пульта'}>
                 копия журнала нажатий · {freshness.backup.lastOkAt ? dm(freshness.backup.lastOkAt) : 'нет'}{freshness.backup.stale ? ' — проверь' : ''}
               </span>
               {/* битые строки самого журнала — жёлтым отдельно от сбоя копии (вердикт Голема, Важно 3) */}
