@@ -5,6 +5,7 @@ import { useOpen } from './prefs.js';
 import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
 import Pult, { PultMark } from './Pult.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
+import { Summary } from './Summary.jsx';
 
 const STALE_MS = 60_000; // данные читателя старше минуты — серая строка 2.7 (опрос доски 5 с, журналов 1–2 с)
 const REVIEW_SHOWN = 10; // «Готово, посмотри» на живой доске — десятки строк; остальное по кнопке
@@ -37,10 +38,6 @@ export function staleText(fresh, fetchFailing, now, staleMs = STALE_MS) {
 }
 export function Stale({ text }) {
   return text ? <div className="foot" role="status">{text}</div> : null;
-}
-
-export function Summary({ children }) {
-  return <summary><span className="car" aria-hidden="true">›</span>{children}</summary>;
 }
 
 /* ---------- Ждёт меня ---------- */
@@ -114,7 +111,7 @@ function Waiting({ w, now, stale }) {
               </span>
               <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
-              {r.key && <><DeferBtn rowKey={r.key} /><DeferNote rowKey={r.key} /></>}
+              {r.key && !r.keyTemp && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={`тред ${r.title || ''}`.trim()} /><DeferNote rowKey={r.key} /></>}
             </div>
           ))}
         </Group>
@@ -127,7 +124,7 @@ function Waiting({ w, now, stale }) {
               <span className="src mono">{r.id}</span>
               <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
-              {r.key && <><DeferBtn rowKey={r.key} /><DeferNote rowKey={r.key} /></>}
+              {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
           ))}
         </Group>
@@ -141,7 +138,7 @@ function Waiting({ w, now, stale }) {
               <span className="tt">{r.title}</span>
               <span className="age num">{ageShort(r.at, now)}</span>
               <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} />
-              {r.key && <><DeferBtn rowKey={r.key} /><DeferNote rowKey={r.key} /></>}
+              {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
           ))}
           {moreReview}
