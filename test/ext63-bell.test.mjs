@@ -250,3 +250,24 @@ test('2.8, §0: звонок в журнале треда — «прочитан
   assert.deepEqual(other.rings ?? {}, {});
   assert.equal(other.ivan.count, 0);
 });
+
+// ---------------- вердикт Голема на ПТ4а ----------------
+
+test('мелочь (б): перевод строки в тексте Ивана — пробел (строка на слово, 2.5)', () => {
+  const w = word({ text: 'EXT-7 возвращена Иваном: первая\nвторая\r\nтретья' });
+  assert.ok(ringLine(w).endsWith(' · EXT-7 возвращена Иваном: первая вторая третья'), ringLine(w));
+  assert.equal(ringText([w]).split('\n').length, 2);
+});
+
+test('Важно 2: карточки Ивана из звонка — только поле карточки строки слова, не «в ответ на» и не текст', () => {
+  const st = newSessionState();
+  feedSession(st, { type: 'user', uuid: sid(60), timestamp: '2026-10-04T08:00:00.000Z', message: { role: 'user', content: 'смотри EXT-9' }, version: '2.1.286' });
+  assert.equal(st.ivan.cards['EXT-9']?.n, 1);
+  const w = word({ card: 'EXT-7', q: { at: '2026-10-03T09:00:00.000Z', head: 'по EXT-9 можно принимать?' }, text: 'EXT-7 возвращена Иваном: сравни с EXT-9 и EXT-11' });
+  feedSession(st, ringJournalLine(ringText([w])));
+  assert.equal(st.ivan.cards['EXT-9'].n, 1, 'EXT-9 из «в ответ на» и текста не засчитан');
+  assert.equal(st.ivan.cards['EXT-9'].lastAt, '2026-10-04T08:00:00.000Z');
+  assert.equal(st.ivan.cards['EXT-11'], undefined);
+  assert.equal(st.ivan.cards['EXT-7']?.n, 1);
+  assert.equal(st.ivan.cards['EXT-7'].lastAt, '2026-10-04T09:02:00.000Z');
+});

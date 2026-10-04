@@ -91,7 +91,7 @@ function fakeSpawn() {
 // planeSpawn — подменный spawn запуска plane.py (мелочь 3 Голема на В10): createPlaneSpawn с ним вместо настоящего
 // mergeGit — git проверки слитости (EXT-57: устаревший итог прохода против свежей сверки нажатия)
 // bell — флаг pult.bell (ПТ4а); bellDir — папка звонка; threads — живые треды (строки «Кто работает»); sessions — журналы
-async function setup(plane = {}, { log = null, planeSpawn = null, mergeGit = null, bell = false, bellDir = null, threads = null, sessions = () => [] } = {}) {
+async function setup(plane = {}, { log = null, planeSpawn = null, mergeGit = null, bell = false, bellDir = null, threads = null, sessions = () => [], seams = {}, slog = null } = {}) {
   const data = tmpDir('acc-data-');
   const pdir = tmpDir('acc-plane-');
   fs.copyFileSync(path.join(HERE, 'fake-plane.mjs'), path.join(pdir, 'fake-plane.mjs'));
@@ -108,10 +108,10 @@ async function setup(plane = {}, { log = null, planeSpawn = null, mergeGit = nul
   const live = { cur: threads ?? [] };
   const threadsApi = { list: () => ({ threads: live.cur, subagentsCount: 0, unknownStatus: {} }), state: () => ({ processes: { lastOkAt: '2026-10-04T09:00:00.000Z' }, desktop: null }) };
   const journals = { state: () => ({ lastOkAt: null }), sessions };
-  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, merge, threads: threadsApi, journals,
+  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, merge, threads: threadsApi, journals, ...(slog ? { log: slog } : {}),
     pult: { enabled: true, words: false, bell, bellDir: bdir, actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
-    pultSeams: { spawn, ...(planeSpawn ? { planeRun: createPlaneSpawn({ python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs'), spawn: planeSpawn }) } : {}) } });
+    pultSeams: { spawn, ...seams, ...(planeSpawn ? { planeRun: createPlaneSpawn({ python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs'), spawn: planeSpawn }) } : {}) } });
   const r = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
   const token = r.body.match(/name="vitrina-token" content="([^"]+)"/)[1];
   const press = (body) => app.inject({ method: 'POST', url: '/api/act', payload: JSON.stringify({ intentId: nextIntent(), ...body }),
@@ -741,4 +741,87 @@ test('ПТ4а, §4.3: pult.bell=false — GET /api/bell/:sid → 503, сигна
   const on = await setup({}, { bell: true, threads: [thread(SID, { card: 'EXT-7' })] });
   await on.press({ action: 'return', card: 'EXT-7', q: Q, text: 'нет теста' });
   assert.deepEqual((await on.get('/api/health')).bell, { on: true, waiters: null, queued: 1 });
+});
+
+// ---------------- вердикт Голема на ПТ4а (EXT-63): исход действия, номер в звонке, сбой выбора треда, forged, waiters ----------------
+
+test('Важно 1: «Вернуть» → ring-delivered → второе «Вернуть» при последнем комменте = прежняя запись пульта → новый коммент с новым номером; status первого — done', async () => {
+  const s = await setup({}, { bell: true, threads: [thread(SID, { card: 'EXT-7' })] });
+  const a = (await s.press({ action: 'return', card: 'EXT-7', q: Q, text: 'первая' })).json();
+  assert.equal(a.outcome, 'ok');
+  bellLog(s, { sid: SID, event: 'ring', ids: [a.id] });
+  await s.app.pult.tick();
+  assert.equal(s.lines().at(-1).step, 'ring-delivered');
+  assert.equal((await s.get('/api/actions')).find((r) => r.id === a.id).status, 'done', 'хвостовой шаг исход не меняет');
+  assert.ok(s.pl().comments.at(-1).html.includes(a.id));
+  s.setPlane({ status: 'Review', calls: [] });
+  const b = (await s.press({ action: 'return', card: 'EXT-7', q: Q, text: 'вторая' })).json();
+  assert.equal(b.outcome, 'ok', b.message);
+  assert.deepEqual(cmds(s.pl().calls), ['show', 'comment', 'state In Progress']);
+  assert.ok(s.pl().comments.at(-1).html.includes(b.id));
+  assert.equal(s.lines().find((l) => l.id === b.id && l.step === 'done').result.record, b.id);
+});
+
+test('Важно 1: тот же intentId после рестарта при последней строке ring-delivered / withdrawn — «уже исполнено», не 500', async () => {
+  const at = new Date().toISOString();
+  for (const tail of [{ step: 'ring-delivered' }, { step: 'withdrawn', reason: 'restart' }, { step: 'mirror-seen' }]) {
+    const id = 'W-261004-120000-abcd';
+    const lines = [{ id, step: 'asked', at, action: 'return', card: 'EXT-7', client: { intentId: uuid(777) } }, { id, step: 'ring-queued', at }, { id, step: 'done', at, result: { outcome: 'ok', record: id } }, { id, at, ...tail }];
+    const r = await restoreIntents(lines, Date.now()).get(uuid(777)).promise;
+    assert.equal(r.code, 200, JSON.stringify(tail));
+    assert.equal(r.body.message, 'уже исполнено (по журналу)');
+  }
+});
+
+test('мелочь (а): повтор частичного «Вернуть» — номер в строке звонка = прежний record (тот, что в «Кто решил»); статус слова — по нему', async () => {
+  const rings = {};
+  const s = await setup({ fail: { state: 'net' } }, { bell: true, threads: [thread(SID, { card: 'EXT-7' })], sessions: () => [{ sessionId: SID, rings }] });
+  const a = (await s.press({ action: 'return', card: 'EXT-7', q: Q, text: 'причина' })).json();
+  assert.equal(a.outcome, 'partial');
+  s.setPlane({ fail: {}, status: 'Review' });
+  const b = (await s.press({ action: 'return', card: 'EXT-7', q: Q, text: 'причина' })).json();
+  assert.equal(b.outcome, 'ok', b.message);
+  assert.equal(s.lines().find((l) => l.id === b.id && l.step === 'done').result.record, a.id);
+  const g = (await bellGet(s.app, SID)).json();
+  assert.deepEqual(g.ids, [a.id]);
+  assert.ok(g.text.split('\n')[1].startsWith(`${a.id} · `), g.text);
+  assert.deepEqual(fs.readdirSync(path.join(s.bellDir, SID)), [`${a.id}.ring`]);
+  assert.equal(s.lines().find((l) => l.step === 'ring-queued').id, b.id, 'шаг — у действия');
+  assert.equal(await ringOf(s, b.id), 'положено');
+  bellLog(s, { sid: SID, event: 'ring', ids: [a.id] });
+  await s.app.pult.tick();
+  assert.ok(s.lines().some((l) => l.id === b.id && l.step === 'ring-delivered'), 'ring-delivered — у действия');
+  assert.equal(await ringOf(s, b.id), 'доставлено');
+  rings[a.id] = new Date().toISOString();
+  assert.equal(await ringOf(s, b.id), 'прочитано');
+});
+
+test('мелочь (в): сбой выбора треда — действие ok (карточка уже вернулась), звонок — состояние error', async () => {
+  const s = await setup({}, { bell: true, threads: [thread(SID, { card: 'EXT-7' })] });
+  Object.defineProperty(s.live, 'cur', { get() { throw new Error('реестр упал'); } });
+  const r = (await s.press({ action: 'return', card: 'EXT-7', q: Q, text: 'причина' })).json();
+  assert.equal(r.outcome, 'ok', r.message);
+  assert.equal(s.lines().at(-1).step, 'done');
+  assert.equal(s.lines().at(-1).result.ring.state, 'error');
+});
+
+test('мелочь (г): forged в server.log — с sid и id', async () => {
+  const sl = [];
+  const s = await setup({}, { bell: true, threads: [thread(SID, { card: 'EXT-7' })], slog: { write: (event, f = {}) => sl.push([event, f]) } });
+  bellLog(s, { sid: SID, event: 'forged', ids: ['W-261004-120000-dead'] });
+  await bellGet(s.app, SID);
+  assert.deepEqual(sl.filter(([e]) => e === 'bell'), [['bell', { event: 'forged', sid: SID, id: 'W-261004-120000-dead' }]]);
+});
+
+test('мелочь (д): /api/health → bell.waiters — счёт живых замков на такте, кэшем; до первого такта null', async () => {
+  let n = 3;
+  const s = await setup({}, { bell: true, seams: { countWaiters: async ({ dir }) => { assert.equal(dir, s.bellDir); return n; } } });
+  assert.equal((await s.get('/api/health')).bell.waiters, null);
+  await s.app.pult.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.equal((await s.get('/api/health')).bell.waiters, 3);
+  n = 0;
+  await s.app.pult.tick();
+  await new Promise((r) => setImmediate(r));
+  assert.equal((await s.get('/api/health')).bell.waiters, 0);
 });
