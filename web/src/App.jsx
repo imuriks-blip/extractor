@@ -5,7 +5,7 @@ import Ceh from './Ceh.jsx';
 import MirrorButton from './Mirror.jsx';
 import Project from './Project.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
-import { hms, oldest } from './format.js';
+import { dm, hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
 
 function parseRoute() {
@@ -35,6 +35,15 @@ function ThemeSwitch() {
   );
 }
 
+// «1 битая строка», «2–4 битые строки», «5+ / 11–14 битых строк»
+const badLines = (n) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return `${n} битая строка`;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} битые строки`;
+  return `${n} битых строк`;
+};
+
 function Header({ route, freshness, name }) {
   const read = oldest(freshness?.board?.lastOkAt, freshness?.journals?.lastOkAt);
   const mirror = freshness?.mirror?.label;
@@ -48,6 +57,23 @@ function Header({ route, freshness, name }) {
         <span className="fresh muted mono">
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
           {mirror && <><span className="sep">·</span><span title="Зеркало доски обновляется вручную: файлы доски отстают от Plane на время с последнего прохода">{mirror}</span></>}
+          {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
+              неудачна, журнал стал короче или пропал, хранимая копия не читается; причина — /api/health → backup.lastError */}
+          {route.name === 'ceh' && freshness.backup && (
+            <><span className="sep">·</span>
+              <span className={freshness.backup.stale ? 'fresh-bad' : undefined}
+                title={freshness.backup.stale ? 'Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна, журнал стал короче или пропал, либо хранимая копия не читается или повреждена — причина в /api/health' : 'Суточная копия журнала нажатий пульта'}>
+                копия журнала нажатий · {freshness.backup.lastOkAt ? dm(freshness.backup.lastOkAt) : 'нет'}{freshness.backup.stale ? ' — проверь' : ''}
+              </span>
+              {/* битые строки самого журнала — жёлтым отдельно от сбоя копии (вердикт Голема, Важно 3) */}
+              {freshness.backup.journalBad && (
+                <><span className="sep">·</span>
+                  <span className="fresh-warn" title="Строки журнала нажатий, которые не читаются как запись (обрыв записи при сбое питания). Копии при этом верные; журнал — первичный факт и не правится">
+                    в журнале {badLines(freshness.backup.journalBad.count)} (первая — строка {freshness.backup.journalBad.first})
+                  </span></>
+              )}
+            </>
+          )}
         </span>
       )}
       {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}

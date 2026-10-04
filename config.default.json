@@ -64,6 +64,10 @@
     "enabled": false,
     "words": false
   },
+  "backup": {
+    "dir": "data/vitrina/backup/",
+    "keep": 14
+  },
   "statsEveryMin": 10,
   "indexWriteEveryS": 60,
   "rulesReread": {
