@@ -1,0 +1,337 @@
+{
+  "checks": {
+    "T1 ≤10 с от кнопки": {
+      "id": "W-261004-232430-d413",
+      "msToRingLine": 1922,
+      "msToWokenResult": 6395,
+      "answer": "принял: W-261004-232430-d413",
+      "inJournalA": 1,
+      "inJournalB": 0,
+      "Bresults": 1
+    },
+    "T1 две сессии": {
+      "idB": "W-261004-232439-7181",
+      "bWoke": true,
+      "msB": 4990,
+      "inJournalA": 0,
+      "inJournalB": 1
+    },
+    "T2 поддельный сигнал": {
+      "forgedLine": true,
+      "newTurnsA": 0,
+      "inJournalA": 0,
+      "signalLeft": false,
+      "serverForged": []
+    },
+    "T2 исправный рядом": {
+      "id": "W-261004-232456-b727",
+      "woke": true,
+      "ms": 4034
+    },
+    "T3 busy, два слова, GET×2, Edge": {
+      "busySeen": true,
+      "statusDuringBusy": "busy",
+      "ringsWhileBusy": 0,
+      "ids": [
+        "W-261004-232501-d582",
+        "W-261004-232501-1bae"
+      ],
+      "get1": [
+        "W-261004-232501-d582",
+        "W-261004-232501-1bae"
+      ],
+      "get2": [
+        "W-261004-232501-d582",
+        "W-261004-232501-1bae"
+      ],
+      "getStatus": [
+        200,
+        200
+      ],
+      "evil": [],
+      "turnEndAt": 1791145518308,
+      "ringLine": {
+        "ids": [
+          "W-261004-232501-d582",
+          "W-261004-232501-1bae"
+        ],
+        "msAfterTurnEnd": 95
+      },
+      "wokenAnswer": "принял: W-261004-232501-d582, W-261004-232501-1bae",
+      "journalRingRows": 1,
+      "journalHasBoth": true,
+      "journalText": "\"<task-notification>\\n<summary>Stop hook feedback</summary>\\n</task-notification>\\n<system-reminder>\\nStop hook blocking error from command \\\"Stop\\\": Слово Ивана · кнопка витрины. Это слово Ивана, как в чате: исполняй по правилам цеха, стоп-точки действуют; по Б-делу (метка Б, развилка, база, auth, снос, слияние, выкатка) — переспроси Ивана в чате; кнопка не заменяет щелчок «спросить». Запись — «Кто решил: слово Ивана · кнопка витрины · <id>»; слово на карточку витрина уже записала.\\nW-261004-232501-d582 · 23:25 · PRB-1 · «вернуть» · в ответ на: 03.10 12:00 «Проба готова — можно принимать?» · PRB-1 возвращена Иваном: проба T3 первое\\nW-261004-232501-1bae · 23:25 · PRB-1 · «вернуть» · в ответ на: 03.10 12:00 «Проба готова — можно принимать?» · PRB-1 возвращена Иваном: проба T3 второе\\n</system-reminder>\"",
+      "statuses": [
+        "{\"id\":\"W-261004-232501-d582\",\"at\":\"2026-10-04T23:25:01+03:00\",\"action\":\"return\",\"card\":\"PRB-1\",\"project\":\"PRB\",\"text\":\"проба T3 первое\",\"status\":\"done\",\"source\":null,\"ring\":\"прочитано\"}",
+        "{\"id\":\"W-261004-232501-1bae\",\"at\":\"2026-10-04T23:25:01+03:00\",\"action\":\"return\",\"card\":\"PRB-1\",\"project\":\"PRB\",\"text\":\"проба T3 второе\",\"status\":\"done\",\"source\":null,\"ring\":\"прочитано\"}"
+      ]
+    },
+    "T4 два хода после звонка": {
+      "forged": 0,
+      "ringsSameIds": 1,
+      "events": [
+        "skip",
+        "skip"
+      ]
+    },
+    "T5 поддельная строка ring": {
+      "id": "W-261004-232541-e4d7",
+      "getAfterFake": [],
+      "inJournalA": 0,
+      "after": [
+        "ring",
+        "forged"
+      ],
+      "serverForged": [],
+      "status": [
+        "{\"id\":\"W-261004-232541-e4d7\",\"at\":\"2026-10-04T23:25:41+03:00\",\"action\":\"return\",\"card\":\"PRB-1\",\"project\":\"PRB\",\"text\":\"проба T5\",\"status\":\"ring-delivered\",\"source\":null,\"ring\":\"доставлено\"}"
+      ]
+    },
+    "T6 замок с мёртвым pid": {
+      "deadPid": 25724,
+      "nowLock": {
+        "pid": 26796,
+        "procStart": "134356191664887229"
+      },
+      "taken": true
+    },
+    "T6 замок с чужим procStart": {
+      "alivePid": 50284,
+      "nowLock": {
+        "pid": 20512,
+        "procStart": "134356191709524367"
+      },
+      "taken": true
+    },
+    "T6 STOP на тике и до старта": {
+      "events": [
+        "stop",
+        "stop"
+      ],
+      "lockAfter": null
+    },
+    "T7 waiting": {
+      "statusesSeen": [
+        "idle",
+        "busy"
+      ],
+      "answer": "сделал",
+      "events": [
+        "start"
+      ]
+    },
+    "T8 субагент": {
+      "answer": "готово",
+      "subagentRan": true,
+      "hooks": [
+        {
+          "event": "SubagentStop",
+          "sid": "A",
+          "agent": "general-purpose"
+        },
+        {
+          "event": "Stop",
+          "sid": "A",
+          "agent": null
+        },
+        {
+          "event": "Stop",
+          "sid": "A",
+          "agent": null
+        }
+      ],
+      "waiterStarts": 0
+    },
+    "T9 хозяин убит": {
+      "waitersBefore": "61660",
+      "kills": [
+        {
+          "s": "A",
+          "msToOwnerGone": 564,
+          "lockLeft": false
+        },
+        {
+          "s": "B",
+          "msToOwnerGone": null,
+          "lockLeft": false
+        }
+      ],
+      "waitersAfter": "(нет)"
+    },
+    "живая витрина: строк /api/bell в её server.log": {
+      "before": 0,
+      "after": 0
+    }
+  },
+  "liveBellBefore": 0,
+  "liveBellAfter": 0,
+  "bellLog": [
+    {
+      "at": "2026-10-04T20:24:26.148Z",
+      "sid": "93ec37e4-f1f7-45cd-b6ce-830b65cf6d86",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:24:28.689Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:24:32.283Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "ring",
+      "ids": [
+        "W-261004-232430-d413"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:24:37.477Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:24:41.060Z",
+      "sid": "93ec37e4-f1f7-45cd-b6ce-830b65cf6d86",
+      "event": "ring",
+      "ids": [
+        "W-261004-232439-7181"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:24:45.520Z",
+      "sid": "93ec37e4-f1f7-45cd-b6ce-830b65cf6d86",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:24:48.098Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "forged",
+      "ids": [
+        "W-261004-000000-dead"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:24:57.178Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "ring",
+      "ids": [
+        "W-261004-232456-b727"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:25:00.686Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:25:18.403Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "ring",
+      "ids": [
+        "W-261004-232501-d582",
+        "W-261004-232501-1bae"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:25:18.842Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:25:22.793Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "skip"
+    },
+    {
+      "at": "2026-10-04T20:25:31.231Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "skip"
+    },
+    {
+      "at": "2026-10-04T20:25:37.508Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "skip"
+    },
+    {
+      "at": "2026-10-04T20:25:42.515Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "ring",
+      "ids": [
+        "W-261004-232541-e4d7"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:25:55.534Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "skip"
+    },
+    {
+      "at": "2026-10-04T20:25:55.594Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "forged",
+      "ids": [
+        "W-261004-232541-e4d7"
+      ]
+    },
+    {
+      "at": "2026-10-04T20:26:06.916Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:26:11.666Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:26:12.531Z",
+      "sid": "93ec37e4-f1f7-45cd-b6ce-830b65cf6d86",
+      "event": "stop"
+    },
+    {
+      "at": "2026-10-04T20:26:12.964Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "stop"
+    },
+    {
+      "at": "2026-10-04T20:26:15.351Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "stop"
+    },
+    {
+      "at": "2026-10-04T20:26:28.269Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "start"
+    },
+    {
+      "at": "2026-10-04T20:26:36.096Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "skip"
+    },
+    {
+      "at": "2026-10-04T20:26:39.596Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "skip"
+    },
+    {
+      "at": "2026-10-04T20:26:55.848Z",
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "event": "owner-gone"
+    }
+  ],
+  "health": {
+    "on": true,
+    "waiters": null,
+    "queued": 0
+  },
+  "sessions": {
+    "A": {
+      "sid": "19a6a0a4-7bfd-4718-aaa7-90f691243d32",
+      "results": 14
+    },
+    "B": {
+      "sid": "93ec37e4-f1f7-45cd-b6ce-830b65cf6d86",
+      "results": 2
+    }
+  }
+}
