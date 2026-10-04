@@ -14,7 +14,7 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { loadConfig } from '../lib/config.mjs';
-import { createBackup, inspectLog, snapshotOf, localDay } from '../lib/backup.mjs';
+import { createBackup, inspectLog, snapshotOf, localDay, brokenText } from '../lib/backup.mjs';
 import { startServer } from '../lib/start.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
@@ -301,7 +301,7 @@ test('битая строка в живом журнале не останавл
   assert.deepEqual(names(s.dir), ['actions-2026-10-02.log'], 'копия ушла в .bad или не легла');
   assert.equal(read(path.join(s.dir, 'actions-2026-10-02.log')).toString(), live, 'копия не байт в байт');
   const st = s.b.state();
-  assert.equal(st.lastError, 'в журнале 1 битых строк (первая — строка 2)');
+  assert.equal(st.lastError, 'в журнале 1 битая строка (строка 2)');
   assert.equal(st.lastFile, 'actions-2026-10-02.log');
   assert.equal(st.lastOkAt, s.clock.d.toISOString());
   assert.equal(st.count, 1);
@@ -311,7 +311,7 @@ test('битая строка в живом журнале не останавл
   s.at(2026, 10, 3, 0, 5);
   assert.equal(s.b.tick().status, 'ok');
   assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
-  assert.equal(s.b.state().lastError, 'в журнале 2 битых строк (первая — строка 2)');
+  assert.equal(s.b.state().lastError, 'в журнале 2 битые строки (первая — строка 2)');
   assert.equal(s.b.state().lastOkAt, s.clock.d.toISOString());
   // журнал починили — ошибка снята, красного нет
   fs.writeFileSync(s.file, rows(1, 2, 3));
@@ -319,6 +319,42 @@ test('битая строка в живом журнале не останавл
   assert.equal(s.b.tick().status, 'ok');
   assert.equal(s.b.state().lastError, null);
   assert.equal(s.b.freshness().stale, false);
+});
+
+test('текст про битые строки — со склонением: 1 битая (строка K); 2–4 битые; 5+ и 11–14 битых (первая — строка K)', () => {
+  const cases = [
+    [1, 'в журнале 1 битая строка (строка 7)'],
+    [2, 'в журнале 2 битые строки (первая — строка 7)'],
+    [4, 'в журнале 4 битые строки (первая — строка 7)'],
+    [5, 'в журнале 5 битых строк (первая — строка 7)'],
+    [11, 'в журнале 11 битых строк (первая — строка 7)'],
+    [12, 'в журнале 12 битых строк (первая — строка 7)'],
+    [14, 'в журнале 14 битых строк (первая — строка 7)'],
+    [21, 'в журнале 21 битая строка (первая — строка 7)'],
+    [22, 'в журнале 22 битые строки (первая — строка 7)'],
+    [111, 'в журнале 111 битых строк (первая — строка 7)'],
+  ];
+  for (const [n, want] of cases) assert.equal(brokenText(n, 7), want, `n=${n}`);
+});
+
+test('перезапуск со свежей копией (skipped): журнал всё равно читается — битая строка держит lastError и stale; чистый журнал — чисто', () => {
+  const s = setup();
+  fs.writeFileSync(s.file, rows(1) + 'мусор\n' + rows(3));
+  assert.equal(s.b.start().status, 'ok');
+  s.at(2026, 10, 2, 15, 0, 0); // через 3 часа — копия свежая
+  const t3 = (s.clock.d.getTime() - 3 * H) / 1000;
+  fs.utimesSync(path.join(s.dir, 'actions-2026-10-02.log'), t3, t3);
+  const again = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+  assert.equal(again.start().status, 'skipped');
+  assert.equal(again.state().lastError, 'в журнале 1 битая строка (строка 2)');
+  assert.equal(again.freshness().stale, true, 'красное не пережило перезапуск');
+  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log'], 'на skipped копия всё же снята');
+  // журнал починили, снова перезапуск со свежей копией — чисто
+  fs.writeFileSync(s.file, rows(1, 2, 3));
+  const clean = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+  assert.equal(clean.start().status, 'skipped');
+  assert.equal(clean.state().lastError, null);
+  assert.equal(clean.freshness().stale, false);
 });
 
 test('сбой записи копии и нечитаемый журнал — ошибка в state и server.log, не исключение; stale true', () => {
