@@ -36,6 +36,7 @@ button{font:inherit;color:inherit}
 .top a{color:inherit;text-decoration:none}
 .top a:hover{color:var(--accent)}
 .top .fresh{margin-left:auto}
+.top .tbtns{display:inline-flex;gap:12px;align-items:center}
 .fresh .sep{margin-inline:6px}
 .fresh .fresh-bad{color:var(--red)} .fresh .fresh-warn{color:var(--amber)}
 .mbtn{display:inline-flex;align-items:baseline;gap:6px}
