@@ -95,6 +95,7 @@
     "count": 14,
     "journalBad": { "count": 2, "first": 7 }
   },
+  "bell": { "on": false, "waiters": null, "queued": 0 },
   "rss": 61234176,
   "uptimeS": 720
 }

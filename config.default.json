@@ -62,7 +62,9 @@
   ],
   "pult": {
     "enabled": false,
-    "words": false
+    "words": false,
+    "bell": false,
+    "bellDir": "data/vitrina/bell/"
   },
   "backup": {
     "dir": "data/vitrina/backup/",

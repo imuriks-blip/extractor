@@ -45,7 +45,7 @@ const registry = createRegistryReader(regFile);
 // собранный интерфейс: оболочка с заглушкой токена, как её выдаёт сборка Vite (web/index.html)
 const STUB = '<!doctype html><html><head><meta charset="utf-8"><meta name="vitrina-token" content="__VITRINA_TOKEN__"><title>t</title></head><body></body></html>';
 
-async function setup({ off = OFF, enabled = true, words = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir, spawn = fakeSpawn() } = {}) {
+async function setup({ off = OFF, enabled = true, words = true, bell = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir, spawn = fakeSpawn() } = {}) {
   const web = tmpDir('web-');
   fs.writeFileSync(path.join(web, 'index.html'), html);
   const actionsLog = path.join(data, 'actions.log');
@@ -54,7 +54,8 @@ async function setup({ off = OFF, enabled = true, words = true, handlers, now, m
     port: PORT, board, registry, scan, webDir: web,
     log: { write: (ev, f) => logLines.push({ ev, ...f }) },
     // флаги и пути — как из config.json; подмены для тестов — отдельным параметром (конфиг защиту не выключит)
-    pult: { enabled, words, actionsLog, mirrorDir: mirrorDir ?? tmpDir('mirror-'), lock: lockLib, boardRoot },
+    // звонок (ПТ4а) включён: ручка ждущего отвечает (pult.bell = false — 503, свой тест в pult-accept)
+    pult: { enabled, words, bell, bellDir: path.join(data, 'bell'), actionsLog, mirrorDir: mirrorDir ?? tmpDir('mirror-'), lock: lockLib, boardRoot },
     pultSeams: { checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, planeRun, spawn },
   });
   const raw = () => (fs.existsSync(actionsLog) ? fs.readFileSync(actionsLog, 'utf8') : '');
@@ -363,9 +364,9 @@ test('pult.words = false: слово («да») → 503 без записи; pin
   assert.equal((await act(app, token)).statusCode, 200);
 });
 
-test('config.default.json: pult.enabled и pult.words — false', () => {
+test('config.default.json: pult.enabled, pult.words и pult.bell — false; папка звонка — data/vitrina/bell/ (§4.3, ПТ4а)', () => {
   const d = JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8'));
-  assert.deepEqual(d.pult, { enabled: false, words: false });
+  assert.deepEqual(d.pult, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
 });
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------
@@ -572,7 +573,8 @@ test('GET /api/actions: строки по действию (последний �
   assert.deepEqual(all.map((r) => [r.id, r.status]), [['W-261002-110000-bbbb', 'asked'], ['W-261002-100000-aaaa', 'done']]);
   assert.ok(!JSON.stringify(all).includes(SECRET));
   assert.match(all[1].text, /\[скрыто/);
-  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'card', 'id', 'project', 'source', 'status', 'text']);
+  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'card', 'id', 'project', 'ring', 'source', 'status', 'text']);
+  assert.equal(all[0].ring, null, 'звонка у действия нет');
   assert.equal(all[0].source, null, 'источник — ПТ1б');
   assert.deepEqual((await get('?since=2026-10-01T00:00:00Z&card=EXT-6')).json().map((r) => r.id), ['W-261002-100000-aaaa']);
   assert.deepEqual((await get('?since=2026-10-01T00:00:00Z&project=CAR')).json().map((r) => r.id), ['W-261002-110000-bbbb']);
@@ -615,12 +617,12 @@ test('GET /api/worktrees: заглушка формы — пустой спис�
   assert.equal((await get('?project=NOPE')).statusCode, 400);
 });
 
-test('[bell-browser] GET /api/bell/:sid: без Origin и Sec-Fetch-Site — пустой ответ; с любым из них — 403; sid не UUID — 404', async () => {
+test('[bell-browser] GET /api/bell/:sid: без Origin и Sec-Fetch-Site — ответ без слов; с любым из них — 403; sid не UUID — 404', async () => {
   const { app } = await setup();
   const get = (sid, h = {}) => app.inject({ method: 'GET', url: `/api/bell/${sid}`, headers: { host: `127.0.0.1:${PORT}`, ...h } });
   const ok = await get(uuid(7));
   assert.equal(ok.statusCode, 200);
-  assert.deepEqual(ok.json(), []);
+  assert.deepEqual(ok.json(), { ids: [], text: null });
   assert.equal((await get(uuid(7), { origin: SELF })).statusCode, 403);
   assert.equal((await get(uuid(7), { 'sec-fetch-site': 'same-origin' })).statusCode, 403);
   assert.equal((await get(uuid(7), { 'sec-fetch-site': 'none' })).statusCode, 403);
@@ -669,7 +671,7 @@ test('[bell-browser] обход кодировкой: GET /api/b%65ll/<uuid> с 
   assert.equal((await get({ 'sec-fetch-site': 'cross-site' })).statusCode, 403);
   const ok = await get();
   assert.equal(ok.statusCode, 200);
-  assert.deepEqual(ok.json(), []);
+  assert.deepEqual(ok.json(), { ids: [], text: null });
 });
 
 test('отрицательный контроль bell-browser: без проверки GET /api/bell/<uuid> с Origin отвечает 200, с ней — 403', async () => {
