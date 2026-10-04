@@ -7,6 +7,7 @@ import { Mark, Stale, Thread, mergeFresh, staleText, useShowMore } from './Ceh.j
 import { Summary } from './Summary.jsx';
 import CardPanel from './CardPanel.jsx';
 import { PultMark } from './Pult.jsx';
+import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
@@ -174,6 +175,7 @@ function WRowBody({ r, now, sel, onOpen, noAge = false }) {
     <button type="button" className={r.answered ? 'prow ans' : 'prow'} aria-current={sel === r.id ? 'true' : undefined} onClick={() => onOpen(r.id)}>
       <span className="src">{r.id}</span>
       <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}
+        {!yes && !r.answered && <TraceBadge t={r.trace} />}
         {r.answered && <PultMark m={r.pultMark} />}</span>
       {age}
     </button>
