@@ -105,6 +105,7 @@ details.grp>summary .cnt{color:var(--fg)}
 .tname{font-weight:500}
 .tname .mono{margin-right:6px}
 .th2{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:1px}
+.th2 .mem-warn{color:var(--amber)}
 .st{font-size:11px;font-weight:500;padding:0 6px;border-radius:3px;white-space:nowrap}
 .st.work{background:var(--green-bg);color:var(--green)}
 .st.free{background:var(--hover);color:var(--muted)}

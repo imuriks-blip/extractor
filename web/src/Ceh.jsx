@@ -266,6 +266,22 @@ export function Mark({ m, now }) {
   }
 }
 
+// EXT-49: память треда — «память N %» серым; с порога — жёлтым «пора сделать снимок…»; окна модели нет — «N тыс.»
+const timesWord = (n) => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'раза' : 'раз');
+function Memory({ m }) {
+  if (!m) return null;
+  const k = Math.round(m.tokens / 1000);
+  const size = m.pct == null ? `память ${k > 0 ? k : 'меньше 1'} тыс.` : `память ${m.pct} %`;
+  return (
+    <div className="th2">
+      {m.warn
+        ? <span className="mem-warn">{size} — пора сделать снимок и открыть новый тред</span>
+        : <span>{size}</span>}
+      {m.compactions > 0 && <span className="faint">сжат {m.compactions} {timesWord(m.compactions)}</span>}
+    </div>
+  );
+}
+
 export function Thread({ t, now }) {
   const [cls, word] = STATE[t.state] || ['free', t.state];
   const showCode = t.project && !(t.title || '').startsWith(t.project);
@@ -291,6 +307,7 @@ export function Thread({ t, now }) {
               {t.rulesReread && <span className="faint">правила перечитаны {dm(t.rulesReread)}</span>}
             </>}
       </div>
+      <Memory m={t.memory} />
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
       {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} />)}
     </div>
