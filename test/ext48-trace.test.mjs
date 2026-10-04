@@ -99,6 +99,10 @@ const cards = {
   // «Что изменилось:» без «в системе» (слово Ивана 04.10)
   'EXT-11': logOf(['11:00', contract({ delivery: OK_DELIVERY }).replace('Что изменилось в системе', 'Что изменилось')]),
   'EXT-12': logOf(['11:00', contract({ delivery: `из рабочей копии ${h7(G)}, отправлено.` })]),
+  // CAR-235: после полного контракта — поздняя запись «Доставка … обновлена» без других строк контракта
+  'EXT-13': logOf(['11:00', contract({ delivery: OK_DELIVERY })], ['12:00', 'Доставка по EXT-13 обновлена: прод — deployment `6257df0f`, бандл `index-Bmb2Tzuk.js`.']),
+  // «Доставка» и одна «Откат» — уже контракт (неполный), а не «контракта нет»
+  'EXT-14': logOf(['11:00', `-   **Откат:** git revert.\n-   **Доставка:** extractor ${h7(A)}. Слово Ивана.`]),
   'CAR-1': logOf(['11:00', contract({ delivery: `общий ${h7(D)}.`, who: 'слово Ивана в чате' })]),
   'CAR-2': logOf(['11:00', contract({ delivery: `общий ${h7(D)}.`, who: 'Коммент Ивана в карточке', post: 'не нужен: внутреннее' })]),
 };
@@ -241,6 +245,21 @@ test('коммит в origin/main, локальный main основного к
   const x = tr('EXT-12');
   assert.equal(x.state, 'ok');
   assert.deepEqual(x.checked.commits[0], { hash: h7(G), repo: path.basename(behind), found: true, inMain: true, pushed: true });
+});
+
+test('контракт — запись с «Доставкой» и ещё хоть одной строкой: поздняя «Доставка … обновлена» (CAR-235) — не контракт, а запись после него', () => {
+  const x = tr('EXT-13');
+  assert.equal(x.state, 'ok');
+  assert.equal(x.contractAt, '2026-10-04T08:00:00.000Z');
+  assert.equal(x.laterRecords, 1);
+  assert.ok(!x.checked.commits.some((c) => c.hash === '6257df0f'));
+});
+
+test('«Доставка» и «Откат» без прочих строк — неполный контракт: bad «нет строки: …», а не «контракта закрытия нет»', () => {
+  const x = tr('EXT-14');
+  assert.equal(x.state, 'bad');
+  assert.deepEqual(x.reasons.filter((r) => r.level === 'bad').map((r) => r.text), ['нет строки: «Что изменилось в системе», «Остаточный риск», «Знание»']);
+  assert.equal(x.contractAt, '2026-10-04T08:00:00.000Z');
 });
 
 test('карточка не в Review — не проверяется (null)', () => {
