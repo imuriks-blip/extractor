@@ -12,7 +12,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead, checkArgs } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { normHead, localMarks, acceptState, B_HINT, createPlaneSpawn } from '../lib/pult/accept.mjs';
+import { normHead, localMarks, acceptState, B_HINT, createPlaneSpawn, createMergeCheck } from '../lib/pult/accept.mjs';
 import { validQ } from '../lib/pult/actions.mjs';
 import { restoreIntents } from '../lib/pult/routes.mjs';
 import { localIso } from '../lib/pult/actions-log.mjs';
@@ -89,7 +89,8 @@ function fakeSpawn() {
 // plane — начальное состояние подменного plane.py: карточка в Review, последний коммент — тот самый вопрос
 // log — строки actions.log до старта (рестарт витрины посреди действия)
 // planeSpawn — подменный spawn запуска plane.py (мелочь 3 Голема на В10): createPlaneSpawn с ним вместо настоящего
-async function setup(plane = {}, { log = null, planeSpawn = null } = {}) {
+// mergeGit — git проверки слитости (EXT-57: устаревший итог прохода против свежей сверки нажатия)
+async function setup(plane = {}, { log = null, planeSpawn = null, mergeGit = null } = {}) {
   const data = tmpDir('acc-data-');
   const pdir = tmpDir('acc-plane-');
   fs.copyFileSync(path.join(HERE, 'fake-plane.mjs'), path.join(pdir, 'fake-plane.mjs'));
@@ -100,7 +101,9 @@ async function setup(plane = {}, { log = null, planeSpawn = null } = {}) {
   const actionsLog = path.join(data, 'actions.log');
   if (log) fs.writeFileSync(actionsLog, log.map((l) => JSON.stringify(l) + '\n').join(''));
   const spawn = fakeSpawn();
-  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, gitRead: createGitRead(),
+  // слита ли ветка (В7) — считает проход читателя git (EXT-57): тест зовёт его сам (s.pass), ручки только читают
+  const merge = createMergeCheck({ git: mergeGit ?? createGitRead(), registry, board });
+  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, merge,
     pult: { enabled: true, words: false, actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
     pultSeams: { spawn, ...(planeSpawn ? { planeRun: createPlaneSpawn({ python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs'), spawn: planeSpawn }) } : {}) } });
@@ -113,7 +116,7 @@ async function setup(plane = {}, { log = null, planeSpawn = null } = {}) {
   const lines = () => raw().split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const pl = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const setPlane = (patch) => fs.writeFileSync(stateFile, JSON.stringify({ ...pl(), ...patch }));
-  return { app, press, get, lines, raw, pl, setPlane, spawn, data };
+  return { app, press, get, lines, raw, pl, setPlane, spawn, data, pass: () => merge.refresh() };
 }
 
 const Q = { at: Q_AT, head: Q_MD };
@@ -342,6 +345,7 @@ test('секрет в причине «Вернуть» (класс 2) → от�
 
 test('В7: Б-карточка и карточка с неслитой веткой — «Принять» скрыта в карточке и в строке (в), POST → отказ; слитая и без ветки — можно', async () => {
   const s = await setup();
+  await s.pass(); // EXT-57: ветки считает проход читателя git, не запрос страницы
   const acc = async (id) => (await s.get(`/api/card/${id}`)).pult.accept;
   assert.deepEqual(await acc('EXT-8'), { can: false, why: 'b-deal', hint: 'Б-карточка ждёт слияния: «сливай» или «выкатывай»', branch: null });
   const nm = await acc('EXT-9');
@@ -368,6 +372,26 @@ test('В7: Б-карточка и карточка с неслитой ветк�
   assert.equal(s.pl().calls?.length ?? 0, 0, 'в Plane ни одного вызова');
   // «Вернуть» по Б-карточке не держится
   assert.equal((await s.press({ action: 'return', card: 'EXT-8', q: Q, text: 'не то' })).json().outcome, 'ok');
+});
+
+// EXT-57 (Важно 2 Голема): итог прохода устарел, а ключ (вершины ссылок файлами) не сменился — страница ещё даёт
+// can: true; нажатие сверяет git заново → отказ not-merged, коммента в Plane нет. Устаревание сделано git-обёрткой,
+// которая на проходе отвечает «предок» (merge-base, код 0) для неслитой ext-9-x, а к нажатию говорит правду.
+test('EXT-57: страница по устаревшему итогу показывает «Принять», нажатие сверяет ветку заново — отказ not-merged, в Plane ничего', async () => {
+  const real = createGitRead();
+  const stale = { on: true };
+  const mergeGit = (dir, args) => (stale.on && args[0] === 'merge-base' ? Promise.resolve('') : real(dir, args));
+  const s = await setup({}, { mergeGit });
+  await s.pass();
+  stale.on = false;
+  assert.equal((await s.get('/api/card/EXT-9')).pult.accept.can, true, 'страница — по итогу прохода');
+  const m = await s.press({ action: 'accept', card: 'EXT-9', q: Q });
+  assert.equal(m.json().outcome, 'refused');
+  assert.match(m.json().message, /ext-9-x/);
+  assert.equal(s.lines().at(-1).refusal, 'not-merged');
+  assert.equal(s.pl().calls?.length ?? 0, 0, 'в Plane ни одного вызова');
+  assert.equal(s.pl().comments.length, 1, 'коммента не прибавилось');
+  assert.equal((await s.get('/api/card/EXT-9')).pult.accept.why, 'not-merged', 'итог нажатия лёг для ручек');
 });
 
 test('обёртка чтения git по форме вызова (§0, Н5): branch --list и merge-base --is-ancestor проходят; branch -D, branch <имя>, merge-base без --is-ancestor — исключение, git не запускался', async () => {

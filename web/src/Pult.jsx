@@ -138,7 +138,8 @@ export default function Pult({ card, q, accept, mark }) {
   }
 
   const canAccept = accept?.can === true;
-  const hint = accept?.can === false && accept.hint;
+  // can null — слитость ветки ещё не посчитана проходом читателя git (EXT-57): кнопки нет, серое «проверяю…» из hint сервера
+  const hint = (accept?.can === false || (accept && accept.can === null)) && (accept.hint || 'проверяю, слита ли ветка карточки');
   return (
     <div className="pult">
       {/* partial и «нет связи» — действие уже начато: вместо кнопок одно «повторить» */}
