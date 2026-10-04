@@ -12,8 +12,10 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { CHECKS } from '../lib/pult/guard.mjs';
-import { untilOf } from '../lib/pult/defer.mjs';
-import { createNotifier, toastRows } from '../lib/notify.mjs';
+import { untilOf, createDeferStore } from '../lib/pult/defer.mjs';
+import { localIso } from '../lib/pult/actions-log.mjs';
+import { createNotifier, createNotifyLoop, createWake, toastRows } from '../lib/notify.mjs';
+import { waitingThreads } from '../lib/waiting.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, gitCommitAll } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -45,16 +47,24 @@ const SID = '11111111-1111-4111-8111-111111111111';
 const SID2 = '22222222-2222-4222-8222-222222222222';
 const threadRow = (sid, q, title) => ({ sessionId: sid, title, project: 'EXT', projectBy: 'title', kind: 'question', text: `Трурль: вопрос ${q}`, since: '2026-10-04T08:00:00.000Z', overDay: false, key: `${sid}|${q}`, uuid: q });
 
-async function setup({ data = tmpDir('defer-'), clock = { t: Date.parse('2026-10-04T10:00:00Z') }, rows, boardR } = {}) {
+// jst — состояние читателя журналов (строки (а)): проход удачен — failingSince null, lastOkAt сдвигается pass()
+async function setup({ data = tmpDir('defer-'), clock = { t: Date.parse('2026-10-04T10:00:00Z') }, rows, boardR, enabled = true, deferFs } = {}) {
   const { dir, board } = boardR ?? await makeBoardReader();
   const waitingRows = rows ?? [threadRow(SID, uuid(901), 'Тред EXT'), threadRow(SID2, uuid(902), 'Тред CAR')];
   const threads = { list: () => ({ threads: [], subagentsCount: 0, unknownStatus: {}, waiting: waitingRows }), state: () => ({ processes: null, desktop: null }) };
+  const jst = { lastOkAt: '2026-10-04T10:00:00.000Z', failingSince: null };
+  let passes = 0;
+  const pass = ({ ok = true } = {}) => {
+    if (ok) { jst.lastOkAt = new Date(Date.parse('2026-10-04T10:00:00Z') + ++passes * 2000).toISOString(); jst.failingSince = null; }
+    else jst.failingSince = jst.failingSince ?? jst.lastOkAt;
+  };
+  const journals = { state: () => ({ ...jst }) };
   const web = tmpDir('web-');
   fs.writeFileSync(path.join(web, 'index.html'), '<!doctype html><html><head><meta name="vitrina-token" content="__VITRINA_TOKEN__"></head><body></body></html>');
   const app = await buildApp({
-    port: PORT, board, registry, threads, scan, webDir: web,
-    pult: { enabled: true, words: false, actionsLog: path.join(data, 'actions.log'), mirrorDir: tmpDir('mirror-'), lock: lockLib, boardRoot: dir },
-    pultSeams: { checks: CHECKS, now: () => clock.t },
+    port: PORT, board, registry, threads, journals, scan, webDir: web,
+    pult: { enabled, words: false, actionsLog: path.join(data, 'actions.log'), mirrorDir: tmpDir('mirror-'), lock: lockLib, boardRoot: dir },
+    pultSeams: { checks: CHECKS, now: () => clock.t, ...(deferFs ? { deferFs } : {}) },
   });
   const r = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
   const token = r.body.match(/<meta name="vitrina-token" content="([^"]+)">/)[1];
@@ -71,7 +81,9 @@ async function setup({ data = tmpDir('defer-'), clock = { t: Date.parse('2026-10
     const back = app.vitrina.deferSweep(w);
     return notifier.cycle(toastRows(w, { back, ...opts }), opts);
   };
-  return { app, act, ceh, lines, data, clock, waitingRows, deferFile, shown, cycle, dir, board };
+  // проект окна (В9) — та же форма deferred[]
+  const project = async (code) => (await app.inject({ method: 'GET', url: `/api/project/${code}`, headers: { host: `127.0.0.1:${PORT}` } })).json();
+  return { app, act, ceh, project, lines, data, clock, waitingRows, deferFile, shown, cycle, dir, board, pass, jst, notifier };
 }
 const keysOf = (w) => [...w.threads, ...w.yes, ...w.review].map((r) => r.key);
 
@@ -158,7 +170,7 @@ test('строка исчезла сама до срока: отметка сн�
   const row = s.waitingRows[0];
   await s.act({ action: 'defer', rowKey: key, until: '3days9' });
   s.waitingRows.splice(0, 1); // тред ответили — строки нет
-  s.cycle();
+  for (let i = 0; i < 3; i++) { s.pass(); s.cycle(); } // В3: три цикла подряд при удачных проходах читателя
   assert.ok(!Object.hasOwn(JSON.parse(fs.readFileSync(s.deferFile, 'utf8')).marks, key), 'отметка ушла');
   assert.deepEqual((await s.ceh()).waiting.deferred, []);
   s.clock.t += 4 * 24 * H;
@@ -264,4 +276,224 @@ test('сроки по местному времени машины: 1h, tomorrow
   assert.equal(untilOf('monday9', sun), new Date(2026, 9, 5, 9, 0).getTime());
   assert.equal(untilOf('tomorrow9', new Date(2026, 9, 31, 12, 0).getTime()), new Date(2026, 10, 1, 9, 0).getTime());
   assert.equal(untilOf('bogus', sat), null);
+});
+
+// ---------------- вердикт Голема (дозапрос EXT-47) ----------------
+
+const SID3 = '33333333-3333-4333-8333-333333333333';
+const KEY1 = `${SID}|${uuid(901)}`;
+const marksOf = (s) => (fs.existsSync(s.deferFile) ? JSON.parse(fs.readFileSync(s.deferFile, 'utf8')).marks : {});
+// цикл уведомлений как в start.mjs (createNotifyLoop + wake), часы — подменные
+function loopOf(s) {
+  const wake = createWake({ now: () => s.clock.t });
+  const rows = (opts) => { const w = s.app.vitrina.cehPayload().waiting; return toastRows(w, { back: s.app.vitrina.deferSweep(w), ...opts }); };
+  return createNotifyLoop({ notifier: s.notifier, rows, readAll: async () => {}, wake });
+}
+
+test('В1: срок истёк во сне — после пробуждения одно «вернулось», новая строка (а) того же цикла — тихая', async () => {
+  const s = await setup();
+  const loop = loopOf(s);
+  await loop.start(Promise.resolve());
+  await s.act({ action: 'defer', rowKey: KEY1, until: '1h' });
+  await loop.tick();
+  s.clock.t += 2 * H; // сон дольше срока
+  s.waitingRows.push(threadRow(SID3, uuid(904), 'Тред новый'));
+  await loop.tick(); // пробуждение: полный цикл чтения, тихий цикл
+  assert.deepEqual(s.shown.map((t) => t.title), ['вернулось: Тред EXT']);
+  await loop.tick();
+  assert.deepEqual(s.shown.map((t) => t.title), ['вернулось: Тред EXT'], 'новая строка (а) запомнена тихо, второго тоста нет');
+});
+
+test('В1: срок истёк при выключенной витрине — после старта одно «вернулось», прочие строки тихие', async () => {
+  const data = tmpDir('defer-');
+  const clock = { t: Date.parse('2026-10-04T10:00:00Z') };
+  const boardR = await makeBoardReader();
+  const s1 = await setup({ data, clock, boardR });
+  s1.cycle({ silent: true });
+  await s1.act({ action: 'defer', rowKey: KEY1, until: '1h' });
+  await s1.app.close();
+  clock.t += 3 * H;
+  const s2 = await setup({ data, clock, boardR });
+  s2.waitingRows.push(threadRow(SID3, uuid(905), 'Тред новый'));
+  await loopOf(s2).start(Promise.resolve());
+  assert.deepEqual(s2.shown.map((t) => t.title), ['вернулось: Тред EXT']);
+});
+
+test('В2: pult.enabled = false — отметки не применяются, строки видны, defer.json не тронут; включили — отметка снова действует', async () => {
+  const data = tmpDir('defer-');
+  const clock = { t: Date.parse('2026-10-04T10:00:00Z') };
+  const boardR = await makeBoardReader();
+  const s1 = await setup({ data, clock, boardR });
+  await s1.act({ action: 'defer', rowKey: KEY1, until: '3days9' });
+  await s1.app.close();
+  const before = fs.readFileSync(path.join(data, 'defer.json'), 'utf8');
+  const s2 = await setup({ data, clock, boardR, enabled: false });
+  const w = (await s2.ceh()).waiting;
+  assert.ok(keysOf(w).includes(KEY1));
+  assert.equal(w.count, 2);
+  assert.deepEqual(w.deferred, []);
+  s2.waitingRows.splice(0, 1);
+  for (let i = 0; i < 4; i++) { s2.pass(); s2.cycle(); }
+  assert.equal(fs.readFileSync(path.join(data, 'defer.json'), 'utf8'), before, 'файл не тронут');
+  await s2.app.close();
+  const s3 = await setup({ data, clock, boardR });
+  assert.ok(!keysOf((await s3.ceh()).waiting).includes(KEY1));
+});
+
+test('В3: строки нет один и два цикла — отметка цела; три удачных прохода подряд — снята; вернулась до третьего — счёт заново', async () => {
+  const s = await setup();
+  s.cycle({ silent: true }); // первый цикл после старта — тихий
+  const row = s.waitingRows[0];
+  await s.act({ action: 'defer', rowKey: KEY1, until: '3days9' });
+  s.waitingRows.splice(0, 1);
+  s.pass(); s.cycle();
+  assert.ok(Object.hasOwn(marksOf(s), KEY1), 'один цикл — цела');
+  s.pass(); s.cycle();
+  assert.ok(Object.hasOwn(marksOf(s), KEY1), 'два цикла — цела');
+  s.waitingRows.unshift(row); // вернулась — счёт сброшен
+  s.pass(); s.cycle();
+  assert.deepEqual((await s.ceh()).waiting.deferred.map((d) => d.key), [KEY1]);
+  s.waitingRows.splice(0, 1);
+  s.pass(); s.cycle(); s.pass(); s.cycle();
+  assert.ok(Object.hasOwn(marksOf(s), KEY1), 'после сброса два цикла — цела');
+  s.pass(); s.cycle();
+  assert.ok(!Object.hasOwn(marksOf(s), KEY1), 'три — снята');
+  assert.equal(s.shown.length, 0);
+});
+
+test('В3: неудачный проход читателя и цикл без нового прохода не считаются', async () => {
+  const s = await setup();
+  await s.act({ action: 'defer', rowKey: KEY1, until: '3days9' });
+  s.waitingRows.splice(0, 1);
+  s.pass({ ok: false }); s.cycle(); // строка пропала, а проход читателя не удался — не в счёт, хотя его lastOkAt ещё не считан
+  s.pass(); s.cycle();
+  s.pass({ ok: false }); s.cycle(); s.cycle(); s.cycle();
+  s.pass(); s.cycle();
+  s.cycle(); s.cycle(); // тот же проход — не новый
+  assert.ok(Object.hasOwn(marksOf(s), KEY1), 'засчитано два удачных прохода — цела');
+  s.pass(); s.cycle();
+  assert.ok(!Object.hasOwn(marksOf(s), KEY1));
+});
+
+test('В3: строка (в) ушла с доски — снятие по проходам читателя доски', async () => {
+  const s = await setup();
+  const row = (await s.ceh()).waiting.review.find((r) => r.id === 'CAR-1');
+  await s.act({ action: 'defer', rowKey: row.key, until: '3days9' });
+  const f = path.join(s.dir, 'CAR', 'CAR-1.md');
+  fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('status: review', 'status: done'));
+  gitCommitAll(s.dir, 'done');
+  for (let i = 0; i < 2; i++) { await new Promise((r) => setTimeout(r, 5)); await s.board.refresh(); s.cycle(); }
+  assert.ok(Object.hasOwn(marksOf(s), row.key), 'два прохода доски — цела');
+  await new Promise((r) => setTimeout(r, 5)); await s.board.refresh(); s.cycle();
+  assert.ok(!Object.hasOwn(marksOf(s), row.key));
+});
+
+test('В3: строка (а) с временным ключом (хвост журнала не дочитан) — keyTemp: true; defer по ней — отказ key-temp', async () => {
+  const threads = [{ sessionId: SID3, state: 'waiting', waitingKind: 'question', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т' },
+    { sessionId: SID2, state: 'waiting', waitingKind: 'question', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т2' },
+    { sessionId: SID, state: 'waiting', waitingKind: 'permission', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т3' }];
+  const sessions = [{ sessionId: SID2, lines: 1, thread: { q: { text: 'вопрос', at: '2026-10-04T08:59:00.000Z', uuid: null } } }];
+  const rows = waitingThreads({ threads, sessions, now: Date.parse('2026-10-04T10:00:00Z') });
+  const by = Object.fromEntries(rows.map((r) => [r.sessionId, r]));
+  assert.equal(by[SID3].keyTemp, true, 'нет сообщения — ключ statusUpdatedAt');
+  assert.equal(by[SID2].keyTemp, true, 'сообщение без uuid — ключ src.at');
+  assert.equal(by[SID].keyTemp, undefined, 'разрешение ключуется statusUpdatedAt всегда — ключ не временный');
+  const s = await setup({ rows: [{ ...threadRow(SID3, 'x', 'Тред'), key: by[SID3].key, uuid: null, keyTemp: true }] });
+  const r = await s.act({ action: 'defer', rowKey: by[SID3].key, until: '1h' });
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.json().outcome, 'refused');
+  assert.match(r.json().message, /ещё нельзя отложить/);
+  assert.equal(s.lines().at(-1).refusal, 'key-temp');
+  assert.deepEqual(marksOf(s), {});
+});
+
+test('В9: /api/project/:code — свой deferred[] (тред — по проекту треда, карточка — по коду) и deferOptions', async () => {
+  const s = await setup();
+  s.waitingRows[1].project = 'CAR';
+  const car = (await s.ceh()).waiting.review.find((r) => r.id === 'CAR-1');
+  await s.act({ action: 'defer', rowKey: KEY1, until: '1h' });
+  await s.act({ action: 'defer', rowKey: car.key, until: '1h' });
+  const ext = await s.project('EXT');
+  assert.deepEqual(ext.deferred.map((d) => [d.key, d.group, d.card]), [[KEY1, 'thread', null]]);
+  assert.ok(!ext.waiting.some((r) => r.key === KEY1));
+  const c = await s.project('CAR');
+  assert.deepEqual(c.deferred.map((d) => [d.group, d.card]), [['review', 'CAR-1']]);
+  assert.deepEqual(c.deferOptions.map((o) => o.until), ['1h', 'tomorrow9', '3days9', 'monday9']);
+});
+
+test('deferOptions в /api/ceh: четыре пункта меню с подписью и готовым временем на момент ответа', async () => {
+  const s = await setup();
+  const o = (await s.ceh()).waiting.deferOptions;
+  assert.deepEqual(o.map((x) => [x.until, x.label]), [['1h', 'на 1 ч'], ['tomorrow9', 'завтра 9:00'], ['3days9', 'через 3 дня 9:00'], ['monday9', 'в понедельник 9:00']]);
+  // 10:00Z + 1 ч; остальные — 9:00 местного дня (сами дни проверены в тесте сроков)
+  assert.equal(Date.parse(o[0].at), Date.parse('2026-10-04T11:00:00Z'));
+  for (const x of o) assert.match(x.at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$/);
+  for (const x of o.slice(1)) assert.equal(new Date(x.at).getHours(), 9);
+});
+
+test('М5: запись defer.json не удалась — память как была, ответ «не вышло», строка видна; снятие тоже', async () => {
+  const sw = { fail: false };
+  const deferFs = { ...fs, renameSync: (...a) => { if (sw.fail) throw Object.assign(new Error('rename'), { code: 'EPERM' }); return fs.renameSync(...a); } };
+  const s = await setup({ deferFs });
+  sw.fail = true;
+  const r = await s.act({ action: 'defer', rowKey: KEY1, until: '1h' });
+  assert.equal(r.json().outcome, 'error');
+  assert.match(r.json().message, /^не вышло/);
+  assert.ok(keysOf((await s.ceh()).waiting).includes(KEY1));
+  sw.fail = false;
+  await s.act({ action: 'defer', rowKey: KEY1, until: '1h' });
+  sw.fail = true;
+  const u = await s.act({ action: 'undefer', rowKey: KEY1 });
+  assert.equal(u.json().outcome, 'error');
+  assert.match(u.json().message, /^не вышло/);
+  assert.deepEqual((await s.ceh()).waiting.deferred.map((d) => d.key), [KEY1], 'отметка в памяти осталась');
+  // то же на уровне хранилища
+  const st = createDeferStore({ file: path.join(tmpDir('st-'), 'defer.json'), fs: deferFs });
+  assert.throws(() => st.set('a|b', Date.now() + H, 'W-1'));
+  assert.equal(st.has('a|b'), false);
+});
+
+test('М7: rowKey с переводом строки, табуляцией или иным управляющим — 400 rowKey', async () => {
+  const s = await setup();
+  for (const k of [`${KEY1}\n`, 'a\tb', 'a\u0000b', 'a\u007fb']) {
+    const r = await s.act({ action: 'defer', rowKey: k, until: '1h' });
+    assert.equal(r.statusCode, 400, JSON.stringify(k));
+    assert.equal(r.json().message, 'неверный параметр: rowKey');
+  }
+});
+
+test('М8: битый и пустой defer.json при старте — витрина живёт, отметок нет, defer работает', async () => {
+  for (const text of ['{не json', '']) {
+    const data = tmpDir('defer-');
+    fs.writeFileSync(path.join(data, 'defer.json'), text);
+    const s = await setup({ data });
+    const w = (await s.ceh()).waiting;
+    assert.equal(w.count, 2);
+    assert.deepEqual(w.deferred, []);
+    assert.equal((await s.act({ action: 'defer', rowKey: KEY1, until: '1h' })).json().outcome, 'ok');
+    assert.deepEqual(Object.keys(marksOf(s)), [KEY1]);
+  }
+});
+
+test('М8: строка (б) «нужно твоё да» — defer прячет её из yes и счётчика, в срок — «вернулось: <номер> · <заголовок>»', async () => {
+  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT', 'CAR'], cards: [{ id: 'EXT-8', status: 'in-progress', title: 'Слить витрину' }] });
+  const [d, t] = localIso(new Date(Date.now() - H)).split('T');
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-8.log.md'), `### ${d} ${t.slice(0, 5)} ${t.slice(8)} · plane · коммент\n\nВетка готова — сливай?\n\n`);
+  gitInitCommit(dir);
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
+  await board.init();
+  const s = await setup({ boardR: { dir, board }, rows: [] });
+  s.cycle({ silent: true });
+  const w0 = (await s.ceh()).waiting;
+  const row = w0.yes.find((r) => r.id === 'EXT-8');
+  assert.ok(row, 'строка (б) есть');
+  assert.equal(w0.count, 1);
+  await s.act({ action: 'defer', rowKey: row.key, until: '1h' });
+  const w1 = (await s.ceh()).waiting;
+  assert.equal(w1.count, 0);
+  assert.deepEqual(w1.deferred.map((x) => [x.group, x.card, x.label]), [['yes', 'EXT-8', 'Слить витрину']]);
+  s.clock.t += H + 1000;
+  s.cycle(); s.cycle();
+  assert.deepEqual(s.shown.map((x) => [x.title, x.body]), [['вернулось: EXT-8 · Слить витрину', 'сливай · нужно твоё «да»']]);
+  assert.equal((await s.ceh()).waiting.count, 1);
 });

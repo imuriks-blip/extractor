@@ -256,6 +256,30 @@
     "count": 2,
     "more": 0
   },
+  "deferred": [],
+  "deferOptions": [
+    {
+      "until": "1h",
+      "label": "на 1 ч",
+      "at": "2026-10-04T12:04:00+03:00"
+    },
+    {
+      "until": "tomorrow9",
+      "label": "завтра 9:00",
+      "at": "2026-10-05T09:00:00+03:00"
+    },
+    {
+      "until": "3days9",
+      "label": "через 3 дня 9:00",
+      "at": "2026-10-07T09:00:00+03:00"
+    },
+    {
+      "until": "monday9",
+      "label": "в понедельник 9:00",
+      "at": "2026-10-05T09:00:00+03:00"
+    }
+  ],
+  "_defer": "EXT-47 (В9): deferred — отложенные строки этого проекта, форма как waiting.deferred в /api/ceh: {key, group: thread|yes|review, label, card, project, until}; тред — по проекту треда (как строки thread в waiting выше), карточка — по коду. Их нет в waiting и в waitingCount. deferOptions — как waiting.deferOptions в /api/ceh. keyTemp у строки thread — как в /api/ceh: кнопку не показывать.",
   "_waiting": "плоский список без заголовков групп (2.4): group thread | yes | review; если тред проекта не ждёт — интерфейс пишет «Тред <КОД> не ждёт ответа»",
   "_pult": "ПТ3 (EXT-43): accept — можно ли «Принять» (В7): {can: true|false|null, why: null|\"not-review\"|\"b-deal\"|\"not-merged\"|\"checking\", hint, branch}; can null — ветка ещё проверяется (кнопку не показывать). pultMark — местная отметка §3.2 (null — нет) {id, action: accept|return, at, state, missing, text}; missing true — красная «зеркало не видит запись <id>». answered — строка в подгруппе «отвечено, ждёт зеркала»: серым, не входит в count/more. mark у строки (б) — по-прежнему её метка («сливай», «Б», «развилка»). q — запись-вопрос для POST «Принять»/«Вернуть»: интерфейс шлёт его как есть, без правок. {at: ISO-время заголовка последней записи журнала карточки в зеркале, head: первые 60 знаков её тела (markdown как есть)} или {at: null} — записей нет."
 }
