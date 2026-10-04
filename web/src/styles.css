@@ -372,3 +372,30 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
 .hlp-s li+li{margin-top:3px}
 .hlp-s b{font-weight:600}
 @media (max-width:560px){.hlp{height:calc(100% - 32px);max-height:none}}
+
+/* ===== Словарь цеха (§2.10, EXT-61): окно памятки шире и постоянной высоты (не прыгает при поиске), поиск под заголовком; до 560 — строка карточкой ===== */
+.gls{width:min(1040px,calc(100% - 32px));height:min(720px,calc(100% - 32px))}
+.gls .hlp-h{border-bottom:0}
+.gls-f{padding:0 14px 8px;border-bottom:1px solid var(--line)}
+.gls-q{width:100%;padding:3px 7px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);font:inherit;color:inherit}
+.gls-m{margin:8px 0;color:var(--faint)}
+.gls-s h3{display:flex;gap:6px;margin:10px 0 2px;font-size:12px;font-weight:500;color:var(--muted)}
+.gls-s h3 .cnt{color:var(--faint)}
+.gls-t{width:100%;border-collapse:collapse}
+.gls-t th{font-weight:500;font-size:11px;color:var(--faint);text-align:left;padding:3px 8px 3px 0;white-space:nowrap}
+.gls-t td{padding:4px 8px 4px 0;border-top:1px solid var(--line);vertical-align:baseline}
+.gls-t .g-term{width:15%}
+.gls-t .g-ru{width:18%}
+.gls-t .g-example{width:30%}
+.gls-t td.g-term{font-weight:600}
+.gls-t td.g-example{color:var(--muted);font-size:12px}
+.gls-t code{font-size:12px}
+@media (max-width:560px){
+  .gls{height:calc(100% - 32px)}
+  .gls-t thead{display:none}
+  .gls-t tr{display:block;padding:6px 0;border-top:1px solid var(--line)}
+  .gls-t td{display:inline;width:auto;padding:0;border:0}
+  .gls-t td.g-term{font-size:15px}
+  .gls-t td.g-ru{margin-left:6px;color:var(--muted)}
+  .gls-t td.g-meaning,.gls-t td.g-example{display:block;width:auto;margin-top:2px}
+}

@@ -14,6 +14,7 @@ import { createJournalReader } from '../lib/journal-reader.mjs';
 import { buildWorkers } from '../lib/waiting.mjs';
 import { createGitReader } from '../lib/git-reader.mjs';
 import { createTraceChecker } from '../lib/trace.mjs';
+import { createGlossary } from '../lib/glossary.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -26,6 +27,7 @@ const PENDING = {
   project: {},
   card: {},
   health: {},
+  glossary: {},
 };
 
 // лента карточки — разнородный список: образец каждого вида сверяется с элементом того же вида у ручки
@@ -137,9 +139,28 @@ async function realResponses() {
   await board.refresh();
   const trace = createTraceChecker({ git: createGitRead(), registry, board });
   await trace.refresh();
-  const app = await buildApp({ port: 4317, board, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace });
+  // EXT-61: словарь — файл в формате Vault unorbis/Словарь.md (два раздела по две строки)
+  const gl = path.join(tmpDir('gl-'), 'Словарь.md');
+  const tbl = (a, b) => `| Термин | По-русски | Что это у нас | Пример |
+|---|---|---|---|
+| ${a} | р | ч | п |
+| ${b} | р | ч | \`к\` |
+`;
+  fs.writeFileSync(gl, `---
+type: reference
+---
+
+# Словарь
+
+## Код
+
+${tbl('branch', 'commit')}
+## Цех
+
+${tbl('backlog', 'fallback')}`);
+  const app = await buildApp({ port: 4317, board, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }) });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
-  return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health') };
+  return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health'), glossary: await get('/api/glossary') };
 }
 const real = await realResponses();
 
@@ -152,7 +173,7 @@ test('образцы: все файлы — JSON', () => {
   for (const f of fs.readdirSync(DIR).filter((n) => n.endsWith('.json'))) assert.doesNotThrow(() => load(f), f);
 });
 
-for (const [name, file] of [['ceh', 'ceh.json'], ['project', 'project-EXT.json'], ['card', 'card-EXT-6.json'], ['health', 'health.json']]) {
+for (const [name, file] of [['ceh', 'ceh.json'], ['project', 'project-EXT.json'], ['card', 'card-EXT-6.json'], ['health', 'health.json'], ['glossary', 'glossary.json']]) {
   test(`образец ${file}: ключи как у настоящей ручки, заготовки помечены тактом`, () => {
     compare(load(file), real[name], PENDING[name]);
   });
