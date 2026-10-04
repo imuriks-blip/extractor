@@ -284,6 +284,138 @@ test('перезапуск с копией дня: журнал короче с�
   assert.equal(clean.freshness().stale, false);
 });
 
+// ---------- повторное ревью Голема: сбой в сторону «всё хорошо» закрыт ----------
+
+// поломка: statSync / readFileSync / writeFileSync файлов папки копий по имени (функция имени → true — ломать)
+function breaker() {
+  const br = { stat: null, read: null, write: null };
+  const fsOf = (dir) => {
+    const hit = (f, p) => f && typeof p === 'string' && path.dirname(p) === dir && f(path.basename(p));
+    const err = (code) => Object.assign(new Error(code), { code });
+    return {
+      ...fs,
+      statSync: (p, ...a) => { if (hit(br.stat, p)) throw err('EACCES'); return fs.statSync(p, ...a); },
+      readFileSync: (p, ...a) => { if (hit(br.read, p)) throw err('EACCES'); return fs.readFileSync(p, ...a); },
+      writeFileSync: (p, ...a) => { if (hit(br.write, p)) throw err('ENOSPC'); return fs.writeFileSync(p, ...a); },
+    };
+  };
+  return { br, fsOf };
+}
+const listing = (dir) => Object.fromEntries(names(dir).map((n) => [n, sha(read(path.join(dir, n)))]));
+
+test('самая длинная копия не читается — LONGEST-READ: файл дня байт в байт прежний, ротации нет, stale, повтор через час', () => {
+  const k = breaker();
+  const s = setup({ keep: 2, fsOf: k.fsOf, start: day(2026, 10, 1) });
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.b.start();
+  fs.appendFileSync(s.file, rows(3));
+  s.at(2026, 10, 2, 0, 5);
+  assert.equal(s.b.tick().status, 'ok');
+  const before = listing(s.dir);
+  fs.appendFileSync(s.file, rows(4));
+  k.br.read = (n) => n === 'actions-2026-10-02.log'; // самая длинная
+  s.at(2026, 10, 2, 18, 0);
+  const r = s.b.run();
+  assert.deepEqual([r.status, r.code], ['error', 'LONGEST-READ']);
+  assert.equal(s.b.state().lastError, 'копия actions-2026-10-02.log не читается — сверка журнала не сделана');
+  assert.equal(s.b.freshness().stale, true);
+  assert.deepEqual(listing(s.dir), before, 'файлы копий изменились');
+  s.at(2026, 10, 2, 18, 30);
+  assert.equal(s.b.tick(), null, 'повтор раньше часа');
+  k.br.read = null;
+  s.at(2026, 10, 2, 19, 0);
+  assert.equal(s.b.tick()?.status, 'ok', 'через час — повтор, чтение починили');
+  assert.equal(s.b.state().lastError, null);
+});
+
+test('stat самой длинной копии не прошёл — LONGEST-READ, а не сверка с более короткой: новой копии нет, ротации нет', () => {
+  const k = breaker();
+  const s = setup({ keep: 2, fsOf: k.fsOf, start: day(2026, 10, 1) });
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.b.start();
+  fs.appendFileSync(s.file, rows(3));
+  s.at(2026, 10, 2, 0, 5);
+  assert.equal(s.b.tick().status, 'ok');
+  const before = listing(s.dir);
+  fs.appendFileSync(s.file, rows(4));
+  k.br.stat = (n) => n === 'actions-2026-10-02.log';
+  s.at(2026, 10, 3, 0, 5);
+  const r = s.b.tick();
+  assert.deepEqual([r.status, r.code], ['error', 'LONGEST-READ']);
+  assert.equal(s.b.state().lastError, 'копия actions-2026-10-02.log не читается — сверка журнала не сделана');
+  assert.deepEqual(listing(s.dir), before, 'копия легла или ротация прошла');
+  assert.equal(s.b.freshness().stale, true);
+});
+
+test('журнал удалили или обнулили, а копии есть — укорочение: stale, lastError, копии нет, ротации нет; и на старте; нет ни журнала, ни копий — не ошибка', () => {
+  for (const kill of [(f) => fs.rmSync(f), (f) => fs.writeFileSync(f, '')]) {
+    const s = setup({ keep: 1 });
+    fs.writeFileSync(s.file, rows(1, 2));
+    s.b.start();
+    const before = listing(s.dir);
+    kill(s.file);
+    s.at(2026, 10, 3, 0, 5);
+    const r = s.b.tick();
+    assert.equal(r.status, 'gone', JSON.stringify(r));
+    assert.equal(s.b.state().lastError, 'журнала нет или он пуст, а копии есть — самая длинная actions-2026-10-02.log');
+    assert.equal(s.b.freshness().stale, true);
+    assert.deepEqual(listing(s.dir), before, 'копии изменились');
+    // старт с копией дня (skipped) — то же
+    s.at(2026, 10, 2, 20, 0);
+    const again = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+    assert.equal(again.start().status, 'skipped');
+    assert.equal(again.state().lastError, 'журнала нет или он пуст, а копии есть — самая длинная actions-2026-10-02.log');
+    assert.equal(again.freshness().stale, true);
+    // старт без копии дня — то же, копии нет
+    s.at(2026, 10, 5, 9, 0);
+    const third = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+    assert.equal(third.start().status, 'gone');
+    assert.equal(third.freshness().stale, true);
+    assert.deepEqual(listing(s.dir), before);
+  }
+});
+
+test('самая длинная копия не сходится со своим .sha256 — «повреждена (эталон не совпал)», stale, файла дня и ротации нет; эталона нет — сверка как обычно', () => {
+  const s = setup({ keep: 1 });
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.b.start();
+  const ref = path.join(s.dir, 'actions-2026-10-02.log.sha256');
+  fs.writeFileSync(ref, `${'0'.repeat(64)}  actions-2026-10-02.log\n`);
+  const before = listing(s.dir);
+  fs.appendFileSync(s.file, rows(3));
+  s.at(2026, 10, 3, 0, 5);
+  const r = s.b.tick();
+  assert.deepEqual([r.status, r.code], ['error', 'LONGEST-DAMAGED']);
+  assert.equal(s.b.state().lastError, 'копия actions-2026-10-02.log повреждена (эталон не совпал)');
+  assert.equal(s.b.freshness().stale, true);
+  assert.deepEqual(listing(s.dir), before, 'файл дня лёг или ротация прошла');
+  fs.rmSync(ref);
+  s.at(2026, 10, 3, 1, 5);
+  assert.equal(s.b.tick()?.status, 'ok', 'эталона нет — сверка как обычно');
+  assert.equal(s.b.state().lastError, null);
+});
+
+test('эталон файла дня: старый удаляется до замены файла дня — сбой записи нового: рядом нет старого эталона, restore говорит «эталона нет», а не «повреждена»', async () => {
+  const k = breaker();
+  const s = setup({ fsOf: k.fsOf });
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.b.start();
+  const dayFile = path.join(s.dir, 'actions-2026-10-02.log');
+  assert.ok(fs.existsSync(`${dayFile}.sha256`));
+  fs.appendFileSync(s.file, rows(3));
+  k.br.write = (n) => /\.sha256\.\d+\.tmp$/.test(n);
+  s.at(2026, 10, 2, 18, 0);
+  assert.equal(s.b.run().code, 'ENOSPC'); // код сбоя записи эталона — код ошибки fs
+  assert.equal(read(dayFile).toString(), rows(1, 2, 3), 'файл дня не заменён');
+  assert.equal(fs.existsSync(`${dayFile}.sha256`), false, 'рядом с новым файлом дня — старый эталон');
+  const out = [];
+  const err = [];
+  const data = tmpDir('bk-r-');
+  assert.equal(await restoreMain([dayFile, '--data-dir', data], { out: (x) => out.push(x), err: (x) => err.push(x) }), 0, err.join('\n'));
+  assert.match(out.join('\n'), /эталона нет/);
+  assert.doesNotMatch(out.join('\n') + err.join('\n'), /повреждена/);
+});
+
 // ---------- журнал дописывается ----------
 
 test('недописанная последняя строка: в копию — только полные строки, проверка ok; хвост — в следующую копию', () => {
@@ -312,11 +444,11 @@ test('в журнале только недописанная строка — �
 
 // ---------- порченая копия ----------
 
-// чтение копии (файла дня и временного файла копии) подменено: JSON цел, строк и id последней столько же — ловит только сравнение SHA-256
+// чтение временного файла копии подменено: JSON цел, строк и id последней столько же — ловит только сравнение SHA-256
 function corruptor() {
   const bad = { on: false };
   const fsOf = (dir) => {
-    const isCopy = (p) => typeof p === 'string' && path.dirname(p) === dir && /^actions-\d{4}-\d\d-\d\d\.log(\.\d+\.tmp)?$/.test(path.basename(p)); // файл дня и его временный
+    const isCopy = (p) => typeof p === 'string' && path.dirname(p) === dir && /^actions-\d{4}-\d\d-\d\d\.log\.\d+\.tmp$/.test(path.basename(p)); // временный файл копии
     return { ...fs, readFileSync: (p, ...a) => { const r = fs.readFileSync(p, ...a); return bad.on && isCopy(p) ? Buffer.from(r.toString('utf8').replace('строка 2', 'строка Х'), 'utf8') : r; } };
   };
   return { bad, fsOf };
