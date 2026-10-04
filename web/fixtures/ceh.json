@@ -432,7 +432,16 @@
         "waitingKind": "question",
         "lastState": null,
         "projectBy": "title",
-        "rulesReread": null
+        "rulesReread": null,
+        "memory": {
+          "tokens": 412000,
+          "window": 1000000,
+          "pct": 41,
+          "model": "claude-opus-5-5",
+          "at": "2026-10-01T08:58:40.000Z",
+          "compactions": 0,
+          "warn": false
+        }
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000002",
@@ -450,7 +459,16 @@
         "waitingKind": "askUserQuestion",
         "lastState": null,
         "projectBy": null,
-        "rulesReread": null
+        "rulesReread": null,
+        "memory": {
+          "tokens": 836000,
+          "window": 1000000,
+          "pct": 83,
+          "model": "claude-opus-5-5",
+          "at": "2026-10-01T08:59:10.000Z",
+          "compactions": 2,
+          "warn": true
+        }
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000003",
@@ -485,7 +503,16 @@
         "waitingKind": null,
         "lastState": null,
         "projectBy": "title",
-        "rulesReread": null
+        "rulesReread": null,
+        "memory": {
+          "tokens": 378000,
+          "window": 1000000,
+          "pct": 37,
+          "model": "claude-opus-5-5",
+          "at": "2026-10-01T08:59:55.000Z",
+          "compactions": 2,
+          "warn": false
+        }
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000004",
@@ -531,7 +558,7 @@
             "agent": "golem",
             "who": "Голем",
             "card": "LEDGER-168",
-            "at": "2026-10-01T11:40:00+03:00",
+            "at": "2026-10-01T08:40:00.000Z",
             "line": "Вердикт: можно сливать, Критично нет."
           }
         ],
@@ -540,7 +567,16 @@
         "waitingKind": null,
         "lastState": null,
         "projectBy": "title",
-        "rulesReread": null
+        "rulesReread": null,
+        "memory": {
+          "tokens": 152000,
+          "window": null,
+          "pct": null,
+          "model": "claude-haiku-4-5-20251001",
+          "at": "2026-10-01T08:57:00.000Z",
+          "compactions": 0,
+          "warn": false
+        }
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000005",
@@ -558,7 +594,8 @@
         "statusUpdatedAt": null,
         "waitingKind": null,
         "projectBy": null,
-        "rulesReread": null
+        "rulesReread": null,
+        "memory": null
       },
       {
         "sessionId": "00000000-0000-4000-8000-000000000006",
@@ -576,9 +613,19 @@
         "waitingKind": null,
         "lastState": null,
         "projectBy": "title",
-        "rulesReread": null
+        "rulesReread": null,
+        "memory": {
+          "tokens": 13462,
+          "window": 1000000,
+          "pct": 1,
+          "model": "claude-opus-5-5",
+          "at": "2026-10-01T08:40:00.000Z",
+          "compactions": 1,
+          "warn": false
+        }
       }
     ],
+    "_memory": "EXT-49 «память треда», третья строка треда (спека 2.1): memory {tokens — занято токенов (последний ответ главного треда: input + cache_creation + cache_read; после сжатия без ответа — postTokens), window — окно модели из config.json → contextWindow или null (модели нет в настройке), pct — целая часть процента или null, model, at — время ответа или сжатия (UTC ISO), compactions — сжатий в текущей сессии, warn — pct ≥ thresholds.memoryWarnPct (80)} или null — в журнале ещё нет ответа с usage (строку не показывать). Вид: «память N %» серым; warn — жёлтым «память N % — пора сделать снимок и открыть новый тред»; window null — «память N тыс.» без процента; compactions > 0 — «сжат N раз» серым рядом. Жёлтое тред не поднимает.",
     "subagentsCount": 1,
     "marksCount": 3,
     "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules"
