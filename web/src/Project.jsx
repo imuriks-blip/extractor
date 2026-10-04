@@ -6,6 +6,7 @@ import { ageShort, hm, minutes, plural } from './format.js';
 import { Mark, Stale, Summary, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
 import CardPanel from './CardPanel.jsx';
 import { PultMark } from './Pult.jsx';
+import { DeferBtn, DeferNote } from './Defer.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
 const DONE_SHOWN = 5; // 2.5: в Done видны 5 последних, остальные — поиском
@@ -136,7 +137,25 @@ function Board({ code, b, sel, onOpen, now, stale }) {
 
 /* ---------- ждёт меня по проекту: плоский список (2.4) ---------- */
 
-function WRow({ r, now, sel, onOpen }) {
+const ageOf = (r, now) => ageShort(r.group === 'review' ? r.at : r.since, now);
+
+// «Отложить» (EXT-47) — у строки с key, кроме «отвечено, ждёт зеркала»: строка-кнопка карточки и «Отложить» рядом,
+// не вложенно; давность и «Отложить» — одной колонкой справа (давность над кнопкой), чтобы текст не сжимался
+function WRow(props) {
+  const { r, now } = props;
+  if (!r.key || r.answered) return <WRowBody {...props} />;
+  return (
+    <div className="pwr">
+      <WRowBody {...props} noAge />
+      <span className="age num">{ageOf(r, now)}</span>
+      <DeferBtn rowKey={r.key} />
+      <DeferNote rowKey={r.key} />
+    </div>
+  );
+}
+
+function WRowBody({ r, now, sel, onOpen, noAge = false }) {
+  const age = noAge ? null : <span className="age num">{ageOf(r, now)}</span>;
   if (r.group === 'thread') {
     return (
       <div className="prow" title={r.title}>
@@ -145,7 +164,7 @@ function WRow({ r, now, sel, onOpen }) {
           {r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
           {r.projectBy === 'cards' && <span className="faint"> · по карточкам</span>}
         </span>
-        <span className="age num">{ageShort(r.since, now)}</span>
+        {age}
       </div>
     );
   }
@@ -155,7 +174,7 @@ function WRow({ r, now, sel, onOpen }) {
       <span className="src">{r.id}</span>
       <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}
         {r.answered && <PultMark m={r.pultMark} />}</span>
-      <span className="age num">{ageShort(yes ? r.since : r.at, now)}</span>
+      {age}
     </button>
   );
 }

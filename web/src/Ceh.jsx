@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
 import Pult, { PultMark } from './Pult.jsx';
+import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 
 const STALE_MS = 60_000; // данные читателя старше минуты — серая строка 2.7 (опрос доски 5 с, журналов 1–2 с)
 const REVIEW_SHOWN = 10; // «Готово, посмотри» на живой доске — десятки строк; остальное по кнопке
@@ -107,12 +108,13 @@ function Waiting({ w, now, stale }) {
       {w.threads.length > 0 && (
         <Group id="threads" title="Тред ждёт ответа" count={w.threads.length}>
           {w.threads.map((r) => (
-            <div className="wrow" key={r.key}>
+            <div className="wrow df" key={r.key}>
               <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                 {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
               </span>
-              <span>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
+              <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
+              {r.key && <><DeferBtn rowKey={r.key} /><DeferNote rowKey={r.key} /></>}
             </div>
           ))}
         </Group>
@@ -121,10 +123,11 @@ function Waiting({ w, now, stale }) {
       {yes.length > 0 && (
         <Group id="yes" title="Нужно твоё «да»" count={yes.length}>
           {yes.map((r) => (
-            <div className="wrow" key={r.key}>
+            <div className="wrow df" key={r.key}>
               <span className="src mono">{r.id}</span>
-              <span><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
+              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
+              {r.key && <><DeferBtn rowKey={r.key} /><DeferNote rowKey={r.key} /></>}
             </div>
           ))}
         </Group>
@@ -138,6 +141,7 @@ function Waiting({ w, now, stale }) {
               <span className="tt">{r.title}</span>
               <span className="age num">{ageShort(r.at, now)}</span>
               <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} />
+              {r.key && <><DeferBtn rowKey={r.key} /><DeferNote rowKey={r.key} /></>}
             </div>
           ))}
           {moreReview}
@@ -145,6 +149,7 @@ function Waiting({ w, now, stale }) {
       )}
 
       <Answered rows={answered} now={now} />
+      <Deferred list={w.deferred} />
       {empty && <div className="foot">Ничего не ждёт.</div>}
       <Stale text={stale} />
     </details>
