@@ -496,6 +496,48 @@
           {
             "kind": "oldRules",
             "rulesUpdatedAt": "2026-10-01T10:15:00+03:00"
+          },
+          {
+            "kind": "collision",
+            "other": {
+              "sessionId": "00000000-0000-4000-8000-000000000009",
+              "title": "EXT · закрытый",
+              "closed": true
+            },
+            "files": [
+              {
+                "path": "C:/projects/extractor/lib/waiting.mjs",
+                "short": "lib/waiting.mjs",
+                "mineAt": "2026-10-01T11:48:10+03:00",
+                "otherAt": "2026-10-01T11:40:02+03:00"
+              },
+              {
+                "path": "C:/projects/extractor/lib/threads.mjs",
+                "short": "lib/threads.mjs",
+                "mineAt": "2026-10-01T11:41:00+03:00",
+                "otherAt": "2026-10-01T11:20:31+03:00"
+              },
+              {
+                "path": "C:/projects/extractor/lib/journal-parse.mjs",
+                "short": "lib/journal-parse.mjs",
+                "mineAt": "2026-10-01T11:36:12+03:00",
+                "otherAt": "2026-10-01T10:58:44+03:00"
+              },
+              {
+                "path": "C:/projects/extractor/test/waiting.test.mjs",
+                "short": "test/waiting.test.mjs",
+                "mineAt": "2026-10-01T11:12:09+03:00",
+                "otherAt": "2026-10-01T11:30:05+03:00"
+              },
+              {
+                "path": "C:/projects/extractor/web/fixtures/ceh.json",
+                "short": "web/fixtures/ceh.json",
+                "mineAt": "2026-10-01T10:49:50+03:00",
+                "otherAt": "2026-10-01T10:55:20+03:00"
+              }
+            ],
+            "more": 2,
+            "at": "2026-10-01T11:48:10+03:00"
           }
         ],
         "procStatus": "busy",
@@ -628,7 +670,7 @@
     "_memory": "EXT-49 «память треда», третья строка треда (спека 2.1): memory {tokens — занято токенов (последний ответ главного треда: input + cache_creation + cache_read; после сжатия без ответа — postTokens), window — окно модели из config.json → contextWindow или null (модели нет в настройке), pct — целая часть процента или null, model, at — время ответа или сжатия (UTC ISO), compactions — сжатий в текущей сессии, warn — pct ≥ thresholds.memoryWarnPct (80)} или null — в журнале ещё нет ответа с usage (строку не показывать). Вид: «память N %» серым; warn — жёлтым «память N % — пора сделать снимок и открыть новый тред»; window null — «память N тыс.» без процента; compactions > 0 — «сжат N раз» серым рядом. Жёлтое тред не поднимает.",
     "subagentsCount": 1,
     "marksCount": 3,
-    "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules"
+    "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules | collision (EXT-60, «Общий файл»: жёлтая, тред не поднимает, в значок и «Ждёт меня» не входит; other — другой тред, closed — закрыт ли; files до 5 по времени, short — от корня репозитория реестра или vault_root, иначе полный путь; more — сколько файлов сверх пяти, поля нет, пока их не больше пяти; at — самое позднее время пары)"
   },
   "freshness": {
     "_failingSince": "с первого сбоя чтения подряд, null после удачи (2.7): серая строка «данные на ЧЧ:ММ, чтение не удаётся N мин»",
