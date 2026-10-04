@@ -8,6 +8,7 @@ import { loadConfig } from './lib/config.mjs';
 import { launch } from './lib/start.mjs';
 import { redirectConsole } from './lib/console-log.mjs';
 import { watchStopRequest, STOP_FILE } from './lib/stop-request.mjs';
+import { removeFile } from './lib/remove-file.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(ROOT, 'data', 'vitrina');
@@ -31,5 +32,5 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 // штатная остановка для tools/update.ps1: data/vitrina/stop.request со своим pid (мелочь 5 Голема на В10).
 // Старая просьба от упавшего скрипта убирается при старте — иначе новая витрина с тем же pid остановилась бы (ревью такта 2).
-fs.rmSync(path.join(dataDir, STOP_FILE), { force: true });
+removeFile(path.join(dataDir, STOP_FILE));
 watchStopRequest({ file: path.join(dataDir, STOP_FILE), pid: process.pid, onStop: shutdown });
