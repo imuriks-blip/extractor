@@ -288,7 +288,7 @@ test('перезапуск с копией дня: журнал короче с�
 
 // поломка: statSync / readFileSync / writeFileSync файлов папки копий по имени (функция имени → true — ломать)
 function breaker() {
-  const br = { stat: null, read: null, write: null };
+  const br = { stat: null, read: null, write: null, rename: null };
   const fsOf = (dir) => {
     const hit = (f, p) => f && typeof p === 'string' && path.dirname(p) === dir && f(path.basename(p));
     const err = (code) => Object.assign(new Error(code), { code });
@@ -297,6 +297,8 @@ function breaker() {
       statSync: (p, ...a) => { if (hit(br.stat, p)) throw err('EACCES'); return fs.statSync(p, ...a); },
       readFileSync: (p, ...a) => { if (hit(br.read, p)) throw err('EACCES'); return fs.readFileSync(p, ...a); },
       writeFileSync: (p, ...a) => { if (hit(br.write, p)) throw err('ENOSPC'); return fs.writeFileSync(p, ...a); },
+      // ломается по имени цели: файл дня занят (Windows — EPERM)
+      renameSync: (a, b) => { if (hit(br.rename, b)) throw err('EPERM'); return fs.renameSync(a, b); },
     };
   };
   return { br, fsOf };
@@ -406,7 +408,7 @@ test('эталон файла дня: старый удаляется до за�
   k.br.write = (n) => /\.sha256\.\d+\.tmp$/.test(n);
   s.at(2026, 10, 2, 18, 0);
   assert.equal(s.b.run().code, 'ENOSPC'); // код сбоя записи эталона — код ошибки fs
-  assert.equal(read(dayFile).toString(), rows(1, 2, 3), 'файл дня не заменён');
+  assert.equal(read(dayFile).toString(), rows(1, 2, 3), 'файл дня должен быть заменён новой копией');
   assert.equal(fs.existsSync(`${dayFile}.sha256`), false, 'рядом с новым файлом дня — старый эталон');
   const out = [];
   const err = [];
@@ -414,6 +416,25 @@ test('эталон файла дня: старый удаляется до за�
   assert.equal(await restoreMain([dayFile, '--data-dir', data], { out: (x) => out.push(x), err: (x) => err.push(x) }), 0, err.join('\n'));
   assert.match(out.join('\n'), /эталона нет/);
   assert.doesNotMatch(out.join('\n') + err.join('\n'), /повреждена/);
+});
+
+// мелочь третьей проверки Голема: переименование в файл дня упало (файл занят) — прежний файл дня цел, и его эталон
+// возвращён на место (правка дирижёра)
+test('переименование в файл дня упало (EPERM) — прежний файл дня и его эталон целы байт в байт', () => {
+  const k = breaker();
+  const s = setup({ fsOf: k.fsOf });
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.b.start();
+  const dayFile = path.join(s.dir, 'actions-2026-10-02.log');
+  const before = { log: read(dayFile), sha: read(`${dayFile}.sha256`) };
+  fs.appendFileSync(s.file, rows(3));
+  k.br.rename = (n) => n === 'actions-2026-10-02.log';
+  s.at(2026, 10, 2, 18, 0);
+  assert.equal(s.b.run().code, 'EPERM');
+  assert.ok(read(dayFile).equals(before.log), 'файл дня изменён');
+  assert.ok(fs.existsSync(`${dayFile}.sha256`), 'эталон прежнего файла дня пропал');
+  assert.ok(read(`${dayFile}.sha256`).equals(before.sha), 'эталон прежнего файла дня изменён');
+  assert.equal(s.b.freshness().stale, true);
 });
 
 // ---------- журнал дописывается ----------
