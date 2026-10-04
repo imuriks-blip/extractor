@@ -136,6 +136,9 @@ test('хеш — слово из 7–40 шестнадцатеричных зн�
   assert.deepEqual(hashesIn('слито 2e2f446, отправлено'), ['2e2f446']);
   // адрес — не упоминание коммита: поддомен развёртывания Pages (CAR-272: https://678c0d04.unorbis-car-web.pages.dev)
   assert.deepEqual(hashesIn('коммиты `2b6d302`; развёртывание https://678c0d04.unorbis-car-web.pages.dev; прод'), ['2b6d302']);
+  // доменное имя без схемы (CAR-235: deployment `d572ff8e.unorbis-car-web.pages.dev`) — не коммит; точка в конце фразы — хеш
+  assert.deepEqual(hashesIn('прод — deployment `d572ff8e.unorbis-car-web.pages.dev`, код e161482. Слито 2e2f446.'), ['e161482', '2e2f446']);
+  assert.deepEqual(hashesIn('файл 3a4b5c6.log и 7d8e9f0.json'), []);
 });
 
 // ---------- итог по карточке ----------
