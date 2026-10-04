@@ -215,10 +215,10 @@ test('нет «Кто решил» → bad «не назван, кто реши�
   assert.equal(x.checked.who, null);
 });
 
-test('коммит не найден → bad «коммит abc1234 не найден»', () => {
+test('коммит не найден ни в одном репозитории → warn «не коммит? проверь глазами» (номер развёртывания без адреса — CAR-270; правка дирижёра)', () => {
   const x = tr('EXT-4');
-  assert.equal(x.state, 'bad');
-  assert.equal(x.reasons[0].text, 'коммит abc1234 не найден');
+  assert.equal(x.state, 'warn');
+  assert.equal(x.reasons[0].text, 'abc1234 не найден ни в одном репозитории — не коммит? проверь глазами');
   assert.deepEqual(x.checked.commits[0], { hash: 'abc1234', repo: null, found: false, inMain: null, pushed: null });
 });
 
@@ -422,11 +422,11 @@ test('ошибка git → не bad «не найден», а warn «не уда
   assert.ok(x.reasons.every((r) => r.code !== 'not-found'));
   assert.match(x.reasons[0].text, /не удалось проверить/);
   assert.equal(x.checked.commits[0].found, null);
-  assert.equal(t.peek('EXT-4').state, 'warn', 'и несуществующий коммит при сломанном git — не «не найден»');
+  assert.equal(t.peek('EXT-4').reasons[0].code, 'git-error', 'и несуществующий коммит при сломанном git — не «не найден»');
   broken = false;
   await t.refresh();
   assert.equal(t.peek('EXT-1').state, 'ok');
-  assert.equal(t.peek('EXT-4').state, 'bad');
+  assert.equal(t.peek('EXT-4').reasons[0].code, 'not-found');
 });
 
 // ---------- ручки ----------
@@ -445,8 +445,8 @@ test('ручки: trace у строк (в) /api/ceh и waiting[] окна про
   assert.ok(n > 0, 'счётчик видит вызовы прохода');
   const ceh = await get('/api/ceh');
   const row = ceh.waiting.review.find((r) => r.id === 'EXT-4');
-  assert.equal(row.trace.state, 'bad');
-  assert.equal(row.trace.label, 'коммит abc1234 не найден');
+  assert.equal(row.trace.state, 'warn');
+  assert.equal(row.trace.label, 'abc1234 не найден ни в одном репозитории — не коммит? проверь глазами');
   const proj = await get('/api/project/EXT');
   assert.equal(proj.waiting.find((r) => r.id === 'EXT-1').trace.state, 'ok');
   const card = await get('/api/card/EXT-6');
