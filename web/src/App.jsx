@@ -5,7 +5,7 @@ import Ceh from './Ceh.jsx';
 import MirrorButton from './Mirror.jsx';
 import Project from './Project.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
-import { hms, oldest } from './format.js';
+import { dm, hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
 
 function parseRoute() {
@@ -48,6 +48,15 @@ function Header({ route, freshness, name }) {
         <span className="fresh muted mono">
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
           {mirror && <><span className="sep">·</span><span title="Зеркало доски обновляется вручную: файлы доски отстают от Plane на время с последнего прохода">{mirror}</span></>}
+          {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
+              неудачна или в журнале битые строки; причина — /api/health → backup.lastError */}
+          {route.name === 'ceh' && freshness.backup && (
+            <><span className="sep">·</span>
+              <span className={freshness.backup.stale ? 'fresh-bad' : undefined}
+                title={freshness.backup.stale ? 'Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна или в журнале битые строки — причина в /api/health' : 'Суточная копия журнала нажатий пульта'}>
+                копия журнала нажатий · {freshness.backup.lastOkAt ? dm(freshness.backup.lastOkAt) : 'нет'}{freshness.backup.stale ? ' — проверь' : ''}
+              </span></>
+          )}
         </span>
       )}
       {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}
