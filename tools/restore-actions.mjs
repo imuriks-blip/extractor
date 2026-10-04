@@ -6,7 +6,7 @@
 // копия пишется как есть, байт в байт (записанное сверяется по SHA-256).
 // По умолчанию пишется <папка данных>/actions.restored.log (есть уже — actions.restored-2.log, -3…) — живой actions.log
 // не трогается.
-// --to <путь> (например data/vitrina/actions.log) — только если порт витрины свободен (checkPort из lib/start.mjs:
+// --to <путь> (например data/vitrina/actions.log) — только если порт витрины свободен (checkPort из lib/port.mjs:
 // state 'free'; порт — из config.json с умолчаниями, как читает server.mjs); витрина, чужой, молчун — отказ.
 // Файл, который --to заменяет, не пропадает: уходит рядом под именем …replaced-<время> (есть уже — …-2, -3…).
 // --data-dir — только для другой папки данных (по умолчанию <репозиторий>/data/vitrina; тесты).
@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inspectLog, sha256, parseShaLine, freeName, SHA_SUFFIX } from '../lib/backup.mjs';
 import { readConfig } from '../lib/config.mjs';
-import { checkPort } from '../lib/start.mjs';
+import { checkPort } from '../lib/port.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = '127.0.0.1';

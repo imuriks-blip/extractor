@@ -178,51 +178,110 @@ test('keep: 15 суток → 14 файлов; чужие файлы, .bad и п
   assert.deepEqual(names(s.dir).filter((n) => n.endsWith('.sha256')), dated.map((n) => `${n}.sha256`), 'эталон удалён не парой');
 });
 
-// ---------- журнал только дописывается (п.2 вердикта) ----------
+// ---------- журнал только дописывается: сверка с самой длинной копией ----------
 
-test('журнал стал короче: копия дня есть, ротации нет — все старые целы, lastError с именем последней удачной, stale; на следующие сутки — как обычно', () => {
+test('журнал укоротили — неделя суточных копий: тревога каждый день, ни одна старая полная не удалена и не изменена, короткие — рядом вне маски', () => {
   const s = setup({ keep: 14, start: day(2026, 10, 1) });
   fs.writeFileSync(s.file, rows(1));
   s.b.start();
   for (let d = 2; d <= 14; d++) { fs.appendFileSync(s.file, rows(d)); s.at(2026, 10, d, 0, 5, 0); assert.equal(s.b.tick().status, 'ok'); }
-  const before = logs(s.dir);
-  assert.equal(before.length, 14);
-  // день 15: журнал укоротили
-  fs.writeFileSync(s.file, rows(1, 2));
-  s.at(2026, 10, 15, 0, 5, 0);
-  assert.equal(s.b.tick().status, 'ok');
-  assert.deepEqual(logs(s.dir), [...before, 'actions-2026-10-15.log'], 'ротация прошла или копии дня нет');
-  assert.equal(read(path.join(s.dir, 'actions-2026-10-15.log')).toString(), rows(1, 2), 'копия дня — не сегодняшнее состояние');
-  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — последняя удачная копия actions-2026-10-14.log');
-  assert.equal(s.b.state().lastFile, 'actions-2026-10-15.log');
+  const full = logs(s.dir).filter((n) => /\.log$/.test(n));
+  assert.equal(full.length, 14);
+  const bytes = Object.fromEntries(full.map((n) => [n, read(path.join(s.dir, n))]));
+  fs.writeFileSync(s.file, rows(1, 2)); // укоротили
+  for (let d = 15; d <= 21; d++) {
+    if (d > 15) fs.appendFileSync(s.file, rows(100 + d)); // журнал живёт дальше, но не начинается с полной копии
+    s.at(2026, 10, d, 0, 5, 0);
+    const r = s.b.tick();
+    assert.equal(r.status, 'short', `день ${d}: ${JSON.stringify(r)}`);
+    assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — самая длинная копия actions-2026-10-14.log', `день ${d}`);
+    assert.equal(s.b.freshness().stale, true, `день ${d}`);
+    assert.equal(fs.existsSync(path.join(s.dir, `actions-2026-10-${d}.log`)), false, `день ${d}: короткая легла файлом дня`);
+  }
+  for (const n of full) assert.ok(read(path.join(s.dir, n)).equals(bytes[n]), `${n} удалён или изменён`);
+  assert.deepEqual(logs(s.dir).filter((n) => /\.log$/.test(n)), full, 'в маске ротации появились или пропали файлы');
+  const shorts = logs(s.dir).filter((n) => /\.log\.short-\d{6}$/.test(n));
+  assert.equal(shorts.length, 7, logs(s.dir).join(','));
+  assert.equal(read(path.join(s.dir, 'actions-2026-10-15.log.short-000500')).toString(), rows(1, 2));
+  assert.equal(s.b.state().count, 14);
+});
+
+test('укорочение в те же сутки: утренняя полная копия дня цела, короткая — actions-…log.short-ЧЧММСС рядом со своим .sha256; совпало имя — -2', () => {
+  const s = setup();
+  fs.writeFileSync(s.file, rows(1, 2, 3));
+  assert.equal(s.b.start().status, 'ok'); // 12:00 — утренняя полная
+  const dayFile = path.join(s.dir, 'actions-2026-10-02.log');
+  const morning = read(dayFile);
+  const morningSha = fs.readFileSync(`${dayFile}.sha256`, 'utf8');
+  fs.writeFileSync(s.file, rows(1));
+  s.at(2026, 10, 2, 18, 0, 0);
+  const r = s.b.run();
+  assert.deepEqual([r.status, r.file], ['short', 'actions-2026-10-02.log.short-180000']);
+  assert.ok(read(dayFile).equals(morning), 'файл дня заменён короткой копией');
+  assert.equal(fs.readFileSync(`${dayFile}.sha256`, 'utf8'), morningSha, 'эталон файла дня заменён');
+  const short = path.join(s.dir, 'actions-2026-10-02.log.short-180000');
+  assert.equal(read(short).toString(), rows(1));
+  assert.equal(fs.readFileSync(`${short}.sha256`, 'utf8'), `${sha(read(short))}  actions-2026-10-02.log.short-180000\n`);
+  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — самая длинная копия actions-2026-10-02.log');
   assert.equal(s.b.freshness().stale, true);
-  assert.equal(s.lines.at(-1).shrunk, 'actions-2026-10-14.log');
-  // день 16: журнал дописан поверх короткого — сходится с копией 15-го, ротация снова идёт, красного нет
-  fs.appendFileSync(s.file, rows(3));
-  s.at(2026, 10, 16, 0, 5, 0);
+  assert.equal(s.b.run().file, 'actions-2026-10-02.log.short-180000-2', 'вторая короткая в ту же секунду затёрла первую');
+  assert.equal(read(short).toString(), rows(1));
+});
+
+test('сверка — с самой длинной копией, не с последней: новейшая копия в папке короче старой — журнал, дописанный к новейшей, всё равно «короче»', () => {
+  // папка, где новейшая копия короче (осталась от прежних правил или положена руками)
+  const s = setup({ keep: 2, start: day(2026, 10, 3) });
+  fs.mkdirSync(s.dir, { recursive: true });
+  fs.writeFileSync(path.join(s.dir, 'actions-2026-10-01.log'), rows(1, 2, 3, 4, 5));
+  fs.writeFileSync(path.join(s.dir, 'actions-2026-10-02.log'), rows(1, 2));
+  const older = read(path.join(s.dir, 'actions-2026-10-01.log'));
+  fs.writeFileSync(s.file, rows(1, 2, 3)); // начинается с новейшей, но короче самой длинной
+  const r = s.b.start();
+  assert.equal(r.status, 'short', JSON.stringify(r));
+  assert.ok(read(path.join(s.dir, 'actions-2026-10-01.log')).equals(older), 'самая длинная ушла ротацией');
+  assert.deepEqual(logs(s.dir).filter((n) => /\.log$/.test(n)), ['actions-2026-10-01.log', 'actions-2026-10-02.log']);
+  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — самая длинная копия actions-2026-10-01.log');
+  assert.equal(s.b.freshness().stale, true);
+  // журнал дорос до самой длинной и начинается с неё — обычная копия, ротация идёт
+  fs.writeFileSync(s.file, rows(1, 2, 3, 4, 5, 6));
+  s.at(2026, 10, 4, 0, 5, 0);
   assert.equal(s.b.tick().status, 'ok');
-  assert.equal(logs(s.dir).length, 14);
+  assert.deepEqual(logs(s.dir).filter((n) => /\.log$/.test(n)), ['actions-2026-10-02.log', 'actions-2026-10-04.log'], 'keep 2');
   assert.equal(s.b.state().lastError, null);
   assert.equal(s.b.freshness().stale, false);
 });
 
-test('журнал той же длины и длиннее, но изменён в начале — тоже «изменился», ротации нет; дописанный — нет', () => {
+test('изменён в начале при той же и большей длине — тоже «короче или изменился»: ротации нет', () => {
   const s = setup({ keep: 1 });
   fs.writeFileSync(s.file, rows(1, 2));
   s.b.start();
-  // дописан: сходится
   fs.appendFileSync(s.file, rows(3));
   s.at(2026, 10, 3, 0, 5, 0);
   assert.equal(s.b.tick().status, 'ok');
   assert.deepEqual(logs(s.dir), ['actions-2026-10-03.log'], 'keep 1: вчерашняя ушла ротацией');
-  assert.equal(s.b.state().lastError, null);
-  // первая строка подменена, длина больше прежней: не начинается с последней копии
   fs.writeFileSync(s.file, row(1, 'строка Х') + '\n' + rows(2, 3, 4));
   s.at(2026, 10, 4, 0, 5, 0);
-  assert.equal(s.b.tick().status, 'ok');
-  assert.deepEqual(logs(s.dir), ['actions-2026-10-03.log', 'actions-2026-10-04.log'], 'ротация прошла при изменённом начале');
-  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — последняя удачная копия actions-2026-10-03.log');
-  assert.equal(s.b.freshness().stale, true);
+  assert.equal(s.b.tick().status, 'short');
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-03.log', 'actions-2026-10-04.log.short-000500']);
+  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — самая длинная копия actions-2026-10-03.log');
+});
+
+test('перезапуск с копией дня: журнал короче самой длинной копии — stale и lastError и после перезапуска; журнал цел — чисто', () => {
+  const s = setup();
+  fs.writeFileSync(s.file, rows(1, 2, 3));
+  s.b.start();
+  fs.writeFileSync(s.file, rows(1));
+  s.at(2026, 10, 2, 18, 0, 0);
+  const again = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+  assert.equal(again.start().status, 'skipped');
+  assert.equal(again.state().lastError, 'журнал стал короче или изменился в начале — самая длинная копия actions-2026-10-02.log');
+  assert.equal(again.freshness().stale, true);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log'], 'на skipped что-то записано');
+  fs.writeFileSync(s.file, rows(1, 2, 3, 4));
+  const clean = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+  assert.equal(clean.start().status, 'skipped');
+  assert.equal(clean.state().lastError, null);
+  assert.equal(clean.freshness().stale, false);
 });
 
 // ---------- журнал дописывается ----------
@@ -384,8 +443,12 @@ test('перезапуск с копией дня (skipped): журнал всё
   assert.deepEqual(again.freshness(), { lastOkAt: again.state().lastOkAt, stale: false, journalBad: { count: 1, first: 2 } });
   assert.equal(again.state().lastError, null);
   assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log'], 'на skipped копия всё же снята');
-  fs.writeFileSync(s.file, rows(1, 2, 3));
-  const clean = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
+  // чистый журнал (своя площадка: переписать журнал целиком — это уже «изменился в начале»)
+  const c = setup();
+  fs.writeFileSync(c.file, rows(1, 2, 3));
+  c.b.start();
+  fs.appendFileSync(c.file, rows(4));
+  const clean = createBackup({ file: c.file, dir: c.dir, now: () => c.clock.d, log: { write() {} } });
   assert.equal(clean.start().status, 'skipped');
   assert.equal(clean.state().journalBad, null);
   assert.equal(clean.freshness().stale, false);
@@ -726,6 +789,28 @@ test('restore: неверный вызов — код 2 без записи', as
   assert.equal((await tool(['x.log', '--нет'])).code, 2);
   const a = restoreArea();
   assert.equal((await tool([path.join(a.data, 'нет-такой-копии.log'), '--data-dir', a.data])).code, 1);
+});
+
+test('restore не тянет сервер: граф импорта от tools/restore-actions.mjs — без fastify, lib/start.mjs, lib/app.mjs; lib/port.mjs — только node:', () => {
+  const seen = new Set();
+  const bare = new Set();
+  const walk = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const text = fs.readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/^\s*(?:import|export)\s[^;]*?from\s+'([^']+)'/gm)) {
+      const spec = m[1];
+      if (spec.startsWith('.')) walk(path.resolve(path.dirname(file), spec));
+      else bare.add(spec);
+    }
+  };
+  walk(TOOL);
+  const rel = [...seen].map((f) => path.relative(ROOT, f).replace(/\\/g, '/'));
+  assert.ok(rel.includes('lib/port.mjs'), rel.join(','));
+  for (const heavy of ['lib/start.mjs', 'lib/app.mjs']) assert.ok(!rel.includes(heavy), `restore тянет ${heavy}: ${rel.join(',')}`);
+  assert.deepEqual([...bare].filter((b) => !b.startsWith('node:')), [], 'restore тянет внешние пакеты');
+  const portSrc = fs.readFileSync(path.join(ROOT, 'lib', 'port.mjs'), 'utf8');
+  assert.deepEqual([...portSrc.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]).filter((x) => !x.startsWith('node:')), []);
 });
 
 test('localDay: местная дата ГГГГ-ММ-ДД', () => {
