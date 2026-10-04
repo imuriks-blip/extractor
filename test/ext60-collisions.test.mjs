@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
@@ -17,6 +18,7 @@ import { isRedMark } from '../lib/threads.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { scan } = await import(new URL(`file:///${BOARD_LIB}/secrets.mjs`).href);
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
@@ -245,7 +247,7 @@ test('ignore по умолчанию: Temp\\claude и .claude\\projects не с�
   assert.equal(collisions(blank, A)[0].files.length, 2);
   // не массив — умолчание
   assert.deepEqual(collisions(await workers(t, { collisions: { ignore: 'generated' } }), A)[0].files.map((f) => f.path), [normPath(gen)]);
-  assert.deepEqual(COLLISION_IGNORE, JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'config.default.json'), 'utf8')).collisions.ignore, 'умолчание в коде и в config.default.json одно');
+  assert.deepEqual(COLLISION_IGNORE, JSON.parse(fs.readFileSync(path.join(ROOT, 'config.default.json'), 'utf8')).collisions.ignore, 'умолчание в коде и в config.default.json одно');
 });
 
 test('второй тред закрыт → пометка у живого, other.closed true, название — custom-title журнала; у закрытого пометок нет', async () => {
@@ -436,7 +438,7 @@ test('маска: строки пометки (название другого �
 // ---------- образцы ----------
 
 test('образцы web/fixtures: пометка collision в ceh.json и project-EXT.json — ключи как у настоящей (fixtures.test.mjs сверяет только первую пометку)', async () => {
-  const load = (f) => JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'web', 'fixtures', f), 'utf8'));
+  const load = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, 'web', 'fixtures', f), 'utf8'));
   const sampleOf = (j) => j.workers.threads.flatMap((x) => x.marks).filter((m) => m.kind === 'collision');
   const files = Array.from({ length: 7 }, (_, i) => `C:\\projects\\app\\f${i + 1}.js`);
   const t = tree({ [A]: files.flatMap((f, i) => edit(A, i + 1, 'Edit', f, at(3 * H))), [B]: files.flatMap((f, i) => edit(B, i + 1, 'Edit', f, at(H))) });
@@ -459,7 +461,7 @@ test('образцы web/fixtures: пометка collision в ceh.json и proje
 // ---------- настройки ----------
 
 test('настройки: умолчания в config.default.json; живой config сливается по ключам, массив ignore заменяется целиком', () => {
-  const defaults = JSON.parse(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'config.default.json'), 'utf8'));
+  const defaults = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.default.json'), 'utf8'));
   assert.equal(defaults.thresholds.collisionWindowH, EDIT_WINDOW_H);
   assert.match(defaults.collisions._comment, /ЗАМЕНЯЕТ/, 'в образце настройки — пояснение про замену массива');
   const data = tmpDir('cfg-');
