@@ -470,6 +470,15 @@ test('Важно 1 круга 2: после контракта «▶ выдан�
   const tikhiy = { ms: 6, index: 5, body: '▶ выдан: tikhiy · пост' };
   assert.equal(findContract([contract, demon, tikhiy]).newTakt, false);
   assert.equal(findContract([contract, demon, takt]).newTakt, true);
+  // третий круг Голема: живые виды записи — жирное, закрытое после двоеточия (CAR-263), имя внутри жирного (ASTRO-22),
+  // Бальд с картинками к посту; «▶ выдан» посреди строки (CAR-264) — новый такт
+  const live = (body) => findContract([contract, { ms: 9, index: 9, body }]).newTakt;
+  assert.equal(live('**▶ выдан:** demon · Vault main · знание по вехе В2.'), false);
+  assert.equal(live('**▶ выдан: Демон** · знание'), false);
+  assert.equal(live('▶ выдан: bard · картинки к посту CAR-264'), false);
+  assert.equal(live('**Картинки нужны** (решение дирижёра): шаги поста. **▶ выдан: bard** — вёрстка формы заново'), true);
+  assert.equal(live('**▶ выдан:** terminus · car-235 · второй круг'), true);
+  assert.equal(live('▶ выдан: terminus · постоянная ссылка на файл'), true, '«постоянная» — не «пост»');
   assert.equal(findContract([contract]).later, 0);
 });
 
