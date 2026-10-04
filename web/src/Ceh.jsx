@@ -270,7 +270,8 @@ export function Mark({ m, now }) {
 const timesWord = (n) => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'раза' : 'раз');
 function Memory({ m }) {
   if (!m) return null;
-  const size = m.pct == null ? `память ${Math.round(m.tokens / 1000)} тыс.` : `память ${m.pct} %`;
+  const k = Math.round(m.tokens / 1000);
+  const size = m.pct == null ? `память ${k > 0 ? k : 'меньше 1'} тыс.` : `память ${m.pct} %`;
   return (
     <div className="th2">
       {m.warn

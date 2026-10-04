@@ -90,6 +90,17 @@ test('сжатия прежней сессии продолженного тре
   assert.equal(mem.tokens, 60000);
 });
 
+// Важно 1 Голема: на живых журналах (a08ff646) строка compact_boundary, перенесённая из прежней сессии при продолжении
+// треда, несёт sessionId НОВОЙ сессии (время прежнее, parentUuid: null). Решение дирижёра (а): такое сжатие — своё,
+// разговор тот же; счёт его включает
+test('сжатие, перенесённое в журнал продолженного треда с sessionId новой сессии, засчитывается — разговор тот же', async () => {
+  const mem = await memOfLines([
+    compact({ m: 1, pre: 998347, post: 22172 }), asst({ m: 2, cr: 80000 }), compact({ m: 3, post: 9000 }), asst({ m: 4, cr: 40000 }),
+  ]);
+  assert.equal(mem.compactions, 2);
+  assert.equal(mem.tokens, 40000);
+});
+
 test('неизвестная модель — тысячи без процента и без порога', () => {
   const mem = memoryOf({ tokens: 950000, model: 'claude-haiku-4-5-20251001', at: at(0), compactions: 0 }, { contextWindow: CW, warnPct: 80 });
   assert.deepEqual(mem, { tokens: 950000, window: null, pct: null, model: 'claude-haiku-4-5-20251001', at: at(0), compactions: 0, warn: false });
