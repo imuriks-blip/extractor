@@ -42,7 +42,9 @@ const result = (sid, id, time, { error = false, extra = {} } = {}) => JSON.strin
 // правка с результатом: ok (по умолчанию) или с ошибкой
 function edit(sid, n, tool, file, time, opts = {}) {
   const field = tool === 'NotebookEdit' ? 'notebook_path' : 'file_path';
-  return [call(sid, `t${n}`, tool, { [field]: file }, time, opts.callExtra), result(sid, `t${n}`, time, opts)];
+  // id вызова уникален, как у настоящих tool_use id: одинаковый id в двух сессиях — копия строки (ключ копии, EXT-60)
+  const id = `t${n}-${sid.slice(0, 8)}`;
+  return [call(sid, id, tool, { [field]: file }, time, opts.callExtra), result(sid, id, time, opts)];
 }
 const title = (sid, text) => JSON.stringify({ type: 'custom-title', sessionId: sid, customTitle: text });
 // запуск субагента: вызов Agent и результат с agentId (тогда журнал субагента привязан к запуску сессии)
@@ -503,6 +505,44 @@ test('исправный случай рядом: настоящий друго�
   const w2 = await workers(t2);
   assert.deepEqual(collisions(w2, A).map((m) => m.other.sessionId).sort(), [B, C].sort());
   assert.deepEqual(collisions(w2, A).find((m) => m.other.sessionId === C).files[0].mineAt, at(H), 'время — своей строки A');
+});
+
+// Вторая форма копий (живые журналы 04.10: 1 950 id вызовов правки в 2+ файлах сессий, у копий sessionId переписан на
+// новый, uuid и время строки те же). Ключ копии — id вызова (tool_use id): правка с id, который есть у правки другой
+// сессии, — копия; не считается у той сессии, чей файл появился позже (время создания файла; при равенстве — меньший
+// sessionId — раньше). Решение дирижёра по развилке п.6 (вариант а).
+const rewrite = (lines, sid) => lines.map((l) => JSON.stringify({ ...JSON.parse(l), sessionId: sid }));
+const pause = () => new Promise((r) => setTimeout(r, 30));
+// журнал сессии, появившийся позже прочих (файл создаётся после паузы)
+async function addLater(t, sid, lines) { await pause(); fs.writeFileSync(t.file(sid), lines.map((l) => l + '\n').join('')); }
+
+test('копия правки с переписанным sessionId в файле новой сессии (без десктопной связи) — пометки «сам с собой» нет; у настоящего другого треда — одна пометка', async () => {
+  const prev = edit(C, 1, 'Edit', FILE, at(3 * H));
+  const t = tree({ [C]: prev, [B]: edit(B, 1, 'Write', FILE, at(2 * H)) });
+  await addLater(t, A, [...rewrite(prev, A), ...edit(A, 2, 'Edit', OWN, at(H))]);
+  const w = await workers(t);
+  assert.deepEqual(collisions(w, A), [], 'копия правки C (id вызова тот же) — не правка A');
+  assert.deepEqual(collisions(w, B).map((m) => m.other.sessionId), [C], 'B — с C, не с копией в A');
+});
+
+test('копия правки плюс своя новая правка того же пути после продолжения — пометка с настоящим другим тредом есть, время — своей правки', async () => {
+  const prev = edit(C, 1, 'Edit', FILE, at(5 * H));
+  const t = tree({ [C]: prev, [B]: edit(B, 1, 'Write', FILE, at(4 * H)) });
+  await addLater(t, A, [...rewrite(prev, A), ...edit(A, 2, 'Edit', FILE, at(H))]);
+  const w = await workers(t);
+  const withB = collisions(w, A).find((m) => m.other.sessionId === B);
+  assert.ok(withB, 'своя новая правка A (новый id вызова) — столкновение с B');
+  assert.equal(withB.files[0].mineAt, at(H));
+  assert.equal(collisions(w, B).find((m) => m.other.sessionId === A)?.files[0].otherAt, at(H));
+});
+
+test('форк: обе ветки после форка правят один путь новыми вызовами — пометка у обеих, время — новых правок', async () => {
+  const base = edit(A, 1, 'Edit', FILE, at(5 * H)); // общая история до форка
+  const t = tree({ [A]: [...base, ...edit(A, 2, 'Edit', FILE, at(2 * H))] });
+  await addLater(t, B, [...rewrite(base, B), ...edit(B, 3, 'Edit', FILE, at(H))]);
+  const w = await workers(t);
+  assert.deepEqual(collisions(w, A).map((m) => [m.other.sessionId, m.files[0].mineAt, m.files[0].otherAt]), [[B, at(2 * H), at(H)]]);
+  assert.deepEqual(collisions(w, B).map((m) => [m.other.sessionId, m.files[0].mineAt, m.files[0].otherAt]), [[A, at(H), at(2 * H)]]);
 });
 
 test('субагент продолженного треда: копия запуска в журнале нового треда не делает его вторым владельцем — у другого треда одна пометка, не две', async () => {
