@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,8 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { loadConfig } from '../lib/config.mjs';
-import { createBackup, inspectLog, snapshotOf, localDay, brokenText } from '../lib/backup.mjs';
+import { createBackup, inspectLog, snapshotOf, localDay } from '../lib/backup.mjs';
+import { main as restoreMain } from '../tools/restore-actions.mjs';
 import { startServer } from '../lib/start.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
@@ -45,14 +47,16 @@ function setup({ keep, fsOf, start = day(2026, 10, 2) } = {}) {
   return { data, file, dir, clock, lines, b, at: (...a) => { clock.d = day(...a); } };
 }
 const names = (dir) => fs.readdirSync(dir).sort();
+// папка копий без эталонов .sha256 (их проверяют отдельные тесты)
+const logs = (dir) => names(dir).filter((n) => !n.endsWith('.sha256'));
 const read = (p) => fs.readFileSync(p);
 
 // ---------- сам разбор и снимок ----------
 
-test('inspectLog: число строк, id последней JSON-строки; строки не JSON (пустая тоже) — считаются с номерами, разбор не прерывают', () => {
+test('inspectLog: число строк, id последней JSON-строки; строки не JSON — считаются с номерами, разбор не прерывают; пустая — не битая', () => {
   assert.deepEqual(inspectLog(Buffer.from(rows(1, 2, 3))), { ok: true, lines: 3, lastId: idOf(3), badLine: null, badLines: [] });
   assert.deepEqual(inspectLog(Buffer.from('')), { ok: true, lines: 0, lastId: null, badLine: null, badLines: [] });
-  assert.deepEqual(inspectLog(Buffer.from(rows(1) + '\n' + rows(2))), { ok: false, lines: 3, lastId: idOf(2), badLine: 2, badLines: [2] }, 'пустая строка посреди');
+  assert.deepEqual(inspectLog(Buffer.from(rows(1) + '\n' + rows(2))), { ok: true, lines: 3, lastId: idOf(2), badLine: null, badLines: [] }, 'пустая строка посреди — не битая (читатель пульта её пропускает)');
   assert.deepEqual(inspectLog(Buffer.from(rows(1) + '{"id":\n' + rows(3) + 'мусор\n' + rows(5))), { ok: false, lines: 5, lastId: idOf(5), badLine: 2, badLines: [2, 4] });
   assert.deepEqual(inspectLog(Buffer.from(rows(1) + '{"id":"x"')), { ok: false, lines: 2, lastId: idOf(1), badLine: 2, badLines: [2] }, 'без перевода строки в конце — неполная строка не JSON; последний id — у последней JSON-строки');
 });
@@ -71,7 +75,7 @@ test('старт: первая копия — файл дня actions-ГГГГ-�
   fs.writeFileSync(s.file, rows(1, 2, 3));
   const r = s.b.start();
   assert.equal(r.status, 'ok');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log']);
   assert.equal(read(path.join(s.dir, 'actions-2026-10-02.log')).toString(), rows(1, 2, 3));
   const st = s.b.state();
   assert.equal(st.lastFile, 'actions-2026-10-02.log');
@@ -79,7 +83,11 @@ test('старт: первая копия — файл дня actions-ГГГГ-�
   assert.equal(st.count, 1);
   assert.equal(st.lastOkAt, s.clock.d.toISOString());
   assert.deepEqual(s.lines, [{ ev: 'backup', file: 'actions-2026-10-02.log', lines: 3, last: idOf(3), kept: 1 }]);
-  assert.deepEqual(s.b.freshness(), { lastOkAt: st.lastOkAt, stale: false });
+  assert.deepEqual(s.b.freshness(), { lastOkAt: st.lastOkAt, stale: false, journalBad: null });
+  // эталон рядом: SHA-256 копии в формате sha256sum
+  const copy = read(path.join(s.dir, 'actions-2026-10-02.log'));
+  assert.equal(fs.readFileSync(path.join(s.dir, 'actions-2026-10-02.log.sha256'), 'utf8'), `${sha(copy)}  actions-2026-10-02.log\n`);
+  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-02.log.sha256']);
 });
 
 test('вторая копия — только после местной полуночи; в те же сутки тик ничего не делает', () => {
@@ -91,10 +99,10 @@ test('вторая копия — только после местной пол�
   fs.appendFileSync(s.file, rows(4));
   s.at(2026, 10, 2, 23, 59, 59);
   assert.equal(s.b.tick(), null, 'до полуночи копии нет');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log']);
   s.at(2026, 10, 3, 0, 0, 2);
   assert.equal(s.b.tick().status, 'ok', 'первый тик после полуночи');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
   assert.equal(read(path.join(s.dir, 'actions-2026-10-02.log')).toString(), rows(1, 2, 3), 'вчерашняя копия не тронута');
   assert.equal(read(path.join(s.dir, 'actions-2026-10-03.log')).toString(), rows(1, 2, 3, 4));
   s.at(2026, 10, 3, 0, 0, 4);
@@ -107,7 +115,7 @@ test('пробуждение через полночь: первый тик по
   s.b.start();
   s.at(2026, 10, 4, 9, 0, 0); // машина спала двое суток
   assert.equal(s.b.tick().status, 'ok');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-04.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-04.log']);
 });
 
 test('повтор в те же сутки заменяет файл дня: один файл, новое содержимое, временных файлов нет', () => {
@@ -117,32 +125,32 @@ test('повтор в те же сутки заменяет файл дня: о�
   fs.appendFileSync(s.file, rows(3));
   s.at(2026, 10, 2, 18, 0, 0);
   assert.equal(s.b.run().status, 'ok');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log']);
   assert.equal(read(path.join(s.dir, 'actions-2026-10-02.log')).toString(), rows(1, 2, 3));
   assert.equal(s.b.state().count, 1);
 });
 
-test('старт: свежая копия (моложе 24 ч) — копии нет; старше 24 ч или нет совсем — копия сейчас', () => {
+test('старт: файл сегодняшнего дня есть — копии нет (как бы он ни был стар); нет — копия сейчас, даже если вчерашней 2 часа', () => {
   const s = setup();
   fs.writeFileSync(s.file, rows(1, 2));
   s.b.start();
   const copy = path.join(s.dir, 'actions-2026-10-02.log');
-  // перезапуск через 5 часов: копия свежая, вторая не нужна
   const mtime = (h) => { const t = (s.clock.d.getTime() - h * H) / 1000; fs.utimesSync(copy, t, t); };
+  // перезапуск в те же сутки, копии 11 часов — она сегодняшняя, вторая не нужна
   fs.appendFileSync(s.file, rows(3));
-  s.at(2026, 10, 2, 17, 0, 0);
-  mtime(5);
+  s.at(2026, 10, 2, 23, 0, 0);
+  mtime(11);
   const second = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
   assert.equal(second.start().status, 'skipped');
-  assert.equal(read(copy).toString(), rows(1, 2), 'свежая копия не перезаписана');
+  assert.equal(read(copy).toString(), rows(1, 2), 'сегодняшняя копия перезаписана');
   assert.equal(second.state().lastFile, 'actions-2026-10-02.log', 'последняя удачная — из папки');
   assert.equal(second.state().count, 1);
-  // копии 30 часов — старше суток: на старте новая
-  mtime(30);
-  s.at(2026, 10, 3, 18, 0, 0);
+  // перезапуск в 01:00 следующих суток: вчерашней копии 2 часа, но сегодняшней нет — копия сейчас
+  s.at(2026, 10, 3, 1, 0, 0);
+  mtime(2);
   const third = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
   assert.equal(third.start().status, 'ok');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
 });
 
 // ---------- ротация ----------
@@ -150,7 +158,7 @@ test('старт: свежая копия (моложе 24 ч) — копии н
 test('keep: 15 суток → 14 файлов; чужие файлы, .bad и папка с похожим именем не тронуты', () => {
   const s = setup({ keep: 14, start: day(2026, 10, 1) });
   fs.mkdirSync(s.dir, { recursive: true });
-  const foreign = ['notes.txt', 'actions-foo.log', 'actions-2020-01-01.log.bad', 'actions-2021-05-05.log.tmp', 'actions-2026-1-5.log'];
+  const foreign = ['notes.txt', 'actions-foo.log', 'actions-2020-01-01.log.bad', 'actions-2021-05-05.log.tmp', 'actions-2026-1-5.log', 'actions-2026-10-01.log.sha256.old', 'actions-2020-01-01.log.sha256x'];
   for (const f of foreign) fs.writeFileSync(path.join(s.dir, f), f);
   fs.mkdirSync(path.join(s.dir, 'actions-2019-12-31.log')); // папка под маску — не файл
   fs.writeFileSync(s.file, rows(1));
@@ -160,12 +168,61 @@ test('keep: 15 суток → 14 файлов; чужие файлы, .bad и п
     s.at(2026, 10, d, 0, 5, 0);
     assert.equal(s.b.tick().status, 'ok', `день ${d}`);
   }
-  const dated = names(s.dir).filter((n) => /^actions-\d{4}-\d\d-\d\d\.log$/.test(n) && fs.statSync(path.join(s.dir, n)).isFile());
+  const dated = logs(s.dir).filter((n) => /^actions-\d{4}-\d\d-\d\d\.log$/.test(n) && fs.statSync(path.join(s.dir, n)).isFile());
   assert.equal(dated.length, 14);
   assert.deepEqual(dated, Array.from({ length: 14 }, (_, i) => `actions-2026-10-${String(i + 2).padStart(2, '0')}.log`), 'старейшая (1 октября) удалена, 14 последних целы');
   for (const f of foreign) assert.equal(fs.readFileSync(path.join(s.dir, f), 'utf8'), f, `${f} тронут`);
   assert.ok(fs.statSync(path.join(s.dir, 'actions-2019-12-31.log')).isDirectory(), 'папка под маску удалена');
   assert.equal(s.b.state().count, 14);
+  // эталоны: удалён вместе со своей копией, остальные 14 — на месте
+  assert.deepEqual(names(s.dir).filter((n) => n.endsWith('.sha256')), dated.map((n) => `${n}.sha256`), 'эталон удалён не парой');
+});
+
+// ---------- журнал только дописывается (п.2 вердикта) ----------
+
+test('журнал стал короче: копия дня есть, ротации нет — все старые целы, lastError с именем последней удачной, stale; на следующие сутки — как обычно', () => {
+  const s = setup({ keep: 14, start: day(2026, 10, 1) });
+  fs.writeFileSync(s.file, rows(1));
+  s.b.start();
+  for (let d = 2; d <= 14; d++) { fs.appendFileSync(s.file, rows(d)); s.at(2026, 10, d, 0, 5, 0); assert.equal(s.b.tick().status, 'ok'); }
+  const before = logs(s.dir);
+  assert.equal(before.length, 14);
+  // день 15: журнал укоротили
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.at(2026, 10, 15, 0, 5, 0);
+  assert.equal(s.b.tick().status, 'ok');
+  assert.deepEqual(logs(s.dir), [...before, 'actions-2026-10-15.log'], 'ротация прошла или копии дня нет');
+  assert.equal(read(path.join(s.dir, 'actions-2026-10-15.log')).toString(), rows(1, 2), 'копия дня — не сегодняшнее состояние');
+  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — последняя удачная копия actions-2026-10-14.log');
+  assert.equal(s.b.state().lastFile, 'actions-2026-10-15.log');
+  assert.equal(s.b.freshness().stale, true);
+  assert.equal(s.lines.at(-1).shrunk, 'actions-2026-10-14.log');
+  // день 16: журнал дописан поверх короткого — сходится с копией 15-го, ротация снова идёт, красного нет
+  fs.appendFileSync(s.file, rows(3));
+  s.at(2026, 10, 16, 0, 5, 0);
+  assert.equal(s.b.tick().status, 'ok');
+  assert.equal(logs(s.dir).length, 14);
+  assert.equal(s.b.state().lastError, null);
+  assert.equal(s.b.freshness().stale, false);
+});
+
+test('журнал той же длины и длиннее, но изменён в начале — тоже «изменился», ротации нет; дописанный — нет', () => {
+  const s = setup({ keep: 1 });
+  fs.writeFileSync(s.file, rows(1, 2));
+  s.b.start();
+  // дописан: сходится
+  fs.appendFileSync(s.file, rows(3));
+  s.at(2026, 10, 3, 0, 5, 0);
+  assert.equal(s.b.tick().status, 'ok');
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-03.log'], 'keep 1: вчерашняя ушла ротацией');
+  assert.equal(s.b.state().lastError, null);
+  // первая строка подменена, длина больше прежней: не начинается с последней копии
+  fs.writeFileSync(s.file, row(1, 'строка Х') + '\n' + rows(2, 3, 4));
+  s.at(2026, 10, 4, 0, 5, 0);
+  assert.equal(s.b.tick().status, 'ok');
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-03.log', 'actions-2026-10-04.log'], 'ротация прошла при изменённом начале');
+  assert.equal(s.b.state().lastError, 'журнал стал короче или изменился в начале — последняя удачная копия actions-2026-10-03.log');
+  assert.equal(s.b.freshness().stale, true);
 });
 
 // ---------- журнал дописывается ----------
@@ -220,10 +277,10 @@ test('порченая копия: ….bad, lastError, строка «backup err
   c.bad.on = true;
   const r = s.b.tick(); // 10-04: копия прочиталась порченой
   assert.deepEqual([r.status, r.code], ['error', 'sha-mismatch']);
-  const bad04 = names(s.dir).filter((n) => n.endsWith('.bad'));
-  assert.equal(bad04.length, 1, names(s.dir).join(','));
+  const bad04 = logs(s.dir).filter((n) => n.endsWith('.bad'));
+  assert.equal(bad04.length, 1, logs(s.dir).join(','));
   assert.match(bad04[0], /^actions-2026-10-04\.log\.[\d-]+\.bad$/, 'у .bad — метка времени');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log', bad04[0]]);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log', bad04[0]]);
   assert.equal(fs.existsSync(path.join(s.dir, 'actions-2026-10-04.log')), false, 'порченый файл остался под боевым именем');
   const st = s.b.state();
   assert.equal(st.lastError, 'sha-mismatch');
@@ -237,7 +294,7 @@ test('порченая копия: ….bad, lastError, строка «backup err
   fs.appendFileSync(s.file, rows(6));
   s.at(2026, 10, 5, 0, 5);
   assert.equal(s.b.tick().status, 'ok');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-03.log', bad04[0], 'actions-2026-10-05.log']);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-03.log', bad04[0], 'actions-2026-10-05.log']);
   assert.equal(s.b.state().lastError, null);
   assert.equal(s.b.freshness().stale, false);
 });
@@ -273,8 +330,8 @@ test('повторная порченая копия в те же сутки н�
   assert.deepEqual([r.status, r.code], ['error', 'sha-mismatch']);
   c.bad.on = false;
   assert.ok(read(dayFile).equals(morning), 'файл дня изменён порченой повторной копией');
-  const bads = () => names(s.dir).filter((n) => n.endsWith('.bad'));
-  assert.equal(bads().length, 1, names(s.dir).join(','));
+  const bads = () => logs(s.dir).filter((n) => n.endsWith('.bad'));
+  assert.equal(bads().length, 1, logs(s.dir).join(','));
   assert.match(bads()[0], /^actions-2026-10-02\.log\.[\d-]+\.bad$/);
   assert.equal(s.b.state().lastError, 'sha-mismatch');
   assert.equal(s.b.state().lastFile, 'actions-2026-10-02.log');
@@ -287,74 +344,76 @@ test('повторная порченая копия в те же сутки н�
   assert.equal(s.b.run().status, 'error');
   assert.equal(s.b.run().status, 'error');
   c.bad.on = false;
-  assert.equal(bads().length, 3, names(s.dir).join(','));
+  assert.equal(bads().length, 3, logs(s.dir).join(','));
   assert.ok(read(dayFile).equals(morning), 'файл дня изменён');
-  assert.deepEqual(names(s.dir).filter((n) => n.endsWith('.tmp')), [], 'временные файлы остались');
+  assert.deepEqual(logs(s.dir).filter((n) => n.endsWith('.tmp')), [], 'временные файлы остались');
 });
 
-test('битая строка в живом журнале не останавливает копии: копия удачная (файл дня, не .bad), lastError про битую строку, stale true, lastOkAt обновлён', () => {
+test('битая строка в живом журнале не останавливает копии: копия удачная (файл дня, не .bad); journalBad {count, first}, lastError пуст, stale false', () => {
   const s = setup();
   const live = rows(1) + '{"id": оборвано\n' + rows(3);
   fs.writeFileSync(s.file, live);
   const r = s.b.start();
   assert.equal(r.status, 'ok', JSON.stringify(r));
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log'], 'копия ушла в .bad или не легла');
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log'], 'копия ушла в .bad или не легла');
   assert.equal(read(path.join(s.dir, 'actions-2026-10-02.log')).toString(), live, 'копия не байт в байт');
   const st = s.b.state();
-  assert.equal(st.lastError, 'в журнале 1 битая строка (строка 2)');
+  assert.equal(st.lastError, null, 'lastError — для сбоев копии');
+  assert.deepEqual(st.journalBad, { count: 1, first: 2 });
   assert.equal(st.lastFile, 'actions-2026-10-02.log');
   assert.equal(st.lastOkAt, s.clock.d.toISOString());
   assert.equal(st.count, 1);
-  assert.deepEqual(s.b.freshness(), { lastOkAt: st.lastOkAt, stale: true });
-  // на следующие сутки битых две — копия снова удачная, число и первая — новые
-  fs.appendFileSync(s.file, 'не json\n' + rows(5));
+  assert.deepEqual(s.b.freshness(), { lastOkAt: st.lastOkAt, stale: false, journalBad: { count: 1, first: 2 } });
+  // на следующие сутки битых две (и пустая строка — не битая)
+  fs.appendFileSync(s.file, 'не json\n\n' + rows(6));
   s.at(2026, 10, 3, 0, 5);
   assert.equal(s.b.tick().status, 'ok');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
-  assert.equal(s.b.state().lastError, 'в журнале 2 битые строки (первая — строка 2)');
-  assert.equal(s.b.state().lastOkAt, s.clock.d.toISOString());
-  // журнал починили — ошибка снята, красного нет
-  fs.writeFileSync(s.file, rows(1, 2, 3));
-  s.at(2026, 10, 4, 0, 5);
-  assert.equal(s.b.tick().status, 'ok');
-  assert.equal(s.b.state().lastError, null);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log', 'actions-2026-10-03.log']);
+  assert.deepEqual(s.b.state().journalBad, { count: 2, first: 2 });
   assert.equal(s.b.freshness().stale, false);
 });
 
-test('текст про битые строки — со склонением: 1 битая (строка K); 2–4 битые; 5+ и 11–14 битых (первая — строка K)', () => {
-  const cases = [
-    [1, 'в журнале 1 битая строка (строка 7)'],
-    [2, 'в журнале 2 битые строки (первая — строка 7)'],
-    [4, 'в журнале 4 битые строки (первая — строка 7)'],
-    [5, 'в журнале 5 битых строк (первая — строка 7)'],
-    [11, 'в журнале 11 битых строк (первая — строка 7)'],
-    [12, 'в журнале 12 битых строк (первая — строка 7)'],
-    [14, 'в журнале 14 битых строк (первая — строка 7)'],
-    [21, 'в журнале 21 битая строка (первая — строка 7)'],
-    [22, 'в журнале 22 битые строки (первая — строка 7)'],
-    [111, 'в журнале 111 битых строк (первая — строка 7)'],
-  ];
-  for (const [n, want] of cases) assert.equal(brokenText(n, 7), want, `n=${n}`);
-});
-
-test('перезапуск со свежей копией (skipped): журнал всё равно читается — битая строка держит lastError и stale; чистый журнал — чисто', () => {
+test('перезапуск с копией дня (skipped): журнал всё равно читается — битая строка держит journalBad; чистый журнал — null', () => {
   const s = setup();
   fs.writeFileSync(s.file, rows(1) + 'мусор\n' + rows(3));
   assert.equal(s.b.start().status, 'ok');
-  s.at(2026, 10, 2, 15, 0, 0); // через 3 часа — копия свежая
-  const t3 = (s.clock.d.getTime() - 3 * H) / 1000;
-  fs.utimesSync(path.join(s.dir, 'actions-2026-10-02.log'), t3, t3);
+  s.at(2026, 10, 2, 15, 0, 0);
   const again = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
   assert.equal(again.start().status, 'skipped');
-  assert.equal(again.state().lastError, 'в журнале 1 битая строка (строка 2)');
-  assert.equal(again.freshness().stale, true, 'красное не пережило перезапуск');
-  assert.deepEqual(names(s.dir), ['actions-2026-10-02.log'], 'на skipped копия всё же снята');
-  // журнал починили, снова перезапуск со свежей копией — чисто
+  assert.deepEqual(again.state().journalBad, { count: 1, first: 2 });
+  assert.deepEqual(again.freshness(), { lastOkAt: again.state().lastOkAt, stale: false, journalBad: { count: 1, first: 2 } });
+  assert.equal(again.state().lastError, null);
+  assert.deepEqual(logs(s.dir), ['actions-2026-10-02.log'], 'на skipped копия всё же снята');
   fs.writeFileSync(s.file, rows(1, 2, 3));
   const clean = createBackup({ file: s.file, dir: s.dir, now: () => s.clock.d, log: { write() {} } });
   assert.equal(clean.start().status, 'skipped');
-  assert.equal(clean.state().lastError, null);
+  assert.equal(clean.state().journalBad, null);
   assert.equal(clean.freshness().stale, false);
+});
+
+// ---------- после неудачи — повтор раз в час (п.5 вердикта) ----------
+
+test('после неудачной попытки — повтор не раньше чем через час, не каждый цикл и не только после полуночи', () => {
+  const c = corruptor();
+  const s = setup({ fsOf: c.fsOf });
+  fs.writeFileSync(s.file, rows(1, 2));
+  c.bad.on = true;
+  assert.equal(s.b.start().status, 'error'); // 12:00
+  s.at(2026, 10, 2, 12, 30, 0);
+  assert.equal(s.b.tick(), null, 'через полчаса — рано');
+  s.at(2026, 10, 2, 12, 59, 59);
+  assert.equal(s.b.tick(), null, 'без секунды час — рано');
+  s.at(2026, 10, 2, 13, 0, 0);
+  assert.equal(s.b.tick()?.status, 'error', 'через час — повтор');
+  assert.equal(s.b.tick(), null, 'тот же миг — второго повтора нет');
+  c.bad.on = false;
+  s.at(2026, 10, 2, 13, 40, 0);
+  assert.equal(s.b.tick(), null);
+  s.at(2026, 10, 2, 14, 0, 0);
+  assert.equal(s.b.tick()?.status, 'ok', 'ещё через час — удачно');
+  assert.equal(s.b.state().lastError, null);
+  s.at(2026, 10, 2, 15, 0, 1);
+  assert.equal(s.b.tick(), null, 'после удачи — до полуночи ничего');
 });
 
 test('сбой записи копии и нечитаемый журнал — ошибка в state и server.log, не исключение; stale true', () => {
@@ -385,8 +444,8 @@ test('журнала нет или он пуст — копии нет, это �
     s.at(2026, 10, 3, 0, 5);
     assert.equal(s.b.tick().status, 'none');
     assert.equal(fs.existsSync(s.dir), false, 'папка копий создана без копии');
-    assert.deepEqual(s.b.state(), { lastOkAt: null, lastFile: null, lastError: null, count: 0 });
-    assert.deepEqual(s.b.freshness(), { lastOkAt: null, stale: false });
+    assert.deepEqual(s.b.state(), { lastOkAt: null, lastFile: null, lastError: null, count: 0, journalBad: null });
+    assert.deepEqual(s.b.freshness(), { lastOkAt: null, stale: false, journalBad: null });
     assert.deepEqual(s.lines, []);
   }
 });
@@ -399,9 +458,9 @@ test('48 часов без удачной копии — stale true; до 48 ч�
   s.b.start();
   const okAt = s.b.state().lastOkAt;
   s.at(2026, 10, 4, 11, 0); // 47 часов
-  assert.deepEqual(s.b.freshness(), { lastOkAt: okAt, stale: false });
+  assert.deepEqual(s.b.freshness(), { lastOkAt: okAt, stale: false, journalBad: null });
   s.at(2026, 10, 4, 13, 0); // 49 часов, тиков не было — копии нет
-  assert.deepEqual(s.b.freshness(), { lastOkAt: okAt, stale: true });
+  assert.deepEqual(s.b.freshness(), { lastOkAt: okAt, stale: true, journalBad: null });
 });
 
 // ---------- ручки ----------
@@ -418,15 +477,15 @@ async function boardApp(opts) {
   return { app, get };
 }
 
-test('/api/health → backup {lastOkAt, lastFile, lastError, count}; /api/ceh → freshness.backup {lastOkAt, stale}; проект — без backup', async () => {
+test('/api/health → backup {lastOkAt, lastFile, lastError, count, journalBad}; /api/ceh → freshness.backup {lastOkAt, stale, journalBad}; проект — без backup', async () => {
   const s = setup();
   fs.writeFileSync(s.file, rows(1, 2));
   s.b.start();
   const { get } = await boardApp({ backup: s.b });
   const h = await get('/api/health');
-  assert.deepEqual(h.backup, { lastOkAt: s.clock.d.toISOString(), lastFile: 'actions-2026-10-02.log', lastError: null, count: 1 });
+  assert.deepEqual(h.backup, { lastOkAt: s.clock.d.toISOString(), lastFile: 'actions-2026-10-02.log', lastError: null, count: 1, journalBad: null });
   const ceh = await get('/api/ceh');
-  assert.deepEqual(ceh.freshness.backup, { lastOkAt: s.clock.d.toISOString(), stale: false });
+  assert.deepEqual(ceh.freshness.backup, { lastOkAt: s.clock.d.toISOString(), stale: false, journalBad: null });
   assert.deepEqual(Object.keys(ceh.freshness).sort(), ['backup', 'board', 'journals', 'mirror']);
   assert.equal('backup' in (await get('/api/project/EXT')).freshness, false, 'backup — только в /api/ceh');
   // порча: ручки её показывают
@@ -438,12 +497,19 @@ test('/api/health → backup {lastOkAt, lastFile, lastError, count}; /api/ceh �
   const bad = await boardApp({ backup: t.b });
   assert.equal((await bad.get('/api/health')).backup.lastError, 'sha-mismatch');
   assert.equal((await bad.get('/api/ceh')).freshness.backup.stale, true);
+  // битые строки журнала: ручки показывают journalBad, stale — нет
+  const j = setup();
+  fs.writeFileSync(j.file, rows(1) + 'мусор\n' + rows(3));
+  j.b.start();
+  const jb = await boardApp({ backup: j.b });
+  assert.deepEqual((await jb.get('/api/health')).backup.journalBad, { count: 1, first: 2 });
+  assert.deepEqual((await jb.get('/api/ceh')).freshness.backup, { lastOkAt: j.clock.d.toISOString(), stale: false, journalBad: { count: 1, first: 2 } });
 });
 
 test('витрина без модуля копии: поля на месте, пустые, stale false', async () => {
   const { get } = await boardApp({});
-  assert.deepEqual((await get('/api/health')).backup, { lastOkAt: null, lastFile: null, lastError: null, count: 0 });
-  assert.deepEqual((await get('/api/ceh')).freshness.backup, { lastOkAt: null, stale: false });
+  assert.deepEqual((await get('/api/health')).backup, { lastOkAt: null, lastFile: null, lastError: null, count: 0, journalBad: null });
+  assert.deepEqual((await get('/api/ceh')).freshness.backup, { lastOkAt: null, stale: false, journalBad: null });
 });
 
 // ---------- настройки ----------
@@ -489,12 +555,12 @@ test('витрина: копия на старте и на первом цикл
   const clock = { d: day(2026, 10, 2, 12, 0) };
   const { s, dataDir, port } = await bootServer({ withLog: true, backup: { dir, keep: 14 }, clock });
   try {
-    assert.deepEqual(names(dir), ['actions-2026-10-02.log'], 'копии на старте нет');
+    assert.deepEqual(logs(dir), ['actions-2026-10-02.log'], 'копии на старте нет');
     assert.equal(read(path.join(dir, 'actions-2026-10-02.log')).toString(), rows(1, 2, 3));
     assert.equal((await request(port, '/api/health')).backup.lastFile, 'actions-2026-10-02.log');
     assert.equal((await request(port, '/api/ceh')).freshness.backup.stale, false);
     await new Promise((r) => setTimeout(r, 300));
-    assert.deepEqual(names(dir), ['actions-2026-10-02.log'], 'цикл копирует чаще раза в сутки');
+    assert.deepEqual(logs(dir), ['actions-2026-10-02.log'], 'цикл копирует чаще раза в сутки');
     fs.appendFileSync(path.join(dataDir, 'actions.log'), rows(4));
     clock.d = day(2026, 10, 3, 0, 0, 30);
     assert.ok(await until(() => fs.existsSync(path.join(dir, 'actions-2026-10-03.log'))), 'после полуночи копии нет');
@@ -516,7 +582,7 @@ test('витрина: журнала нет — копии нет, папки н
   assert.doesNotMatch(fs.readFileSync(path.join(a.dataDir, 'server.log'), 'utf8'), / backup /);
   const b = await bootServer({ withLog: true, clock }); // настройки backup нет вовсе — умолчания по ключам
   try {
-    assert.deepEqual(names(path.join(b.dataDir, 'backup')), ['actions-2026-10-02.log']);
+    assert.deepEqual(logs(path.join(b.dataDir, 'backup')), ['actions-2026-10-02.log']);
   } finally { await b.s.stop(); }
 });
 
@@ -574,7 +640,7 @@ test('restore --to: витрина отвечает на своём порту (
       const before = sha(read(a.live));
       const r = await tool([a.copy, '--to', a.live, '--data-dir', a.data]);
       assert.equal(r.code, 3, `${status}: ${r.stderr}`);
-      assert.match(r.stderr, /витрина отвечает/);
+      assert.match(r.stderr, /занят/);
       assert.equal(sha(read(a.live)), before, `${status}: журнал перезаписан при живой витрине`);
       assert.deepEqual(names(a.data), ['actions.log', 'config.json'], `${status}: в папке данных появились файлы`);
     } finally { await closed(srv); }
@@ -594,6 +660,64 @@ test('restore --to: витрина молчит — пишет; заменённ
   assert.equal(read(path.join(a.data, kept[0])).toString(), old, 'прежний журнал потерян');
   assert.match(r.stdout, /прежний файл сохранён/);
   assert.deepEqual(names(a.data).filter((n) => n.endsWith('.tmp')), []);
+});
+
+test('restore --to: порт принимает соединение и молчит — отказ (код 3), живой файл байт в байт прежний', async () => {
+  const held = [];
+  const srv = net.createServer((sock) => { held.push(sock); }); // соединение принято, ответа нет
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const port = srv.address().port;
+  try {
+    const a = restoreArea(port);
+    const before = read(a.live);
+    const r = await tool([a.copy, '--to', a.live, '--data-dir', a.data]);
+    assert.equal(r.code, 3, r.stdout + r.stderr);
+    assert.ok(read(a.live).equals(before), 'живой журнал перезаписан при занятом порте');
+    assert.deepEqual(names(a.data), ['actions.log', 'config.json']);
+  } finally { for (const x of held) x.destroy(); await closed(srv); }
+});
+
+test('restore: эталон .sha256 рядом — сошёлся: пишет; не сошёлся: «копия повреждена», код 1, ничего не записано; нет: предупреждение', async () => {
+  const a = restoreArea();
+  const body = read(a.copy);
+  fs.writeFileSync(`${a.copy}.sha256`, `${sha(body)}  actions-2026-10-02.log\n`);
+  const ok = await tool([a.copy, '--data-dir', a.data]);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.match(ok.stdout, /целость: SHA-256 совпал с эталоном/);
+  assert.doesNotMatch(ok.stdout, /эталона нет/);
+  // копия испорчена после снятия — эталон её ловит
+  const b = restoreArea();
+  fs.writeFileSync(`${b.copy}.sha256`, `${sha(read(b.copy))}  actions-2026-10-02.log\n`);
+  fs.writeFileSync(b.copy, read(b.copy).toString().replace('строка 2', 'строка Х'));
+  const bad = await tool([b.copy, '--data-dir', b.data]);
+  assert.equal(bad.code, 1, bad.stdout);
+  assert.match(bad.stderr, /копия повреждена/);
+  assert.deepEqual(names(b.data), ['actions.log', 'config.json'], 'повреждённая копия записана');
+  // эталона нет — разбирает как есть и предупреждает
+  const c = restoreArea();
+  const none = await tool([c.copy, '--data-dir', c.data]);
+  assert.equal(none.code, 0, none.stderr);
+  assert.match(none.stdout, /эталона нет.*целость не проверена/);
+});
+
+test('restore: actions.restored.log и .replaced-<время> не затираются — суффикс -2, -3', async () => {
+  const a = restoreArea();
+  fs.writeFileSync(path.join(a.data, 'actions.restored.log'), 'прежний\n');
+  const q = { out() {}, err() {} };
+  assert.equal(await restoreMain([a.copy, '--data-dir', a.data], q), 0);
+  assert.equal(await restoreMain([a.copy, '--data-dir', a.data], q), 0);
+  assert.equal(read(path.join(a.data, 'actions.restored.log')).toString(), 'прежний\n', 'прежний restored затёрт');
+  assert.equal(read(path.join(a.data, 'actions.restored-2.log')).toString(), rows(1, 2, 3));
+  assert.equal(read(path.join(a.data, 'actions.restored-3.log')).toString(), rows(1, 2, 3));
+  // два --to в одну секунду: второй .replaced- не затирает первый
+  const fixed = () => day(2026, 10, 4, 10, 0, 0);
+  const free = async () => false;
+  const v1 = read(a.live).toString();
+  assert.equal(await restoreMain([a.copy, '--to', a.live, '--data-dir', a.data], { ...q, probe: free, now: fixed }), 0);
+  fs.writeFileSync(a.live, 'второй живой\n');
+  assert.equal(await restoreMain([a.copy, '--to', a.live, '--data-dir', a.data], { ...q, probe: free, now: fixed }), 0);
+  assert.equal(read(path.join(a.data, 'actions.log.replaced-20261004-100000')).toString(), v1);
+  assert.equal(read(path.join(a.data, 'actions.log.replaced-20261004-100000-2')).toString(), 'второй живой\n');
 });
 
 test('restore: неверный вызов — код 2 без записи', async () => {

@@ -92,7 +92,8 @@
     "lastOkAt": "2026-10-04T00:05:12.480Z",
     "lastFile": "actions-2026-10-04.log",
     "lastError": null,
-    "count": 14
+    "count": 14,
+    "journalBad": { "count": 2, "first": 7 }
   },
   "rss": 61234176,
   "uptimeS": 720
