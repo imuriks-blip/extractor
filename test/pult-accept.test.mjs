@@ -12,7 +12,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead, checkArgs } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { normHead, localMarks, acceptState, B_HINT, createPlaneSpawn } from '../lib/pult/accept.mjs';
+import { normHead, localMarks, acceptState, B_HINT, createPlaneSpawn, createMergeCheck } from '../lib/pult/accept.mjs';
 import { validQ } from '../lib/pult/actions.mjs';
 import { restoreIntents } from '../lib/pult/routes.mjs';
 import { localIso } from '../lib/pult/actions-log.mjs';
@@ -100,7 +100,9 @@ async function setup(plane = {}, { log = null, planeSpawn = null } = {}) {
   const actionsLog = path.join(data, 'actions.log');
   if (log) fs.writeFileSync(actionsLog, log.map((l) => JSON.stringify(l) + '\n').join(''));
   const spawn = fakeSpawn();
-  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, gitRead: createGitRead(),
+  // слита ли ветка (В7) — считает проход читателя git (EXT-57): тест зовёт его сам (s.pass), ручки только читают
+  const merge = createMergeCheck({ git: createGitRead(), registry, board });
+  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, merge,
     pult: { enabled: true, words: false, actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
     pultSeams: { spawn, ...(planeSpawn ? { planeRun: createPlaneSpawn({ python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs'), spawn: planeSpawn }) } : {}) } });
@@ -113,7 +115,7 @@ async function setup(plane = {}, { log = null, planeSpawn = null } = {}) {
   const lines = () => raw().split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const pl = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const setPlane = (patch) => fs.writeFileSync(stateFile, JSON.stringify({ ...pl(), ...patch }));
-  return { app, press, get, lines, raw, pl, setPlane, spawn, data };
+  return { app, press, get, lines, raw, pl, setPlane, spawn, data, pass: () => merge.refresh() };
 }
 
 const Q = { at: Q_AT, head: Q_MD };
@@ -342,6 +344,7 @@ test('секрет в причине «Вернуть» (класс 2) → от�
 
 test('В7: Б-карточка и карточка с неслитой веткой — «Принять» скрыта в карточке и в строке (в), POST → отказ; слитая и без ветки — можно', async () => {
   const s = await setup();
+  await s.pass(); // EXT-57: ветки считает проход читателя git, не запрос страницы
   const acc = async (id) => (await s.get(`/api/card/${id}`)).pult.accept;
   assert.deepEqual(await acc('EXT-8'), { can: false, why: 'b-deal', hint: 'Б-карточка ждёт слияния: «сливай» или «выкатывай»', branch: null });
   const nm = await acc('EXT-9');
