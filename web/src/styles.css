@@ -351,4 +351,4 @@ details.grp.dfd>summary{color:var(--faint)}
 .trl{list-style:none;margin:2px 0 0;padding:0}
 .trl li{display:flex}
 .trl .tr-bad{color:var(--red)} .trl .tr-warn{color:var(--amber)} .trl .tr-info{color:var(--muted)}
-.trs{color:var(--muted)}
+.trs,.tlt{color:var(--muted)}
