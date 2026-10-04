@@ -132,6 +132,16 @@ test('[token] без X-Vitrina-Token → 403, в actions.log не дошло', a
   assert.equal(lines().length, 0);
 });
 
+// EXT-47: «Отложить до …» и «Вернуть сейчас» идут через ту же защиту — без токена 403, в actions.log не дошло
+test('[token] defer и undefer без X-Vitrina-Token → 403, в actions.log не дошло', async () => {
+  const { app, lines } = await setup();
+  for (const body of [{ action: 'defer', intentId: nextIntent(), rowKey: 'EXT-6|x', until: '1h' }, { action: 'undefer', intentId: nextIntent(), rowKey: 'EXT-6|x' }]) {
+    const r = await act(app, undefined, { headers: { 'x-vitrina-token': undefined }, body });
+    assert.equal(r.statusCode, 403, body.action);
+  }
+  assert.equal(lines().length, 0);
+});
+
 test('[token] чужой токен той же длины → 403, в actions.log не дошло', async () => {
   const { app, lines } = await setup();
   const token = await pageToken(app);
@@ -361,8 +371,8 @@ test('config.default.json: pult.enabled и pult.words — false', () => {
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------
 
 // «Принять» и «Вернуть» подключены в ПТ3 — их проверки в test/pult-accept.test.mjs
-test('словарь §1.3: тринадцать действий таблицы и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
-  assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'return', 'take', 'yes'].sort());
+test('словарь §1.3: пятнадцать действий таблицы (с defer и undefer, EXT-47) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
+  assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'return', 'take', 'undefer', 'yes'].sort());
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай'].sort());
   const { app, lines } = await setup();
   const token = await pageToken(app);
