@@ -39,8 +39,8 @@ button{font:inherit;color:inherit}
 .fresh .sep{margin-inline:6px}
 .fresh .fresh-bad{color:var(--red)} .fresh .fresh-warn{color:var(--amber)}
 .mbtn{display:inline-flex;align-items:baseline;gap:6px}
-.mbtn button{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap}
-.mbtn button:hover:not(:disabled){background:var(--hover);color:var(--fg)}
+.mbtn button,.hbtn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.mbtn button:hover:not(:disabled),.hbtn:hover{background:var(--hover);color:var(--fg)}
 .mbtn button:disabled{cursor:default;background:transparent}
 .mbtn-note{color:var(--red);font-size:12px}
 .mbtn-note:empty{display:none}
@@ -354,3 +354,19 @@ details.grp.dfd>summary{color:var(--faint)}
 .trl li{display:flex}
 .trl .tr-bad{color:var(--red)} .trl .tr-warn{color:var(--amber)} .trl .tr-info{color:var(--muted)}
 .trs,.tlt{color:var(--muted)}
+
+/* ===== Памятка «?» (EXT-52, §2.9): кнопка — как «Обновить»; окно — шапка как у панели карточки, разделы-свёртки ===== */
+.hlp{padding:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--fg);box-shadow:0 4px 12px var(--shade);width:min(560px,calc(100% - 32px));max-height:min(720px,calc(100% - 32px));overflow:hidden}
+.hlp[open]{display:flex;flex-direction:column}
+.hlp::backdrop{background:var(--shade)}
+.hlp-in{display:flex;flex-direction:column;flex:1;min-height:0}
+.hlp-h{display:flex;align-items:center;gap:8px;padding:10px 14px 8px;border-bottom:1px solid var(--line)}
+.hlp-h h2{font-size:15px;font-weight:600;margin:0}
+.hlp-b{overflow-y:auto;overscroll-behavior:contain;padding:0 14px 8px}
+details.hlp-s+details.hlp-s{border-top:1px solid var(--line)}
+details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cursor:pointer;list-style:none;font-weight:600}
+.hlp-s p{margin:0 0 6px 18px;max-width:65ch}
+.hlp-s ul{margin:0 0 8px 18px;padding-left:16px;max-width:65ch}
+.hlp-s li+li{margin-top:3px}
+.hlp-s b{font-weight:600}
+@media (max-width:560px){.hlp{height:calc(100% - 32px);max-height:none}}

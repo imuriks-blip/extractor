@@ -2,6 +2,7 @@
 // карточкой #/project/EXT/EXT-6), чтобы раздаче web/dist сервером не нужен был запасной маршрут на index.html.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Ceh from './Ceh.jsx';
+import Help from './Help.jsx';
 import MirrorButton from './Mirror.jsx';
 import Project from './Project.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
@@ -56,7 +57,7 @@ function Header({ route, freshness, name }) {
       {freshness && (
         <span className="fresh muted mono">
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
-          {mirror && <><span className="sep">·</span><span title="Зеркало доски обновляется вручную: файлы доски отстают от Plane на время с последнего прохода">{mirror}</span></>}
+          {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
           {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
               неудачна, журнал стал короче или пропал, хранимая копия не читается; причина — /api/health → backup.lastError */}
           {route.name === 'ceh' && freshness.backup && (
@@ -79,6 +80,7 @@ function Header({ route, freshness, name }) {
       {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}
       {freshness && mirror && <MirrorButton label={mirror} />}
       <ThemeSwitch />
+      <Help />
     </header>
   );
 }
