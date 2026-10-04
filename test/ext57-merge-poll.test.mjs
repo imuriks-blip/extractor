@@ -12,6 +12,7 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { createMergeCheck } from '../lib/pult/accept.mjs';
+import { createGitPass } from '../lib/start.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git, gitCommitAll } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -49,8 +50,8 @@ function countedGit(inner = createGitRead()) {
   return fn;
 }
 
-async function setup(gitFn) {
-  const merge = createMergeCheck({ git: gitFn, registry, board });
+async function setup(gitFn, opts = {}) {
+  const merge = createMergeCheck({ git: gitFn, registry, board, ...opts });
   const data = tmpDir('e57-data-');
   const app = await buildApp({ port: PORT, board, registry, scan, merge,
     pult: { enabled: true, words: false, actionsLog: path.join(data, 'actions.log'), mirrorDir: path.join(boardDir, '.mirror'), boardRoot: boardDir } });
@@ -122,4 +123,117 @@ test('EXT-57: git упал на проходе — «не проверить», 
     assert.match(p[id].card.hint, /^не проверить, слита ли ветка карточки/, id);
   }
   await s.app.close();
+});
+
+// ---------- дозапрос (вердикт Голема): ключ пересчёта — вершины main и веток карточки файлами; ttl 30 мин ----------
+
+test('EXT-57 (Важно 3): новая ветка карточки и новый коммит на ветке при неподвижном main — пересчёт; packed-refs; покой — 0 вызовов; ttl 30 мин — пересчёт', async () => {
+  let clock = Date.parse('2026-10-04T12:00:00Z');
+  const g = countedGit();
+  const s = await setup(g, { now: () => clock });
+  await s.merge.refresh();
+  const acc = async (id) => (await s.pages())[id].card;
+  assert.equal((await acc('EXT-3')).can, true, 'EXT-3 — ветки нет');
+  assert.equal((await acc('EXT-2')).can, true, 'EXT-2 — ветка слита');
+  const mainBefore = git(repo, 'rev-parse', 'main').trim();
+
+  // покой: ничего не менялось — проход git не зовёт
+  let n = g.calls.length;
+  await s.merge.refresh();
+  assert.equal(g.calls.length, n, 'покой — 0 вызовов');
+
+  // новая ветка ext-3-x со своим коммитом (main неподвижен) → пересчёт → не слита
+  git(repo, 'checkout', '-q', '-b', 'ext-3-x');
+  fs.writeFileSync(path.join(repo, 'c.txt'), 'c');
+  gitCommitAll(repo, 'ext-3');
+  git(repo, 'checkout', '-q', 'main');
+  await s.merge.refresh();
+  assert.ok(g.calls.length > n, 'новая ветка — проход зовёт git');
+  assert.equal((await acc('EXT-3')).why, 'not-merged');
+  assert.equal((await acc('EXT-3')).branch, 'ext-3-x');
+
+  // новый коммит на слитой ветке ext-2-b (main неподвижен) → пересчёт → не слита
+  git(repo, 'checkout', '-q', 'ext-2-b');
+  fs.writeFileSync(path.join(repo, 'd.txt'), 'd');
+  gitCommitAll(repo, 'ext-2 ещё');
+  git(repo, 'checkout', '-q', 'main');
+  assert.equal(git(repo, 'rev-parse', 'main').trim(), mainBefore, 'main не двигался');
+  n = g.calls.length;
+  await s.merge.refresh();
+  assert.ok(g.calls.length > n, 'коммит на ветке — проход зовёт git');
+  assert.equal((await acc('EXT-2')).why, 'not-merged');
+
+  // ссылки упакованы (packed-refs) — вершины те же, ключ тот же: покой
+  git(repo, 'pack-refs', '--all');
+  assert.ok(!fs.existsSync(path.join(repo, '.git', 'refs', 'heads', 'ext-2-b')), 'ссылка ушла в packed-refs');
+  n = g.calls.length;
+  await s.merge.refresh();
+  assert.equal(g.calls.length, n, 'packed-refs читается файлом — покой');
+
+  // 29 мин — покой; 30 мин — страховочный пересчёт
+  clock += 29 * 60000;
+  await s.merge.refresh();
+  assert.equal(g.calls.length, n, '29 мин — без git');
+  clock += 60000;
+  await s.merge.refresh();
+  assert.ok(g.calls.length > n, '30 мин — пересчёт');
+  await s.app.close();
+});
+
+// git с заслонкой: вызовы merge-base ждут release()
+function heldGit(inner = createGitRead()) {
+  let open;
+  let gate = new Promise((r) => { open = r; });
+  const fn = async (dir, args) => { if (args[0] === 'merge-base') await gate; return inner(dir, args); };
+  fn.release = () => open();
+  fn.hold = () => { gate = new Promise((r) => { open = r; }); };
+  return fn;
+}
+
+test('EXT-57 (Важно 1): проход git для readAll кончается после следа, не дожидаясь слитости; слитость идёт сама, сбой — в server.log', async () => {
+  const g = heldGit();
+  const merge = createMergeCheck({ git: g, registry, board });
+  const lines = [];
+  const log = { write: (kind, f) => lines.push({ kind, ...f }) };
+  let traced = false;
+  const pass = createGitPass({ gitReader: { refresh: async () => {} }, trace: { refresh: async () => { traced = true; } }, merge, log });
+  const done = await Promise.race([pass().then(() => 'pass'), new Promise((r) => setTimeout(() => r('timeout'), 3000))]);
+  assert.equal(done, 'pass', 'readAll не ждёт слитость');
+  assert.ok(traced, 'след — в ожидаемом промисе');
+  assert.equal(merge.peek('EXT-1'), null, 'слитость ещё считается (git задержан)');
+  g.release();
+  await merge.refresh();
+  assert.notEqual(merge.peek('EXT-1'), null, 'после git — посчитано');
+  // сбой прохода слитости — строкой error route=merge, промис прохода git не падает
+  const broken = { refresh: async () => { throw new Error('x'); }, peek: () => null };
+  await createGitPass({ gitReader: { refresh: async () => {} }, trace: { refresh: async () => {} }, merge: broken, log })();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(lines.some((l) => l.kind === 'error' && l.route === 'merge' && l.code === 'PASS'));
+});
+
+test('EXT-57 (Мелочь 2): итог с более ранним началом не затирает более поздний (проход против нажатия)', async () => {
+  // merge-base подменён и не зависит от состояния репозитория: проход начинается раньше, висит на заслонке и отвечает
+  // «предок» (слита); нажатие начинается позже и отвечает «не предок» (код 1). Часы — счётчик: начала различимы
+  let clock = 1000;
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  const real = createGitRead();
+  const mode = { press: false };
+  const gitFn = async (dir, args) => {
+    if (args[0] !== 'merge-base') return real(dir, args);
+    if (mode.press) { const e = new Error('не предок'); e.code = 1; throw e; }
+    await gate;
+    return '';
+  };
+  // ветка нужна, чтобы merge-base вызывался: EXT-1 — ext-1-a есть в репозитории всегда
+  const merge = createMergeCheck({ git: gitFn, registry, board, now: () => ++clock });
+  const p = merge.refresh();
+  await new Promise((r) => setTimeout(r, 300));
+  mode.press = true;
+  const pressed = await merge.check('EXT-1');
+  assert.equal(pressed.state, 'not-merged');
+  mode.press = false;
+  open();
+  await p;
+  assert.equal(merge.peek('EXT-1').state, 'not-merged', 'поздний итог (нажатие) не затёрт ранним (проход)');
 });
