@@ -209,7 +209,8 @@ function PWaiting({ code, rows, cnt, deferred, options, now, stale, sel, onOpen 
 
 /* ---------- кто работает по проекту ---------- */
 
-const isRed = (m) => m.kind !== 'takt' || m.level === 'red'; // как marksCount «Цеха»: только красные
+// как marksCount «Цеха»: только красные; «Общий файл» (collision, EXT-60) — жёлтая, не считается
+const isRed = (m) => m.kind !== 'collision' && (m.kind !== 'takt' || m.level === 'red');
 
 function PWorkers({ code, w, now, stale }) {
   const o = useOpen('pworkers');
