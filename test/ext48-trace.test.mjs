@@ -62,8 +62,29 @@ const G = commitGood(behind, 'g.txt', 'G');
 git(behind, 'update-ref', 'refs/remotes/origin/main', G);
 git(behind, 'checkout', '-q', 'main');
 
+// К1: коммит, чьё 7-знаковое начало — одни цифры (как живой 2743963), на ветке ext-k1 — не в main. commit-tree с разными
+// сообщениями, пока начало не выйдет цифровым (~4 % коммитов)
+const tree = git(repo, 'rev-parse', 'main^{tree}').trim();
+const tipMain = git(repo, 'rev-parse', 'main').trim();
+function commitTree(msgOf, ok) {
+  for (let i = 0; i < 2000; i++) {
+    const h = git(repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit-tree', tree, '-p', tipMain, '-m', msgOf(i)).trim();
+    if (ok(h)) return h;
+  }
+  throw new Error('не вышел нужный хеш');
+}
+const N = commitTree((i) => `k1 ${i}`, (h) => /^[0-9]{7}/.test(h));
+git(repo, 'update-ref', 'refs/heads/ext-k1', N);
+// В3: коммит только в refs/remotes/origin/ext-side — не в main и не в origin/main
+const O = commitTree((i) => `origin-only ${i}`, goodHash);
+git(repo, 'update-ref', 'refs/remotes/origin/ext-side', O);
+// М3: репозиторий без main и master (ветка trunk)
+const nomain = tmpDir('tr-nomain-');
+git(nomain, 'init', '-q', '-b', 'trunk');
+const Q = commitGood(nomain, 'q.txt', 'Q');
+
 const regFile = path.join(tmpDir('tr-reg-'), 'registry.json');
-fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { repos: [repo, local, behind] }, CAR: { repos: [] } }, board_shared_repos: { repos: [shared] } }));
+fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { repos: [repo, local, behind, nomain] }, CAR: { repos: [] } }, board_shared_repos: { repos: [shared] } }));
 const registry = createRegistryReader(regFile);
 
 // ---------- доска ----------
@@ -103,6 +124,26 @@ const cards = {
   'EXT-13': logOf(['11:00', contract({ delivery: OK_DELIVERY })], ['12:00', 'Доставка по EXT-13 обновлена: прод — deployment `6257df0f`, бандл `index-Bmb2Tzuk.js`.']),
   // «Доставка» и одна «Откат» — уже контракт (неполный), а не «контракта нет»
   'EXT-14': logOf(['11:00', `-   **Откат:** git revert.\n-   **Доставка:** extractor ${h7(A)}. Слово Ивана.`]),
+  // В1: «Доставка» пунктом с вложенными пунктами (EXT-43); соседняя строка «Знание» с хешем в Доставку не входит
+  'EXT-15': logOf(['11:00', [
+    '**Закрытие · контракт** (вердикт Голема)', '',
+    '-   **Что изменилось в системе:** x.', '-   **Откат:** y.', '-   **Остаточный риск:** z.',
+    '-   **Доставка:**', `    -   extractor — слияние \`${h7(A)}\`.`, '    -   **Живая проба**', `        -   общий \`${h7(D)}\`;`,
+    '-   **Знание:** Vault 9a4269f.',
+  ].join('\n')]),
+  // В1: «**Доставка**» отдельной строкой, пустая строка, список — до следующей строки контракта (ASTRO-22)
+  'EXT-16': logOf(['11:00', [
+    '**Закрытие · контракт** (вердикт Голема)', '', '**Что изменилось в системе**', '', '-   x.', '',
+    '**Доставка**', '', `-   \`main\` = \`${h7(A)}\`, отправлен.`, `-   Vault \`${h7(E)}\`.`, '',
+    '**Откат**', '', `-   Откатить \`${h7(B)}\` в \`main\`.`, '', '**Остаточный риск:** нет.', '', '**Знание:** записи нет — 9a4269f.',
+  ].join('\n')]),
+  // К1: цифровой хеш на ветке; «1234567» и «decade» в репозиториях нет — молча прочь
+  'EXT-17': logOf(['11:00', contract({ delivery: `ветка ${N.slice(0, 7)}; версия 1234567, строка decade.` })]),
+  'EXT-18': logOf(['11:00', contract({ delivery: `только в origin/ext-side ${h7(O)}.` })]),
+  'EXT-19': logOf(['11:00', contract({ delivery: `ветка trunk ${h7(Q)}.` })]),
+  // М2: цитата контракта после него — не контракт; «Кто решил» только в цитате — не назван
+  'EXT-21': logOf(['11:00', contract({ delivery: OK_DELIVERY })], ['12:00', 'Повторяю:\n\n> **Доставка:** abc1234\n> **Откат:** нет\n> вердикт Голема']),
+  'EXT-22': logOf(['11:00', contract({ delivery: OK_DELIVERY, who: 'пп. 9 и 11' }) + '\n\n> слово Ивана в чате: «да»']),
   'CAR-1': logOf(['11:00', contract({ delivery: `общий ${h7(D)}.`, who: 'слово Ивана в чате' })]),
   'CAR-2': logOf(['11:00', contract({ delivery: `общий ${h7(D)}.`, who: 'Коммент Ивана в карточке', post: 'не нужен: внутреннее' })]),
 };
@@ -265,6 +306,62 @@ test('«Доставка» и «Откат» без прочих строк — 
   assert.equal(x.contractAt, '2026-10-04T08:00:00.000Z');
 });
 
+test('К1: хеш из одних цифр (7170320, 2743963) — кандидат: найден на ветке → bad «не в main»; «1234567» и «decade», которых нет нигде, — ни причины, ни строки', () => {
+  const x = tr('EXT-17');
+  assert.equal(x.state, 'bad');
+  assert.deepEqual(x.reasons.filter((r) => r.level !== 'info').map((r) => r.text), [`${N.slice(0, 7)} не в main (${path.basename(repo)})`]);
+  assert.deepEqual(x.checked.commits.map((c) => c.hash), [N.slice(0, 7)]);
+  // без коммитов вовсе: слова-кандидаты не найдены — «след без коммитов», как и было
+  assert.equal(tr('EXT-7').state, 'none');
+  assert.deepEqual(tr('EXT-7').checked.commits, []);
+});
+
+test('В1: «Доставка» с вложенными пунктами — их хеши в проверке, соседняя «Знание: … 9a4269f» — нет', () => {
+  const x = tr('EXT-15');
+  assert.deepEqual(x.checked.commits.map((c) => c.hash), [h7(A), h7(D)]);
+  assert.equal(x.state, 'ok');
+});
+
+test('В1: «**Доставка**», пустая строка, список — до следующей строки контракта («Откат» с хешем не входит)', () => {
+  const x = tr('EXT-16');
+  assert.deepEqual(x.checked.commits.map((c) => c.hash), [h7(A), h7(E)]);
+  assert.equal(x.state, 'ok');
+});
+
+test('В3: коммит только в refs/remotes/origin/<ветка> — не в main и не в origin/main → bad «не в main»', () => {
+  const x = tr('EXT-18');
+  assert.equal(x.state, 'bad');
+  assert.equal(x.reasons[0].text, `${h7(O)} не в main (${path.basename(repo)})`);
+});
+
+test('М3: в репозитории нет ни main, ни master → warn «<h>: в <репо> нет ветки main или master», не «git не ответил»', () => {
+  const x = tr('EXT-19');
+  assert.equal(x.state, 'warn');
+  assert.deepEqual(x.reasons.filter((r) => r.level !== 'info').map((r) => [r.code, r.text]), [['no-main', `${h7(Q)}: в ${path.basename(nomain)} нет ветки main или master`]]);
+});
+
+test('М2: цитата (>) не делает запись контрактом и не называет, кто решил', () => {
+  const x = tr('EXT-21');
+  assert.equal(x.state, 'ok');
+  assert.equal(x.contractAt, '2026-10-04T08:00:00.000Z');
+  assert.equal(x.laterRecords, 1);
+  const y = tr('EXT-22');
+  assert.equal(y.state, 'bad');
+  assert.deepEqual(y.reasons.map((r) => r.code), ['no-who']);
+});
+
+test('М4: один репозиторий упал — найденный в другом коммит судится по нему («не в main»), не найденный нигде — warn с именем упавшего', async () => {
+  const real = createGitRead();
+  const sick = path.resolve(local).toLowerCase();
+  const g = async (r, args) => { if (path.resolve(r).toLowerCase() === sick) { const e = new Error('упал'); e.code = 128; throw e; } return real(r, args); };
+  const t = createTraceChecker({ git: g, registry, board, vault });
+  await t.refresh();
+  assert.equal(t.peek('EXT-5').reasons[0].text, `${h7(C)} не в main (${path.basename(repo)})`);
+  const x = t.peek('EXT-4');
+  assert.equal(x.state, 'warn');
+  assert.equal(x.reasons[0].text, `коммит abc1234: не удалось проверить — git не ответил (${path.basename(local)})`);
+});
+
 test('карточка не в Review — не проверяется (null)', () => {
   assert.equal(tr('EXT-20'), null);
 });
@@ -291,7 +388,9 @@ test('кэш: второй проход без перемен git не зовё�
   await t2.refresh();
   assert.equal(t2.peek('EXT-6').state, 'ok');
   assert.ok(c.calls.length > before);
-  assert.ok(c.calls.length - before <= 3, `пересчёт только задетого: ${c.calls.length - before} вызовов`);
+  // origin/main сдвинулся — по одному merge-base на найденный в r2 коммит (A, B, C, N, O: origin проверяется первым),
+  // без новых поисков rev-parse и без проверок других репозиториев
+  assert.ok(c.calls.length - before <= [A, B, C, N, O].length, `пересчёт только задетого: ${c.calls.length - before} вызовов`);
 });
 
 test('смена последней записи карточки → до прохода — null («проверяю след…»), после — по новому контракту', async () => {
