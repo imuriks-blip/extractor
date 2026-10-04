@@ -2,6 +2,7 @@
 // карточкой #/project/EXT/EXT-6), чтобы раздаче web/dist сервером не нужен был запасной маршрут на index.html.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Ceh from './Ceh.jsx';
+import Glossary from './Glossary.jsx';
 import Help from './Help.jsx';
 import MirrorButton from './Mirror.jsx';
 import Project from './Project.jsx';
@@ -80,6 +81,7 @@ function Header({ route, freshness, name }) {
       {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}
       {freshness && mirror && <MirrorButton label={mirror} />}
       <ThemeSwitch />
+      <Glossary />
       <Help />
     </header>
   );
