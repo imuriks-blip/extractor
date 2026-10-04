@@ -8,44 +8,62 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { createTraceChecker, hashesIn } from '../lib/trace.mjs';
+import { createTraceChecker, hashesIn, hasLine } from '../lib/trace.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, gitCommitAll, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
 
 // ---------- репозитории ----------
+// Хеш случаен: 7-знаковое начало без буквы a–f (~4 % коммитов) или без цифры хешем по правилу §1.4а не считается — тест
+// мигал бы. Коммит, чьё начало не годится, повторяется с другим содержимым (потомок прежнего — родство то же).
+const goodHash = (h) => /[0-9]/.test(h.slice(0, 7)) && /[a-f]/.test(h.slice(0, 7));
+function commitGood(dir, file, msg) {
+  let h;
+  let i = 0;
+  do { fs.writeFileSync(path.join(dir, file), `${msg} ${i++}`); h = gitCommitAll(dir, msg); } while (!goodHash(h));
+  return h;
+}
 // проект EXT: A — в main и origin/main; B — в main после origin/main (не отправлен); C — только на ветке
 const repo = tmpDir('tr-repo-');
 fs.writeFileSync(path.join(repo, 'a.txt'), 'a');
 gitInitCommit(repo);
-fs.writeFileSync(path.join(repo, 'a.txt'), 'a2');
-const A = gitCommitAll(repo, 'A');
+const A = commitGood(repo, 'a.txt', 'A');
 git(repo, 'update-ref', 'refs/remotes/origin/main', A);
-fs.writeFileSync(path.join(repo, 'b.txt'), 'b');
-const B = gitCommitAll(repo, 'B');
+const B = commitGood(repo, 'b.txt', 'B');
 git(repo, 'checkout', '-q', '-b', 'ext-5-side');
-fs.writeFileSync(path.join(repo, 'c.txt'), 'c');
-const C = gitCommitAll(repo, 'C');
+const C = commitGood(repo, 'c.txt', 'C');
 git(repo, 'checkout', '-q', 'main');
 // общий репозиторий: D — отправлен (origin/main в packed-refs, как после clone)
 const shared = tmpDir('tr-shared-');
 fs.writeFileSync(path.join(shared, 's.txt'), 's');
-const D = gitInitCommit(shared);
+gitInitCommit(shared);
+const D = commitGood(shared, 's.txt', 'D');
 git(shared, 'update-ref', 'refs/remotes/origin/main', D);
 git(shared, 'pack-refs', '--all');
 // Vault — из настройки витрины (paths.vault), не из реестра: E — отправлен
 const vault = tmpDir('tr-vault-');
 fs.writeFileSync(path.join(vault, 'v.md'), 'v');
-const E = gitInitCommit(vault);
+gitInitCommit(vault);
+const E = commitGood(vault, 'v.md', 'E');
 git(vault, 'update-ref', 'refs/remotes/origin/main', E);
 // репозиторий без origin/main (только локальный git): F
 const local = tmpDir('tr-local-');
 fs.writeFileSync(path.join(local, 'l.txt'), 'l');
-const F = gitInitCommit(local);
+gitInitCommit(local);
+const F = commitGood(local, 'l.txt', 'F');
+
+// основной клон, чей локальный main отстаёт: G закоммичен и отправлен из рабочей копии — есть в origin/main, не в main
+const behind = tmpDir('tr-behind-');
+fs.writeFileSync(path.join(behind, 'h.txt'), 'h');
+gitInitCommit(behind);
+git(behind, 'checkout', '-q', '-b', 'car-wt');
+const G = commitGood(behind, 'g.txt', 'G');
+git(behind, 'update-ref', 'refs/remotes/origin/main', G);
+git(behind, 'checkout', '-q', 'main');
 
 const regFile = path.join(tmpDir('tr-reg-'), 'registry.json');
-fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { repos: [repo, local] }, CAR: { repos: [] } }, board_shared_repos: { repos: [shared] } }));
+fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { repos: [repo, local, behind] }, CAR: { repos: [] } }, board_shared_repos: { repos: [shared] } }));
 const registry = createRegistryReader(regFile);
 
 // ---------- доска ----------
@@ -78,6 +96,9 @@ const cards = {
   'EXT-8': logOf(['11:00', contract({ delivery: OK_DELIVERY })], ['12:00', 'Слияние — решение дирижёра.'], ['12:30', '▶ выдан: demon · знание']),
   'EXT-9': logOf(['11:00', '⏸ получен: terminus · ext-9 · готово, тесты зелёные.']),
   'EXT-10': logOf(['11:00', contract({ delivery: `локально ${h7(F)}.` })]),
+  // «Что изменилось:» без «в системе» (слово Ивана 04.10)
+  'EXT-11': logOf(['11:00', contract({ delivery: OK_DELIVERY }).replace('Что изменилось в системе', 'Что изменилось')]),
+  'EXT-12': logOf(['11:00', contract({ delivery: `из рабочей копии ${h7(G)}, отправлено.` })]),
   'CAR-1': logOf(['11:00', contract({ delivery: `общий ${h7(D)}.`, who: 'слово Ивана в чате' })]),
   'CAR-2': logOf(['11:00', contract({ delivery: `общий ${h7(D)}.`, who: 'Коммент Ивана в карточке', post: 'не нужен: внутреннее' })]),
 };
@@ -204,6 +225,22 @@ test('репозиторий без origin/main → warn «отправку не
   assert.equal(x.state, 'warn');
   assert.deepEqual(codes(x), ['no-origin']);
   assert.equal(x.checked.commits[0].pushed, null);
+});
+
+test('«Что изменилось:» без «в системе» — строка есть (слово Ивана 04.10); обрубок «Что изменило» — нет', () => {
+  assert.equal(hasLine('-   **Что изменилось:** проверка следа.', 'Что изменилось в системе'), true);
+  assert.equal(hasLine('Что изменилось — проверка следа', 'Что изменилось в системе'), true);
+  assert.equal(hasLine('**Что изменилось в системе:** да', 'Что изменилось в системе'), true);
+  assert.equal(hasLine('-   **Что изменило:** обрубок', 'Что изменилось в системе'), false);
+  const x = tr('EXT-11');
+  assert.equal(x.state, 'ok');
+  assert.equal(x.checked.lines.length, 5);
+});
+
+test('коммит в origin/main, локальный main основного клона позади → доставлен (ok), inMain и pushed — true', () => {
+  const x = tr('EXT-12');
+  assert.equal(x.state, 'ok');
+  assert.deepEqual(x.checked.commits[0], { hash: h7(G), repo: path.basename(behind), found: true, inMain: true, pushed: true });
 });
 
 test('карточка не в Review — не проверяется (null)', () => {
