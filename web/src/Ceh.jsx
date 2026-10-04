@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
 import Pult, { PultMark } from './Pult.jsx';
+import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 import { Summary } from './Summary.jsx';
 
@@ -135,7 +136,7 @@ function Waiting({ w, now, stale }) {
           {review.map((r) => (
             <div className="wrow pr" key={r.id}>
               <span className="src mono">{r.id}</span>
-              <span className="tt">{r.title}</span>
+              <span className="tt">{r.title}<TraceBadge t={r.trace} /></span>
               <span className="age num">{ageShort(r.at, now)}</span>
               <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} />
               {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}

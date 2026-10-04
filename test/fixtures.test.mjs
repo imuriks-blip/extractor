@@ -13,6 +13,7 @@ import { createRegistryReader } from '../lib/registry.mjs';
 import { createJournalReader } from '../lib/journal-reader.mjs';
 import { buildWorkers } from '../lib/waiting.mjs';
 import { createGitReader } from '../lib/git-reader.mjs';
+import { createTraceChecker } from '../lib/trace.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -83,6 +84,26 @@ async function realResponses() {
   const shared = tmpDir('shared-'); fs.writeFileSync(path.join(shared, 'a.txt'), 'x'); gitInitCommit(shared);
   git(shared, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'spec: витрина (EXT-6)');
   fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [dir] } }, board_shared_repos: { repos: [shared] } }));
+  // EXT-48: контракт закрытия EXT-6 со следом — коммит общего репозитория (origin/main у него нет — жёлтое «отправку не
+  // проверить»: причины и коммиты непусты, форма сверяется целиком)
+  // 7-знаковое начало без буквы a–f или без цифры хешем не считается (§1.4а) — тогда коммит переписывается с другим телом
+  let specHash = git(shared, 'rev-parse', '--short=7', 'HEAD').trim();
+  for (let i = 0; !(/[0-9]/.test(specHash) && /[a-f]/.test(specHash)); i++) {
+    git(shared, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--amend', '--allow-empty', '-m', 'spec: витрина (EXT-6)', '-m', `проба ${i}`);
+    specHash = git(shared, 'rev-parse', '--short=7', 'HEAD').trim();
+  }
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-6.log.md'), `### ${hm(now - 7200000)} · plane · коммент
+
+Закрытие EXT-6 · контракт (вердикт Голема)
+
+-   **Что изменилось в системе:** спека.
+-   **Откат:** revert.
+-   **Остаточный риск:** нет.
+-   **Доставка:** общий ${specHash}.
+-   **Знание:** записи нет — спека.
+
+`);
+  git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.autocrlf=false', 'commit', '-q', '-am', 'EXT-6 контракт');
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
   await board.init();
   const journals = createJournalReader({ root: tmpDir('jr-'), indexDir: tmpDir('ji-') });
@@ -111,7 +132,10 @@ async function realResponses() {
   const registry = createRegistryReader(reg);
   const gitReader = createGitReader({ git: createGitRead(), registry, boardRoot: dir });
   await gitReader.refresh();
-  const app = await buildApp({ port: 4317, board, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true } });
+  await board.refresh();
+  const trace = createTraceChecker({ git: createGitRead(), registry, board });
+  await trace.refresh();
+  const app = await buildApp({ port: 4317, board, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
   return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health') };
 }
