@@ -182,7 +182,7 @@ test('карточка с битой шапкой → 200 {header: null, error: 
   // В7: project — из папки карточки, есть и у битой шапки
   assert.deepEqual(r.json(), { project: 'CAR', header: null, body: null, error: 'шапка', links: null, feed: [], feedCounts: { comment: 0, commit: 0, run: 0 }, feedGit: { readAt: null, failingSince: null }, logError: null,
     // ПТ3: у битой шапки статус неизвестен — «Принять» нет
-    pult: { accept: { can: false, why: 'not-review', hint: 'карточка не в Review', branch: null }, mark: null, q: null } });
+    pult: { accept: { can: false, why: 'not-review', hint: 'карточка не в Review', branch: null }, mark: null, q: null, trace: null } });
 });
 
 test('/api/ceh: activityAt — самое свежее updated карточек проекта', async () => {

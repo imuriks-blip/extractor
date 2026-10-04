@@ -120,6 +120,46 @@
           "at": "2026-10-01T07:30:00.000Z",
           "head": "Ветка готова — сливать? Тесты 396/396, вердикт Голема без за"
         },
+        "trace": {
+          "state": "ok",
+          "label": "след проверен",
+          "hint": "сверено: 5 строк, кто решил — вердикт Голема, коммитов 2",
+          "reasons": [
+            {
+              "level": "info",
+              "code": "later",
+              "text": "после контракта — ещё 1 запись"
+            }
+          ],
+          "checked": {
+            "lines": [
+              "Что изменилось в системе",
+              "Откат",
+              "Остаточный риск",
+              "Доставка",
+              "Знание"
+            ],
+            "who": "вердикт Голема",
+            "commits": [
+              {
+                "hash": "31d4d25",
+                "repo": "extractor",
+                "found": true,
+                "inMain": true,
+                "pushed": true
+              },
+              {
+                "hash": "b9418e7",
+                "repo": "Obsidian Vault",
+                "found": true,
+                "inMain": true,
+                "pushed": true
+              }
+            ]
+          },
+          "contractAt": "2026-10-01T07:20:00.000Z",
+          "laterRecords": 1
+        },
         "pultMark": {
           "id": "W-261003-104210-5c1e",
           "action": "accept",
@@ -144,6 +184,44 @@
         },
         "q": {
           "at": null
+        },
+        "trace": {
+          "state": "bad",
+          "label": "a1b2c3d не отправлен (unorbis-car-web) · ещё 1",
+          "hint": "сверено: 5 строк, кто решил — слово Ивана, коммитов 1",
+          "reasons": [
+            {
+              "level": "bad",
+              "code": "not-pushed",
+              "text": "a1b2c3d не отправлен (unorbis-car-web)"
+            },
+            {
+              "level": "warn",
+              "code": "no-post",
+              "text": "нет строки «Пост» — нужна, если карточка выкачена"
+            }
+          ],
+          "checked": {
+            "lines": [
+              "Что изменилось в системе",
+              "Откат",
+              "Остаточный риск",
+              "Доставка",
+              "Знание"
+            ],
+            "who": "слово Ивана",
+            "commits": [
+              {
+                "hash": "a1b2c3d",
+                "repo": "unorbis-car-web",
+                "found": true,
+                "inMain": true,
+                "pushed": false
+              }
+            ]
+          },
+          "contractAt": "2026-09-25T13:40:00.000Z",
+          "laterRecords": 0
         },
         "pultMark": null,
         "answered": false

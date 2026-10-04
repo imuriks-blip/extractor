@@ -12,7 +12,8 @@
       "C:/Users/imuri/AppData/Roaming/Claude/claude-code-sessions",
       "C:/Users/imuri/AppData/Local/Packages/Claude_pzs8sxrjxfjjc/LocalCache/Roaming/Claude/claude-code-sessions"
     ],
-    "agents": "C:/Users/imuri/.claude/agents"
+    "agents": "C:/Users/imuri/.claude/agents",
+    "vault": "C:/Users/imuri/Documents/Obsidian Vault"
   },
   "pollMs": {
     "board": 5000,

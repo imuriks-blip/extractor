@@ -132,6 +132,65 @@
     "q": {
       "at": "2026-10-03T07:30:00.000Z",
       "head": "Спека витрины готова — принимать?"
+    },
+    "trace": {
+      "state": "bad",
+      "label": "нет строки: «Знание» · ещё 2",
+      "hint": "сверено: 4 строк, кто решил — не назван, коммитов 2",
+      "reasons": [
+        {
+          "level": "bad",
+          "code": "no-lines",
+          "text": "нет строки: «Знание»"
+        },
+        {
+          "level": "bad",
+          "code": "no-who",
+          "text": "не назван, кто решил"
+        },
+        {
+          "level": "bad",
+          "code": "not-found",
+          "text": "коммит 4f00ba1 не найден"
+        },
+        {
+          "level": "warn",
+          "code": "git-error",
+          "text": "коммит 9c8e7d6: не удалось проверить — git не ответил (extractor)"
+        },
+        {
+          "level": "info",
+          "code": "later",
+          "text": "после контракта — ещё 2 записи"
+        }
+      ],
+      "checked": {
+        "lines": [
+          "Что изменилось в системе",
+          "Откат",
+          "Остаточный риск",
+          "Доставка"
+        ],
+        "who": null,
+        "commits": [
+          {
+            "hash": "4f00ba1",
+            "repo": null,
+            "found": false,
+            "inMain": null,
+            "pushed": null
+          },
+          {
+            "hash": "9c8e7d6",
+            "repo": null,
+            "found": null,
+            "inMain": null,
+            "pushed": null
+          }
+        ]
+      },
+      "contractAt": "2026-10-03T07:10:00.000Z",
+      "laterRecords": 2
     }
   },
   "_pult": "ПТ3 (EXT-43): accept — можно ли «Принять» (В7): {can: true|false|null, why: null|\"not-review\"|\"b-deal\"|\"not-merged\"|\"checking\", hint, branch}; can null — ветка ещё проверяется (кнопку не показывать). pult.mark — местная отметка §3.2 (null — нет) {id, action: accept|return, at, state, missing, text}; missing true — красная «зеркало не видит запись <id>». answered — строка в подгруппе «отвечено, ждёт зеркала»: серым, не входит в count/more. mark у строки (б) — по-прежнему её метка («сливай», «Б», «развилка»). q — запись-вопрос для POST «Принять»/«Вернуть»: интерфейс шлёт его как есть, без правок. {at: ISO-время заголовка последней записи журнала карточки в зеркале, head: первые 60 знаков её тела (markdown как есть)} или {at: null} — записей нет.",
