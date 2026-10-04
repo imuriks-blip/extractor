@@ -332,6 +332,7 @@ test('В2: pult.enabled = false — отметки не применяются, 
   assert.ok(keysOf(w).includes(KEY1));
   assert.equal(w.count, 2);
   assert.deepEqual(w.deferred, []);
+  assert.deepEqual(w.deferOptions, [], 'пульт выключен — пунктов меню нет, кнопки нет (круг 2 Голема)');
   s2.waitingRows.splice(0, 1);
   for (let i = 0; i < 4; i++) { s2.pass(); s2.cycle(); }
   assert.equal(fs.readFileSync(path.join(data, 'defer.json'), 'utf8'), before, 'файл не тронут');
@@ -391,11 +392,16 @@ test('В3: строка (в) ушла с доски — снятие по про
 test('В3: строка (а) с временным ключом (хвост журнала не дочитан) — keyTemp: true; defer по ней — отказ key-temp', async () => {
   const threads = [{ sessionId: SID3, state: 'waiting', waitingKind: 'question', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т' },
     { sessionId: SID2, state: 'waiting', waitingKind: 'question', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т2' },
-    { sessionId: SID, state: 'waiting', waitingKind: 'permission', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т3' }];
-  const sessions = [{ sessionId: SID2, lines: 1, thread: { q: { text: 'вопрос', at: '2026-10-04T08:59:00.000Z', uuid: null } } }];
+    { sessionId: SID, state: 'waiting', waitingKind: 'permission', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т3' },
+    { sessionId: 'plan-sid', state: 'waiting', waitingKind: 'askUserQuestion', statusUpdatedAt: '2026-10-04T09:00:00.000Z', title: 'Т4' }];
+  const sessions = [{ sessionId: SID2, lines: 1, thread: { q: { text: 'вопрос', at: '2026-10-04T08:59:00.000Z', uuid: null } } },
+    { sessionId: 'plan-sid', lines: 1, thread: { askOpen: false, ask: { text: 'старый', uuid: 'u-old', at: '2026-10-04T08:00:00.000Z' } } }];
   const rows = waitingThreads({ threads, sessions, now: Date.parse('2026-10-04T10:00:00Z') });
   const by = Object.fromEntries(rows.map((r) => [r.sessionId, r]));
-  assert.equal(by[SID3].keyTemp, true, 'нет сообщения — ключ statusUpdatedAt');
+  assert.equal(by['plan-sid'].askMissing, true);
+  assert.equal(by['plan-sid'].keyTemp, undefined, 'одобрение плана (askMissing) — ключ statusUpdatedAt постоянный, откладывается');
+  // круг 2 Голема: вопроса нет вовсе (не найден, askMissing) — ключ statusUpdatedAt постоянный, строку откладывают
+  assert.equal(by[SID3].keyTemp, undefined, 'нет вопроса — ключ statusUpdatedAt, не временный');
   assert.equal(by[SID2].keyTemp, true, 'сообщение без uuid — ключ src.at');
   assert.equal(by[SID].keyTemp, undefined, 'разрешение ключуется statusUpdatedAt всегда — ключ не временный');
   const s = await setup({ rows: [{ ...threadRow(SID3, 'x', 'Тред'), key: by[SID3].key, uuid: null, keyTemp: true }] });
