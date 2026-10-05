@@ -212,6 +212,12 @@ test('Б-дело по карточке: mark_b · вопрос «сливай?�
   const row = await setup({}, { threads: [thread(SID)], sessions: sessionQ(QU) });
   const r = (await row.press({ action: 'reply', card: 'EXT-23', session: SID, q: { uuid: QU, at: '2026-10-04T10:00:00.000Z' }, text: 'да, делай' })).json();
   assert.equal(r.outcome, 'ok', r.message);
+  // Б-карточка: записи пульта — приписка «Б — ждёт «да» в чате» (1.2), хотя второго щелчка нет
+  const rec = row.pl().comments.at(-1).html;
+  assert.ok(rec.includes('<p>Б — ждёт «да» в чате.</p>'), rec);
+  const rowA = await setup({}, { threads: [thread(SID)], sessions: sessionQ(QU) });
+  assert.equal((await rowA.press({ action: 'reply', card: 'EXT-20', session: SID, q: { uuid: QU, at: '2026-10-04T10:00:00.000Z' }, text: 'да, делай' })).json().outcome, 'ok');
+  assert.ok(!rowA.pl().comments.at(-1).html.includes('Б — ждёт'), 'не Б-карточка — приписки нет');
   // ответ на развилку (строка (б), без session) на Б-карточке — Б
   const fork = await setup();
   assert.equal((await fork.press({ action: 'reply', card: 'EXT-23', q: Q, text: 'вариант 2' })).json().outcome, 'need-confirm');
@@ -437,6 +443,28 @@ test('секрет класса 5 — второй щелчок «это не с
   const ok = (await s.press({ action: 'no', card: 'EXT-20', q: Q, text: MAYBE, confirm: r1.id })).json();
   assert.equal(ok.outcome, 'ok', ok.message);
   assert.equal(s.pl().comments.length, 2);
+});
+
+test('Б-карточка + секрет класса 5: отказ → «не секрет» → need-confirm → второй щелчок тем же номером → ok; номер «не секрет» как Б-подтверждение → bad-confirm', async () => {
+  const MAYBE = 'ключ лежит тут: Zq8vK3mP9xLr2TnW';
+  const s = await setup({}, { threads: [thread(SID, { card: 'EXT-23' })] });
+  const body = { action: 'no', card: 'EXT-23', q: Q, text: MAYBE };
+  const r1 = (await s.press(body)).json();
+  assert.equal(r1.outcome, 'refused');
+  assert.match(r1.message, /^может быть секретом: /);
+  const r2 = (await s.press({ ...body, confirm: r1.id })).json(); // «не секрет» → дальше Б-дело
+  assert.equal(r2.outcome, 'need-confirm', r2.message);
+  assert.equal(s.pl().calls, undefined, 'до второго щелчка в Plane ничего');
+  const ok = (await s.press({ ...body, confirm: r2.id })).json(); // второй щелчок — номером нажатия, ждавшего его
+  assert.equal(ok.outcome, 'ok', ok.message);
+  assert.equal(s.pl().comments.length, 2);
+  // обратный: номер отказа «не секрет» как Б-подтверждение (текст без класса 5 — «не секрет» не нужен) — bad-confirm
+  const t = await setup({}, { threads: [thread(SID, { card: 'EXT-23' })] });
+  const a = (await t.press(body)).json();
+  const direct = (await t.press({ action: 'yes', card: 'EXT-23', q: Q, confirm: a.id })).json();
+  assert.equal(direct.outcome, 'refused');
+  assert.ok(t.lines().some((l) => l.id === direct.id && l.refusal === 'bad-confirm'));
+  assert.equal(t.pl().calls, undefined);
 });
 
 // ---------------- неясный исход, повтор, звонок при нескольких тредах ----------------

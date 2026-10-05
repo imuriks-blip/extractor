@@ -786,7 +786,8 @@ test('конфиг не выключает защиту: checks и handlers вн
   assert.equal((await act(app, token, { headers: { origin: EVIL } })).statusCode, 403);
   // «да» с ПТ6 подключено настоящим обработчиком; подставной из конфига не действует: «ok» от него не приходит (plane.py не задан — не ok)
   const yes = await act(app, token, { body: { action: 'yes', intentId: nextIntent(), card: 'EXT-6', q: { at: null } } });
-  assert.notEqual(yes.json().outcome, 'ok');
+  assert.equal(yes.json().outcome, 'error');
+  assert.equal(yes.json().message, 'ошибка: NOT_CONNECTED'); // очередь Plane не подключена (planePy не задан)
 });
 
 test('withToken: без <head> — после <html …> или после <!doctype>, <header> не принимается за <head>', () => {
