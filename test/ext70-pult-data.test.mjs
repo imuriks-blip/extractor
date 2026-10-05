@@ -252,7 +252,9 @@ test('4: partial («Принять»: запись есть, статус не �
   assert.match(m.text, /^частично: запись есть, статус не сменился/);
 });
 
-test('4: одна отметка на карточку — побеждает последнее действие; красная «зеркало не видит» держится, пока не снята; mirror-seen — и для слов', async () => {
+// Решение дирижёра (ПТ7, находка Голема на 227bb2d, Важно 1): побеждает самое позднее действие; красная держится только против
+// действий старше её — новое слово под красной даёт свою отметку, его запись пришла — снова видна красная старшего
+test('4: одна отметка на карточку — побеждает последнее действие, и под красной; запись нового пришла — снова красная старшего; mirror-seen — и для слов', async () => {
   const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
   const s = await setup({}, { clock, threads: [thread(SID, { card: 'EXT-20' })] });
   const runs = path.join(boardDir, '.mirror', 'runs.log');
@@ -267,29 +269,32 @@ test('4: одна отметка на карточку — побеждает п
     fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T12:00:10Z')).toISOString()} · начало · changed · pid 1
 ${new Date(Date.parse('2026-10-04T12:00:20Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
 `);
-    const held = await cardMark(s, 'EXT-20');
-    assert.equal(held.id, first.id, 'красная первого держится, хотя последнее действие — второе');
-    assert.equal(held.action, 'yes');
-    assert.deepEqual(Object.keys(held).sort(), [...MARK_KEYS, 'missing', 'text'].sort(), 'красная у слова несёт missing и text');
-    assert.equal(held.missing, true);
-    assert.equal(held.text, `зеркало не видит запись ${first.id}`);
-    // отрицательный контроль: без красной у первого (проход до обоих действий) — побеждает последнее
-    fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T11:00:00Z')).toISOString()} · начало · changed · pid 1
-${new Date(Date.parse('2026-10-04T11:00:05Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
+    const newer = await cardMark(s, 'EXT-20');
+    assert.equal(newer.id, second.id, 'второе действие новее красной первого — побеждает оно');
+    assert.equal(newer.action, 'go');
+    assert.deepEqual(Object.keys(newer).sort(), MARK_KEYS, 'отметка второго не красная — у слова missing и text нет');
+    // проход после обоих действий: красные оба — побеждает последнее, красная второго
+    fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T12:01:10Z')).toISOString()} · начало · changed · pid 1
+${new Date(Date.parse('2026-10-04T12:01:20Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
 `);
-    const clean = await cardMark(s, 'EXT-20');
-    assert.equal(clean.id, second.id);
-    assert.deepEqual(Object.keys(clean).sort(), MARK_KEYS, 'не красная — у слова missing и text нет');
+    const bothRed = await cardMark(s, 'EXT-20');
+    assert.equal(bothRed.id, second.id);
+    assert.equal(bothRed.text, `зеркало не видит запись ${second.id}`);
     fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T12:00:10Z')).toISOString()} · начало · changed · pid 1
 ${new Date(Date.parse('2026-10-04T12:00:20Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
 `);
-    // запись второго действия дотянута, первого — нет: красная первого держится; mirror-seen пишется для слова
+    // запись второго действия дотянута, первого — нет: снова красная первого; mirror-seen пишется для слова
     editLog(cardLog, (t) => t + `
 ### 2026-10-04 15:10 +03:00 · plane · коммент
 
 **Слово Ивана · кнопка витрины · ${second.id}**: «го»
 `);
-    assert.equal((await cardMark(s, 'EXT-20')).id, first.id);
+    const held = await cardMark(s, 'EXT-20');
+    assert.equal(held.id, first.id, 'запись второго пришла — снова красная первого');
+    assert.equal(held.action, 'yes');
+    assert.deepEqual(Object.keys(held).sort(), [...MARK_KEYS, 'missing', 'text'].sort(), 'красная у слова несёт missing и text');
+    assert.equal(held.missing, true);
+    assert.equal(held.text, `зеркало не видит запись ${first.id}`);
     await s.app.pult.tick();
     await s.app.pult.tick();
     assert.equal(s.lines().filter((l) => l.id === second.id && l.step === 'mirror-seen').length, 1, 'mirror-seen для слова');
@@ -383,6 +388,85 @@ test('4: под красной строка (б)/(в) не «отвечено» 
   } finally {
     if (fs.existsSync(runs)) fs.unlinkSync(runs);
     editLog(cardLog, () => logWith(Q_MD));
+  }
+});
+
+// Находка Голема на 227bb2d (Важно 1), решение дирижёра: нажатие под красной — отметка нового слова (обычная: «Отвечено», кнопок
+// нет), не красная старшего; иначе через минуту снова красная с кнопками и строка в «Ждёт меня» — окно для второго слова
+test('4: нажатие под красной — отметка нового слова, строка «отвечено»; его запись пришла — снова красная старшего в «Ждёт меня»; запись старшего — отметки нет', async () => {
+  const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
+  const s = await setup({ status: 'Review' }, { clock, threads: [thread(SID, { card: 'EXT-27' })] });
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  const cardLog = path.join(boardDir, 'EXT', 'EXT-27.log.md');
+  const t0 = clock.t;
+  const pass = (from, to) => fs.writeFileSync(runs, `${new Date(from).toISOString()} · начало · changed · pid 1\n${new Date(to).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3\n`);
+  const view = async () => {
+    const c = await s.get('/api/ceh');
+    const rowIn = (g) => c.waiting[g].find((x) => x.id === 'EXT-27') ?? null;
+    return { group: ['yes', 'review'].find((g) => rowIn(g)) ?? null, row: rowIn('yes') ?? rowIn('review'), count: c.waiting.count + c.waiting.more,
+      mark: (await s.get('/api/card/EXT-27')).pult.mark };
+  };
+  try {
+    const before = await view();
+    assert.equal(before.row.answered, false);
+    const w1 = (await s.press({ action: 'yes', card: 'EXT-27', q: Q })).json();
+    assert.equal(w1.outcome, 'ok', w1.message);
+    pass(t0 + 1000, t0 + 2000); // проход после W1, до W2 — W1 красная
+    const red = await view();
+    assert.equal(red.mark.id, w1.id);
+    assert.equal(red.mark.missing, true);
+    assert.equal(red.row.answered, false);
+    assert.equal(red.count, before.count);
+    // Иван жмёт «да» под красной — W2 ok
+    clock.t = t0 + 60000;
+    const w2 = (await s.press({ action: 'yes', card: 'EXT-27', q: Q })).json();
+    assert.equal(w2.outcome, 'ok', w2.message);
+    const after = await view();
+    assert.equal(after.mark.id, w2.id, 'отметка нового слова, не красная W1');
+    assert.ok(!('missing' in after.mark), 'отметка W2 — обычная');
+    assert.equal(after.row.pultMark.id, w2.id);
+    assert.equal(after.row.answered, true, 'строка — «Отвечено, ждёт зеркала»');
+    assert.equal(after.count, before.count - 1, 'вне счётчика «Цеха»');
+    // пришла запись W2, W1 без записи — снова красная W1, строка в «Ждёт меня»
+    editLog(cardLog, (t) => t + `\n### 2026-10-04 15:10 +03:00 · plane · коммент\n\n**Слово Ивана · кнопка витрины · ${w2.id}**: «да»\n`);
+    const back = await view();
+    assert.equal(back.mark.id, w1.id, 'запись W2 пришла — снова красная W1');
+    assert.equal(back.mark.missing, true);
+    assert.equal(back.row.answered, false);
+    assert.equal(back.group, before.group, 'строка в своей группе «Ждёт меня»');
+    assert.equal(back.count, before.count, 'и в счётчике');
+    // пришла запись W1 — отметки нет
+    editLog(cardLog, (t) => t + `\n### 2026-10-04 15:11 +03:00 · plane · коммент\n\n**Слово Ивана · кнопка витрины · ${w1.id}**: «да»\n`);
+    const gone = await view();
+    assert.equal(gone.mark, null);
+    assert.equal(gone.row.pultMark, null);
+  } finally {
+    if (fs.existsSync(runs)) fs.unlinkSync(runs);
+    editLog(cardLog, () => logWith(Q_MD));
+  }
+});
+
+// Отрицательный контроль к правилу «новее побеждает»: без нового нажатия красная держится против действия старше её.
+// Старшее обычное действие при красной младшем в живых данных не бывает (проход после младшего — после и старшего), поэтому
+// старшее тут — красное тоже; если новое слово не нажато — видна красная младшего, не отметка старшего
+test('4: без нового нажатия красная держится против старшего действия: побеждает младшее (красное), не старшее', async () => {
+  const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
+  const s = await setup({ status: 'Review' }, { clock, threads: [thread(SID, { card: 'EXT-27' })] });
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  const t0 = clock.t;
+  try {
+    const w0 = (await s.press({ action: 'yes', card: 'EXT-27', q: Q })).json();
+    clock.t = t0 + 60000;
+    const w1 = (await s.press({ action: 'go', card: 'EXT-27', q: Q })).json();
+    assert.deepEqual([w0.outcome, w1.outcome], ['ok', 'ok']);
+    fs.writeFileSync(runs, `${new Date(t0 + 61000).toISOString()} · начало · changed · pid 1\n${new Date(t0 + 62000).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3\n`);
+    const m = (await s.get('/api/card/EXT-27')).pult.mark;
+    assert.equal(m.id, w1.id, 'младшая красная, не старшее действие');
+    assert.equal(m.missing, true);
+    const row = (await s.get('/api/ceh')).waiting.review.find((x) => x.id === 'EXT-27');
+    assert.equal(row.answered, false, 'под красной — «Ждёт меня»');
+  } finally {
+    if (fs.existsSync(runs)) fs.unlinkSync(runs);
   }
 });
 
