@@ -151,8 +151,15 @@ test('у треда «Кто работает» — memory {tokens, window, pct,
   assert.equal(bySid[OLD], null);
 });
 
+test('Sonnet 5.5 из умолчаний: окно 1 000 000; 820 000 — 82 %, жёлтое; 500 000 — 50 %, не жёлтое', () => {
+  const o = { contextWindow: DEFAULTS.contextWindow, warnPct: 80 };
+  const m = (tokens) => memoryOf({ tokens, model: 'claude-sonnet-5-5', at: at(0), compactions: 0 }, o);
+  assert.deepEqual(m(820000), { tokens: 820000, window: 1000000, pct: 82, model: 'claude-sonnet-5-5', at: at(0), compactions: 0, warn: true });
+  assert.deepEqual(m(500000), { tokens: 500000, window: 1000000, pct: 50, model: 'claude-sonnet-5-5', at: at(0), compactions: 0, warn: false });
+});
+
 test('настройки: contextWindow и thresholds.memoryWarnPct в умолчаниях; объект contextWindow живого config.json сливается по ключам', () => {
-  assert.deepEqual(DEFAULTS.contextWindow, { 'claude-opus-5-5': 1000000 });
+  assert.deepEqual(DEFAULTS.contextWindow, { 'claude-opus-5-5': 1000000, 'claude-sonnet-5-5': 1000000 });
   assert.equal(DEFAULTS.thresholds.memoryWarnPct, 80);
   const dir = tmpDir('mem-cfg-');
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ port: 4349, thresholds: { staleMin: 20 }, contextWindow: { 'claude-sonnet-5-5': 200000 } }));
