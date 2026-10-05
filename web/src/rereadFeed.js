@@ -9,11 +9,11 @@ let state = { on: false, rows: [] };
 let timer = null;
 let inflight = null;
 
+// пульт или звонок выключен — /api/actions не спрашивается (кнопки нет, строки не нужны); /api/health — каждый период,
+// чтобы узнать, что включили
 async function poll() {
-  const [on, rows] = await Promise.all([
-    fetch('/api/health', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => j?.pult?.enabled === true && j?.bell?.on === true).catch(() => false),
-    fetch('/api/actions', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-  ]);
+  const on = await fetch('/api/health', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => j?.pult?.enabled === true && j?.bell?.on === true).catch(() => false);
+  const rows = on ? await fetch('/api/actions', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
   state = { on, rows: Array.isArray(rows) ? rows.filter((x) => x.action === 'reread' && x.ring && x.session) : state.rows };
   for (const f of [...subs]) f(state);
 }

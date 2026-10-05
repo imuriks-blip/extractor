@@ -115,9 +115,10 @@ test('2.6: без строки хроники фраза о правке опу�
   assert.ok(t.includes('Ничего не меняй. Ответь строкой «правила перечитаны»'));
 });
 
-test('2.6, 2.5: вместе с другими словами — отдельным блоком после них; строки слов — как были', () => {
-  const t = ringText([rereadWord(), otherWord()]);
-  assert.equal(t, [RING_HEAD, ringLine(otherWord()), REREAD_HEAD, `W-261005-120000-a1b2 · ${hhmm('2026-10-05T09:00:00.000Z')} · без карточки · «перечитай правила»`, P_RULES, P_LAYER].join('\n'));
+test('2.6: «перечитай» никогда не в одном звонке со словами — ringText на смешанном наборе отказывает; одни слова и одно «перечитай» — как были', () => {
+  assert.throws(() => ringText([rereadWord(), otherWord()]), /не в одном звонке/);
+  assert.equal(ringText([otherWord()]), [RING_HEAD, ringLine(otherWord())].join('\n'), 'исправный: одни слова');
+  assert.ok(ringText([rereadWord()]).startsWith(REREAD_HEAD), 'исправный: одно «перечитай»');
 });
 
 // ---------------- 3. Разбор журнала (§1.8 «Разбор журнала») ----------------
@@ -148,7 +149,8 @@ test('разбор: исправный рядом — звонок со слов
   assert.equal(a.thread.endTurnQ, null);
   const b = newSessionState();
   feedSession(b, askLine);
-  feedSession(b, ringJournalLine(ringText([rereadWord(), otherWord()])));
+  // смешанный звонок сервер больше не отдаёт (2.6), но разбор журнала по §1.8 его по-прежнему считает словом Ивана
+  feedSession(b, ringJournalLine(`${ringText([otherWord()])}\n${ringText([rereadWord()])}`));
   assert.equal(b.ivan.count, 1, 'есть слово кроме «перечитай» — сообщение Ивана, как раньше');
   assert.equal(b.thread.endTurnQ, null);
   assert.deepEqual(Object.keys(b.rings).sort(), ['W-261005-115900-c3d4', 'W-261005-120000-a1b2']);
@@ -485,6 +487,53 @@ test('reread: ни одна GET-ручка по-прежнему не меняе
   assert.equal(s.lines().length, n);
 });
 
+test('2.6 (d400a47): у треда и слово, и «перечитай» — GET /api/bell отдаёт только слово, «перечитай» держит (held) до следующего хода; статусы честные', async () => {
+  const QU = sid(8770);
+  const s = await setup({ words: true, sessions: () => [{ sessionId: sid(801), lines: 10, thread: { q: { text: 'Слышишь?', uuid: QU, at: '2026-10-05T09:00:00.000Z' } } }] });
+  const rr = (await s.press(RR())).json(); // «перечитай» нажат первым — раньше по времени
+  assert.equal(rr.outcome, 'ok', JSON.stringify(rr));
+  s.clock.t = NOW + 1000;
+  const yes = (await s.press({ action: 'reply', session: sid(801), q: { uuid: QU, at: '2026-10-05T09:00:00.000Z' }, text: 'слышу' })).json();
+  assert.equal(yes.outcome, 'ok', JSON.stringify(yes));
+  const ring = async (id) => (await s.get('/api/actions')).find((x) => x.id === id).ring;
+  // первый звонок — только слово
+  const g1 = await s.bellGet(sid(801));
+  assert.deepEqual(g1.ids, [yes.id]);
+  assert.deepEqual(g1.held, [rr.id], 'ждущий не считает сигнал «перечитай» поддельным');
+  assert.ok(g1.text.startsWith(RING_HEAD), g1.text);
+  assert.ok(!g1.text.includes('перечитай правила цеха') && !g1.text.includes(rr.id) && !g1.text.includes(P_RULES), g1.text);
+  assert.equal(await ring(yes.id), 'положено');
+  assert.equal(await ring(rr.id), 'положено');
+  // ждущий прозвонил слово; «перечитай» осталось в памяти — «положено»
+  s.bellLog({ sid: sid(801), event: 'ring', ids: [yes.id] });
+  await s.app.pult.tick();
+  assert.equal(await ring(yes.id), 'доставлено');
+  assert.equal(await ring(rr.id), 'положено', 'не отдан — положено');
+  // следующий ход треда — отдельный звонок «перечитай»
+  const g2 = await s.bellGet(sid(801));
+  assert.deepEqual(g2.ids, [rr.id]);
+  assert.equal(g2.held, undefined, 'держать нечего — поля нет, форма ответа прежняя');
+  assert.ok(g2.text.startsWith(REREAD_HEAD), g2.text);
+  assert.ok(!g2.text.includes(RING_HEAD) && !g2.text.includes(yes.id), g2.text);
+  assert.deepEqual(g2.text.split('\n').slice(2), [P_RULES, P_PROTO]);
+  s.bellLog({ sid: sid(801), event: 'ring', ids: [rr.id] });
+  await s.app.pult.tick();
+  assert.equal(await ring(rr.id), 'доставлено');
+  assert.deepEqual((await s.bellGet(sid(801))).ids, []);
+});
+
+test('reread: session в верхнем регистре — приводится к нижнему до сверки (UUID): звонок тому же треду, в журнале нижний регистр; повтор в другом регистре — queued', async () => {
+  const HEX = '0a1b2c3d-4e5f-4a6b-8c7d-9e0fa1b2c3d4'; // буквы в UUID — иначе регистр не виден (sid() — одни цифры)
+  const s = await setup({ threads: [thread(801, { sessionId: HEX })] });
+  const up = (await s.press({ action: 'reread', session: HEX.toUpperCase() })).json();
+  assert.equal(up.outcome, 'ok', JSON.stringify(up));
+  assert.equal(s.lines().find((l) => l.id === up.id && l.step === 'asked').session, HEX);
+  assert.deepEqual((await s.bellGet(HEX)).ids, [up.id]);
+  const again = (await s.press({ action: 'reread', session: HEX })).json();
+  assert.equal(again.outcome, 'refused');
+  assert.equal(again.prev.id, up.id, 'тот же тред — тот же запрет');
+});
+
 // ---------------- 5. Страница: кнопка и общий опрос (web/src/rereadFeed.js) ----------------
 
 const feedMod = await import('../web/src/rereadFeed.js');
@@ -533,6 +582,34 @@ test('опрос страницы: на любое число блоков — �
   const n = calls.length;
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(calls.length, n);
+});
+
+test('опрос страницы: пульт или звонок выключен — /api/actions не спрашивается, /api/health — да (узнать, что включили); включили — снова оба', async (t) => {
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  for (const [name, health] of [['pult.enabled = false', { pult: { enabled: false }, bell: { on: true } }], ['bell.on = false', { pult: { enabled: true }, bell: { on: false } }]]) {
+    const calls = [];
+    let h = health;
+    globalThis.fetch = async (url) => {
+      calls.push(String(url));
+      return { ok: true, json: async () => (String(url).startsWith('/api/health') ? h : [{ id: 'W-9', action: 'reread', ring: 'положено', session: sid(970), at: 'x' }]) };
+    };
+    const seen = [];
+    const off = feedMod.subscribe((st) => seen.push(st));
+    t.after(off); // красный прогон не оставляет таймер опроса (иначе процесс теста не выходит)
+    await feedMod.refreshNow(true);
+    await feedMod.refreshNow(true);
+    assert.ok(calls.filter((u) => u.startsWith('/api/health')).length >= 1, name);
+    assert.equal(calls.filter((u) => u.startsWith('/api/actions')).length, 0, `${name}: в /api/actions не ходит`);
+    assert.equal(seen.at(-1).on, false, name);
+    // исправный рядом: включили — строки снова опрашиваются
+    h = { pult: { enabled: true }, bell: { on: true } };
+    await feedMod.refreshNow(true);
+    await feedMod.refreshNow(true);
+    off();
+    assert.ok(calls.filter((u) => u.startsWith('/api/actions')).length >= 1, `${name}: включили — /api/actions спрошен`);
+    assert.equal(seen.at(-1).on, true, name);
+  }
 });
 
 test('«последняя просьба»: сервер (lib/pult/reread-last.mjs) и страница (lastFor) выбирают одно и то же на одних данных — по времени просьбы, при равенстве по номеру', async () => {

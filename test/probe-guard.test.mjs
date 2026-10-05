@@ -29,7 +29,7 @@ test('охранник: порт 4317 — отказ (числом и строк
 });
 
 test('охранник: пробы вызывают его после констант, раньше любой записи', () => {
-  for (const f of ['pt6-drive', 'pt6b-drive', 'pt6v-drive']) {
+  for (const f of ['pt4b-drive', 'pt6-drive', 'pt6b-drive', 'pt6v-drive']) {
     const src = fs.readFileSync(path.join(HERE, '..', 'probe', `${f}.mjs`), 'utf8');
     const g = src.indexOf('guardLive(REPO, PORT)');
     assert.ok(g > 0, `${f}: вызов охранника`);
