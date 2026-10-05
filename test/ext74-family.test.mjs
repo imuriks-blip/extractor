@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createJournalReader } from '../lib/journal-reader.mjs';
-import { newSessionState, feedSession, launchCwds } from '../lib/journal-parse.mjs';
+import { newSessionState, feedSession, launchCwds, launchStats } from '../lib/journal-parse.mjs';
 import { buildWorkers } from '../lib/waiting.mjs';
 import { tmpDir } from './helpers.mjs';
 
@@ -413,4 +413,32 @@ test('EXT-74: отсев семьи — до обрезки: 7 общих, 5 с�
   assert.deepEqual(m[0].files.map((f) => f.path).sort(), ['C:/v/o1.md', 'C:/v/o2.md']);
   assert.equal('more' in m[0], false);
   assert.equal(m[0].at, at(2.5 * H));
+});
+
+// ---------- мелочи Голема на код ----------
+
+test('EXT-74, мелочь Голема: команда без подстроки foreman-launch.mjs не разбирается (launchCwds не вызывается); исправный рядом — запуск распознаётся', () => {
+  const st = newSessionState();
+  const before = launchStats.parsed;
+  for (const l of [...shell(A, 'git -C C:\\w\\x status && npm test', at(L)), ...shell(A, 'node C:\\tools\\other.mjs --cwd C:\\w\\x', at(L), 'PowerShell')]) feedSession(st, JSON.parse(l));
+  assert.equal(launchStats.parsed - before, 0, 'без подстроки — разбора нет');
+  assert.equal(Object.keys(st.launches ?? {}).length, 0);
+  for (const l of shell(A, launchCmd(`--cwd ${P}`), at(L))) feedSession(st, JSON.parse(l));
+  assert.equal(launchStats.parsed - before, 1, 'с подстрокой — разобрана');
+  assert.deepEqual(Object.values(st.launches).map((x) => x.ps), [['C:/w/x']]);
+});
+
+test('EXT-74, мелочь Голема: время запуска — самое раннее из копий; копия в продолженной сессии позже исходной, старт прораба между ними → семья', async () => {
+  const id = 'b-copy-1';
+  const line = (sid, time) => call(sid, id, 'Bash', { command: launchCmd(`--cwd ${P}`) }, time);
+  const early = at(L);
+  const late = at(L - 20 * MIN); // копия на 20 мин позже исходной строки
+  const prorab = [...opening(B, P, started(5 * MIN)), ...edit(B, F, at(2 * H))]; // старт B — через 5 мин после исходной
+  const procs = [{ ...proc(A, 'EXT · дирижёр'), hostSessionId: 'local_a' }, proc(B, 'EXT · прораб')];
+  const desktop = (h) => (h === 'local_a' ? { title: 'EXT · дирижёр', priorCliSessionIds: [D] } : null);
+  const both = await workers({ [D]: [line(D, early)], [A]: [line(D, late), ...edit(A, F, at(H))], [B]: prorab }, { procs, desktop });
+  assert.deepEqual(others(both, A), [], 'время вызова — исходной строки: B стартовал в пределах 10 мин');
+  assert.deepEqual(others(both, B), []);
+  const onlyLate = await workers({ [A]: [line(D, late), ...edit(A, F, at(H))], [B]: prorab }, { procs, desktop });
+  assert.deepEqual(others(onlyLate, B), [A], 'отрицательный контроль: только поздняя копия — старт B раньше вызова, пометка есть');
 });
