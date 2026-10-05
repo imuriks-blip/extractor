@@ -602,6 +602,16 @@
             "card": "LEDGER-168",
             "at": "2026-10-01T08:40:00.000Z",
             "line": "Вердикт: можно сливать, Критично нет."
+          },
+          {
+            "kind": "oldRules",
+            "rulesUpdatedAt": "2026-10-01T10:15:00+03:00",
+            "missing": [
+              {
+                "path": "C:/Users/imuri/.claude/CLAUDE.md",
+                "short": "~/.claude/CLAUDE.md"
+              }
+            ]
           }
         ],
         "procStatus": "busy",
@@ -651,7 +661,22 @@
         "sinceKind": "card",
         "lastSeenAt": "2026-10-01T12:00:00+03:00",
         "subagents": [],
-        "marks": [],
+        "marks": [
+          {
+            "kind": "oldRules",
+            "rulesUpdatedAt": "2026-10-01T10:15:00+03:00",
+            "missing": [
+              {
+                "path": "C:/Vault/CLAUDE.md",
+                "short": "CLAUDE.md"
+              },
+              {
+                "path": "C:/Vault/unorbis/_meta/Субагенты Claude Code.md",
+                "short": "unorbis/_meta/Субагенты Claude Code.md"
+              }
+            ]
+          }
+        ],
         "waitingKind": null,
         "lastState": null,
         "projectBy": "title",
@@ -669,8 +694,8 @@
     ],
     "_memory": "EXT-49 «память треда», третья строка треда (спека 2.1): memory {tokens — занято токенов (последний ответ главного треда: input + cache_creation + cache_read; после сжатия без ответа — postTokens), window — окно модели из config.json → contextWindow или null (модели нет в настройке), pct — целая часть процента или null, model, at — время ответа или сжатия (UTC ISO), compactions — сжатий в текущей сессии, warn — pct ≥ thresholds.memoryWarnPct (80)} или null — в журнале ещё нет ответа с usage (строку не показывать). Вид: «память N %» серым; warn — жёлтым «память N % — пора сделать снимок и открыть новый тред»; window null — «память N тыс.» без процента; compactions > 0 — «сжат N раз» серым рядом. Жёлтое тред не поднимает.",
     "subagentsCount": 1,
-    "marksCount": 3,
-    "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules | collision (EXT-60, «Общий файл»: жёлтая, тред не поднимает, в значок и «Ждёт меня» не входит; other — другой тред, closed — закрыт ли; files до 5 по времени, short — от корня репозитория реестра или vault_root, иначе полный путь; more — сколько файлов сверх пяти, поля нет, пока их не больше пяти; at — самое позднее время пары)"
+    "marksCount": 5,
+    "_marks": "kind: partial (обрыв; done: [] — коммитов нет, null — ещё неизвестно) | takt (level yellow/red) | subagentWrite (запись субагента в доску, В-15) | oldRules (EXT-65: missing — [{path, short}], файлы набора rulesReread.files, которых тред после момента не прочитал; поля нет — набор выключен, строки «не перечитаны: …» и кнопки нет; кнопка «Перечитать правила» — только при /api/health → bell.on; статус просьбы — из /api/actions?session=, образцы — actions.json) | collision (EXT-60, «Общий файл»: жёлтая, тред не поднимает, в значок и «Ждёт меня» не входит; other — другой тред, closed — закрыт ли; files до 5 по времени, short — от корня репозитория реестра или vault_root, иначе полный путь; more — сколько файлов сверх пяти, поля нет, пока их не больше пяти; at — самое позднее время пары)"
   },
   "freshness": {
     "_failingSince": "с первого сбоя чтения подряд, null после удачи (2.7): серая строка «данные на ЧЧ:ММ, чтение не удаётся N мин»",

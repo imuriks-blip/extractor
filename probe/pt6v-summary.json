@@ -1,0 +1,421 @@
+{
+  "checks": {
+    "подготовка: A прочитал один файл из трёх — missing ровно два": {
+      "missing": [
+        {
+          "path": "C:\\Users\\imuri\\AppData\\Local\\Temp\\pt6v-xOZqjN\\vault\\unorbis\\_meta\\Субагенты.md",
+          "short": "unorbis/_meta/Субагенты.md"
+        },
+        {
+          "path": "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md",
+          "short": "~/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
+        }
+      ],
+      "expect": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
+      ],
+      "actual": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
+      ]
+    },
+    "подготовка: E (не читала) — missing три; D без проекта и F свежая — пометки нет": {
+      "E": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/CLAUDE.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
+      ],
+      "D": {
+        "project": null,
+        "mark": null
+      },
+      "F": {
+        "project": "EXT",
+        "mark": null
+      }
+    },
+    "(а) до звонка: у A есть строка «Ждёт меня»": {
+      "row": {
+        "kind": "question",
+        "text": "Трурль: Брать вариант 1 или вариант 2?",
+        "key": "4096da79-b3b8-429a-832d-a442ceab41a2|dc21f594-036c-4485-9164-21157b62388c"
+      }
+    },
+    "основной путь": {
+      "http": 200,
+      "outcome": "ok",
+      "id": "W-261005-125101-722a",
+      "steps": [
+        "asked",
+        "ring-queued",
+        "done",
+        "ring-delivered"
+      ],
+      "woke": true,
+      "ringInJournal": true,
+      "ringHasBothPaths": true,
+      "ringNamesFile1": false,
+      "ringFirstLine": "\"<task-notification>\\n<summary>Stop hook feedback</summary>\\n</task-notification>\\n<system-reminder>\\nStop hook blocking error from command \\\"Stop\\\": Слово Иван",
+      "readsAfterRing": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
+      ],
+      "readsMatchTwo": true,
+      "toolsAfterRing": [
+        "Read"
+      ],
+      "noWriteEditBash": true,
+      "markAfter": null,
+      "rulesRereadAfter": "2026-10-05T09:51:06.618Z",
+      "missingBefore": 2,
+      "statusProchitano_actionsApi": true
+    },
+    "«прочитано» по форме звонка в журнале A (st.rings из разбора витрины): id слова есть в st.rings (время — в readAt, не сверяется)": {
+      "read": true,
+      "readAt": "2026-10-05T09:51:02.113Z",
+      "ivanCount": 0,
+      "questionBefore": true,
+      "questionAfter": true,
+      "ringId": "W-261005-125101-722a",
+      "ok": true
+    },
+    "(б) «перечитать» не сообщение Ивана: вопрос треда (строка (а)) остался, счётчик 0": {
+      "read": true,
+      "readAt": "2026-10-05T09:51:02.113Z",
+      "ivanCount": 0,
+      "questionBefore": true,
+      "questionAfter": true,
+      "ok": true
+    },
+    "(б) отрицательный контроль: тот же звонок + обычное слово «да» — сообщение Ивана, вопрос снят; с карточкой — тоже": {
+      "mixed": {
+        "read": true,
+        "readAt": "2026-10-05T09:51:02.113Z",
+        "ivanCount": 1,
+        "questionBefore": true,
+        "questionAfter": null
+      },
+      "wordCard": {
+        "read": true,
+        "readAt": "2026-10-05T09:51:02.113Z",
+        "ivanCount": 1,
+        "questionBefore": true,
+        "questionAfter": null
+      },
+      "ok": true
+    },
+    "(а) после звонка: у A строка «Ждёт меня» есть": {
+      "before": {
+        "key": "4096da79-b3b8-429a-832d-a442ceab41a2|dc21f594-036c-4485-9164-21157b62388c",
+        "text": "Трурль: Брать вариант 1 или вариант 2?"
+      },
+      "after": {
+        "kind": "question",
+        "key": "4096da79-b3b8-429a-832d-a442ceab41a2|6e65040a-36d9-446e-a204-cfeda29c8c25",
+        "text": "Трурль: Брать вариант 1 или вариант 2?"
+      },
+      "answerEndsWithQuestion": true
+    },
+    "контроли: already-read / no-mark (D без проекта, F свежая) / thread-closed — 200, звонка нет": {
+      "A_after_read": {
+        "http": 200,
+        "refusal": "already-read",
+        "outcome": "refused"
+      },
+      "D_noProject": {
+        "http": 200,
+        "refusal": "no-mark",
+        "outcome": "refused"
+      },
+      "F_fresh": {
+        "http": 200,
+        "refusal": "no-mark",
+        "outcome": "refused"
+      },
+      "ghost": {
+        "http": 200,
+        "refusal": "thread-closed",
+        "outcome": "refused"
+      },
+      "signalsBefore": [],
+      "signalsAfter": [],
+      "newBellLogLines": [],
+      "actionsLogged": [
+        [
+          "asked",
+          "refused:already-read"
+        ],
+        [
+          "asked",
+          "refused:no-mark"
+        ],
+        [
+          "asked",
+          "refused:no-mark"
+        ],
+        [
+          "asked",
+          "refused:thread-closed"
+        ]
+      ]
+    },
+    "контроль: POST с полем missing/путями/q/confirm/text/card — 400, звонка нет": {
+      "results": {
+        "missing": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "paths": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "q": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "confirm": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "text": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "card": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        }
+      },
+      "signalsUnchanged": true
+    },
+    "words=false, bell=true: reread проходит (положено), второе нажатие — queued, один звонок, «да» — 503": {
+      "first": {
+        "http": 200,
+        "outcome": "ok",
+        "id": "W-261005-125126-3685",
+        "steps": [
+          "asked",
+          "ring-queued",
+          "done"
+        ]
+      },
+      "second": {
+        "http": 200,
+        "outcome": "refused",
+        "refusal": "queued",
+        "prev": {
+          "id": "W-261005-125126-3685",
+          "status": "положено"
+        },
+        "steps": [
+          "asked",
+          "refused:queued"
+        ]
+      },
+      "signals": [
+        "ae41f4ee/W-261005-125126-3685.ring"
+      ],
+      "yesWords503": {
+        "http": 503,
+        "outcome": "refused",
+        "message": "слова с витрины включатся после правки правил"
+      }
+    },
+    "bell=false: reread → bell-off, 200": {
+      "http": 200,
+      "outcome": "refused",
+      "refusal": "bell-off",
+      "id": "W-261005-125133-570f",
+      "signals": [
+        "ae41f4ee/W-261005-125126-3685.ring"
+      ]
+    },
+    "набор выключен: reread-off, 200, сигналов в bell/ нет": {
+      "markA": {
+        "kind": "oldRules",
+        "rulesUpdatedAt": "2026-10-05T09:50:39.000Z"
+      },
+      "A": {
+        "http": 200,
+        "refusal": "reread-off",
+        "outcome": "refused"
+      },
+      "E": {
+        "http": 200,
+        "refusal": "reread-off"
+      },
+      "signals": [],
+      "rereadOffHealth": "EMPTY"
+    }
+  },
+  "pids": {
+    "sessions": {
+      "A": 64708,
+      "D": 25388,
+      "E": 50584,
+      "F": 31076
+    },
+    "server": 18920
+  },
+  "moment": {
+    "hash": "fc7c242ed4",
+    "at": "2026-10-05T12:50:39+03:00",
+    "note": "в CLAUDE.md добавлено правило 1б (проба ПТ6в)"
+  },
+  "actions": [
+    {
+      "id": "W-261005-125101-722a",
+      "step": "asked",
+      "action": "reread",
+      "session": "4096da79"
+    },
+    {
+      "id": "W-261005-125101-722a",
+      "step": "ring-queued",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-125101-722a",
+      "step": "done",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-125101-722a",
+      "step": "ring-delivered",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-125113-bd53",
+      "step": "asked",
+      "action": "reread",
+      "session": "4096da79"
+    },
+    {
+      "id": "W-261005-125113-bd53",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "already-read"
+    },
+    {
+      "id": "W-261005-125113-cdd1",
+      "step": "asked",
+      "action": "reread",
+      "session": "521310ff"
+    },
+    {
+      "id": "W-261005-125113-cdd1",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "no-mark"
+    },
+    {
+      "id": "W-261005-125113-9175",
+      "step": "asked",
+      "action": "reread",
+      "session": "73cb6e54"
+    },
+    {
+      "id": "W-261005-125113-9175",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "no-mark"
+    },
+    {
+      "id": "W-261005-125114-d38c",
+      "step": "asked",
+      "action": "reread",
+      "session": "86c97701"
+    },
+    {
+      "id": "W-261005-125114-d38c",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "thread-closed"
+    },
+    {
+      "id": "W-261005-125126-3685",
+      "step": "asked",
+      "action": "reread",
+      "session": "ae41f4ee"
+    },
+    {
+      "id": "W-261005-125126-3685",
+      "step": "ring-queued",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-125126-3685",
+      "step": "done",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-125127-c0dc",
+      "step": "asked",
+      "action": "reread",
+      "session": "ae41f4ee"
+    },
+    {
+      "id": "W-261005-125127-c0dc",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "queued"
+    },
+    {
+      "id": "W-261005-125133-570f",
+      "step": "asked",
+      "action": "reread",
+      "session": "ae41f4ee"
+    },
+    {
+      "id": "W-261005-125133-570f",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "bell-off"
+    },
+    {
+      "id": "W-261005-125126-3685",
+      "step": "withdrawn",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-125140-d885",
+      "step": "asked",
+      "action": "reread",
+      "session": "4096da79"
+    },
+    {
+      "id": "W-261005-125140-d885",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "reread-off"
+    },
+    {
+      "id": "W-261005-125140-05d3",
+      "step": "asked",
+      "action": "reread",
+      "session": "ae41f4ee"
+    },
+    {
+      "id": "W-261005-125140-05d3",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "reread-off"
+    }
+  ],
+  "killed": {
+    "sessions": {
+      "A": 64708,
+      "D": 25388,
+      "E": 50584,
+      "F": 31076
+    },
+    "server": 18920
+  }
+}

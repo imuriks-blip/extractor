@@ -24,6 +24,8 @@ const PROTO = `${VAULT}\\unorbis\\_meta\\Субагенты Claude Code.md`;
 const RULES_MD = `${VAULT}\\CLAUDE.md`;
 // набор — как его соберёт start.mjs из config.default.json (пути относительно vault_root), разделитель и регистр — другие
 const SET = ['c:/users/imuri/documents/obsidian vault/CLAUDE.md', 'C:/Users/imuri/Documents/Obsidian Vault/unorbis/_meta/Субагенты Claude Code.md'];
+// EXT-65: пометка с набором несёт missing — файлы набора без чтения после момента (порядок набора, пути как в наборе)
+const miss = (...i) => i.map((k) => ({ path: SET[k], short: SET[k] }));
 // момент «правила обновлены» — 03.10 13:37 по Риге
 const MOMENT = '2026-10-03T10:37:00.000Z';
 // времена строк вызова Read в фикстуре (не результата): протокол 14:01:41, CLAUDE.md 14:01:43 по Риге
@@ -67,13 +69,13 @@ test('EXT-54 пометка: прочитан один файл из двух п
   const ls = lines().filter((d, i, a) => !(i >= 6 && (callOf(d) === RULES_MD || d.message.content[0].tool_use_id === a[6].message.content[0].id)));
   assert.equal(ls.length, 6);
   const m = marks(parse(ls));
-  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: MOMENT }]);
+  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: MOMENT, missing: miss(0) }]);
   assert.equal(m.rulesReread[SID] ?? null, null);
 });
 
 test('EXT-54 пометка: оба файла прочитаны только до момента — пометка есть', () => {
   const m = marks(parse(lines().slice(0, 4)));
-  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: MOMENT }]);
+  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: MOMENT, missing: miss(0, 1) }]);
   assert.equal(m.rulesReread[SID] ?? null, null);
 });
 
@@ -82,7 +84,7 @@ test('EXT-54 разбор: чтение с ошибкой в результат�
   ls[7] = asError(ls[7]); // результат последнего Read CLAUDE.md
   const st = parse(ls);
   const m = marks(st);
-  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: MOMENT }]);
+  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: MOMENT, missing: miss(0) }]);
   assert.equal(m.rulesReread[SID] ?? null, null);
   assert.deepEqual(Object.values(st.reread).sort(), ['2026-10-03T10:32:20.181Z', READ_PROTO], 'у CLAUDE.md осталось прежнее, удачное чтение');
 });
@@ -95,7 +97,7 @@ test('EXT-54 разбор: строка субагента (isSidechain) не в
 test('EXT-54 пометка: новый момент «правила обновлены» после чтения — снова пометка', () => {
   const later = '2026-10-03T12:00:00.000Z';
   const m = marks(parse(lines()), later);
-  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: later }]);
+  assert.deepEqual(m.bySession[SID], [{ kind: 'oldRules', rulesUpdatedAt: later, missing: miss(0, 1) }]);
   assert.equal(m.rulesReread[SID] ?? null, null);
 });
 
@@ -167,7 +169,7 @@ test('EXT-54 тред без проекта (правило (3)) — без «С
   assert.equal(by['s-none-read'].rulesReread, null, 'без проекта — строки «перечитаны» нет');
   assert.deepEqual(by['s-none-read'].marks, []);
   assert.equal(by['s-cards'].projectBy, 'cards');
-  assert.deepEqual(by['s-cards'].marks, [{ kind: 'oldRules', rulesUpdatedAt: MOMENT }], 'проект по карточкам — цеховой, пометка есть');
+  assert.deepEqual(by['s-cards'].marks, [{ kind: 'oldRules', rulesUpdatedAt: MOMENT, missing: miss(0, 1) }], 'проект по карточкам — цеховой, пометка есть');
 });
 
 // Набор файлов «перечитаны» (дозапрос после ревью Голема): «~/» — от домашней папки, остальное — от vault_root;

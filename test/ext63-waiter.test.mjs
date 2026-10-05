@@ -14,7 +14,7 @@ const ME = 5001; // pid ждущего
 const OWNER = 7001; // pid хозяина (claude.exe)
 const START = { [ME]: '134000000000000001', [OWNER]: '134000000000000777' };
 
-function mk({ owner = { pid: OWNER, sessionId: SID, procStart: START[OWNER], status: 'idle' }, served = () => [], getStatus = 200 } = {}) {
+function mk({ owner = { pid: OWNER, sessionId: SID, procStart: START[OWNER], status: 'idle' }, served = () => [], held = () => [], getStatus = 200 } = {}) {
   const bellDir = tmpDir('waiter-bell-');
   const sessionsDir = tmpDir('waiter-sess-');
   const alive = new Set([ME, OWNER]);
@@ -32,7 +32,7 @@ function mk({ owner = { pid: OWNER, sessionId: SID, procStart: START[OWNER], sta
     sleep: async (ms) => { clock += ms; tick++; hooks.onTick(tick); },
     isAlive: (pid) => alive.has(pid),
     procStartOf: async (pids) => { psCalls.push([...pids]); return new Map(pids.map((p) => [p, alive.has(p) ? starts[p] ?? null : null])); },
-    get: async (sid) => { gets.push({ sid, at: clock }); const ids = served(); return { status: getStatus, json: { ids, text: ids.length ? `ТЕКСТ ${ids.join(',')}` : null } }; },
+    get: async (sid) => { gets.push({ sid, at: clock }); const ids = served(); return { status: getStatus, json: { ids, held: held(), text: ids.length ? `ТЕКСТ ${ids.join(',')}` : null } }; },
     stderr: (s) => { errs.push(s); hooks.onStderr(s); },
     maxTicks: 60,
   };
@@ -154,6 +154,15 @@ test('2.2: сигнал мимо сервера — forged {ids}, сигнал �
   assert.deepEqual(s.log().map((l) => [l.event, l.ids]), [['start', undefined], ['forged', [F]], ['ring', [A]]]);
   assert.deepEqual(s.errs, [`ТЕКСТ ${A}`]);
   assert.deepEqual(s.signals(), []);
+});
+
+test('2.6 (d400a47): сигнал слова, которое сервер держит до следующего хода (held), — не поддельный: не удалён, forged нет; звонок только отданным', async () => {
+  const s = mk({ served: () => [A], held: () => [B] });
+  s.signal(A); s.signal(B); s.signal(F);
+  assert.equal(await runWaiter(s.env), 2);
+  assert.deepEqual(s.log().map((l) => [l.event, l.ids]), [['start', undefined], ['forged', [F]], ['ring', [A]]], 'F — поддельный (исправный рядом), B — нет');
+  assert.deepEqual(s.errs, [`ТЕКСТ ${A}`]);
+  assert.deepEqual(s.signals(), [`${B}.ring`], 'сигнал «перечитай» лежит до следующего хода');
 });
 
 test('2.2: только поддельный сигнал — forged, stderr пуст, ждущий ждёт дальше (выход по смерти хозяина, код 0)', async () => {

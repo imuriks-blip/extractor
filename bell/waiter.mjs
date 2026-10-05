@@ -6,7 +6,7 @@
 // за 10 с — выход 0; умер — выход 0. STOP в папке звонка — при старте (замок не берётся) и на каждом тике.
 // Звонит только свободному хозяину (status idle или нет статуса). Порядок звонка (2.2): GET /api/bell/<sid> →
 // строка ring {ids} в bell.log → удалить сигналы прозвоненных → текст в stderr и код 2. Сигналы, чьих id нет
-// в ответе сервера, — удалить, строка forged {ids}. Содержимое сигналов не читается. В bell.log — без текста.
+// в ответе сервера (ни в ids, ни в held), — удалить, строка forged {ids}. Содержимое сигналов не читается. В bell.log — без текста.
 // Удаление файлов — fs.unlinkSync (rmSync молча не удаляет путь с кириллицей, EXT-62).
 import nodeFs from 'node:fs';
 import os from 'node:os';
@@ -157,7 +157,10 @@ export async function runWaiter({ sid, port = DEFAULTS.port, bellDir = DEFAULTS.
     if (r?.status === 503) { release(); log('stop', { reason: 'bell-off' }); return 0; }
     if (r?.status !== 200 || !r.json || !Array.isArray(r.json.ids)) continue;
     const served = r.json.ids.filter((x) => typeof x === 'string');
-    const forged = ids.filter((x) => !served.includes(x));
+    // held — слова, которые сервер знает, но держит до следующего звонка («перечитай» не в одном звонке со словами, 2.6):
+    // их сигналы не поддельные — лежат, следующий ждущий того же треда позвонит ими
+    const held = Array.isArray(r.json.held) ? r.json.held.filter((x) => typeof x === 'string') : [];
+    const forged = ids.filter((x) => !served.includes(x) && !held.includes(x));
     if (forged.length) { for (const id of forged) unlinkQuiet(fs, path.join(sigDir, `${id}.ring`)); log('forged', { ids: forged }); }
     if (!served.length || typeof r.json.text !== 'string') continue;
     log('ring', { ids: served });
