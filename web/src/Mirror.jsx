@@ -4,10 +4,12 @@
 // Пульт выключен: флага в данных нет — узнаётся по первому 503 и запоминается на запуск сервера (токен страницы новый на
 // каждый запуск, флаг pult.enabled читается при старте), кнопка до перезапуска витрины не показывается.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { hm } from './format.js';
 import { clear403, postAct, reloadOn403, setPuller, store, take403, token, tokenMark as mark } from './act.js';
 
 const POLL_MS = 4000;
 const OFF_KEY = 'vitrina.pultOff'; // отпечаток токена запуска сервера, на котором пульт ответил 503
+const PHASE = { comments: 'комменты', cards: 'карточки', index: 'индекс', links: 'связи', assets: 'вложения' }; // фазы status.json → слова; незнакомая — как есть
 const HINT = 'прогнать зеркало доски: свежие карточки из Plane (обычный проход, несколько минут)';
 
 async function readMirror() {
@@ -107,7 +109,14 @@ export default function MirrorButton({ label }) {
 
   const running = phase === 'running';
   const nums = running && Number.isFinite(st?.cardsDone) && Number.isFinite(st?.cardsTotal);
-  const text = phase === 'pending' ? 'запускаю…' : running ? (nums ? `обновляю · ${st.cardsDone} из ${st.cardsTotal}` : 'обновляю…') : 'Обновить';
+  const text = phase === 'pending' ? 'запускаю…' : running ? 'идёт…' : 'Обновить';
+  // ход зеркала (таблица 1.3): фаза, N из M, запросов, темп, с какого времени — из GET /api/mirror
+  const prog = running ? [
+    st?.phase && (nums ? `${PHASE[st.phase] ?? st.phase} ${st.cardsDone} из ${st.cardsTotal}` : (PHASE[st.phase] ?? st.phase)),
+    Number.isFinite(st?.requests) && `${st.requests} запросов`,
+    Number.isFinite(st?.rpm) && `${st.rpm}/мин`,
+    st?.startedAt && `с ${hm(st.startedAt)}`,
+  ].filter(Boolean) : [];
   const runTitle = running
     ? ['зеркало идёт', st?.kind, st?.phase && `фаза ${st.phase}`, Number.isFinite(st?.requests) && `запросов ${st.requests}`, Number.isFinite(st?.rpm) && `${st.rpm}/мин`].filter(Boolean).join(' · ')
     : HINT;
@@ -115,6 +124,7 @@ export default function MirrorButton({ label }) {
   return (
     <span className="mbtn">
       <button type="button" className={running ? 'num' : undefined} disabled={phase !== 'idle'} title={runTitle} onClick={() => press()}>{text}</button>
+      {running && <span className="mrun" role="status">зеркало идёт{prog.length > 0 && <> · <span className="num">{prog.join(' · ')}</span></>}</span>}
       <span className="mbtn-note" role="status" title={err?.title}>{err?.text}</span>
     </span>
   );

@@ -1,11 +1,11 @@
 // Карточка — панель справа ~560 px без затемнения (решение Ивана 8, макет BBE73reeyzkCGzC3rrg9sd, версия 2); поля — спека §2.6, §3.3.
 // Доска под панелью кликабельна: панель живёт, пока в адресе есть номер карточки (#/project/EXT/EXT-6), и меняет содержимое.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { streamSource, useSource } from './data.js';
+import { cehSource, streamSource, useSource } from './data.js';
 import { ageShort, dd, dm, hm, minutes, plural } from './format.js';
 import { mdToHtml } from './md.js';
 import { staleText } from './Ceh.jsx';
-import Pult, { PultMark } from './Pult.jsx';
+import Pult from './Pult.jsx';
 import { TraceBlock } from './Trace.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8): серая строка у коммитов — после трёх пропущенных проходов
@@ -141,10 +141,31 @@ function Feed({ data, filter, setFilter, now }) {
   );
 }
 
+// Кнопки-слова панели по статусу (§1.4 «Карточка (панель)», макет ПТ7, вариант Б): главные в строке, прочее — в «ещё ▾».
+// Слово по метке последней записи-вопроса (метка строки (б) «Ждёт меня») выходит из «ещё» в строку и становится главным.
+const MAIN_WORD = { сливай: 'merge', выкатывай: 'deploy', Б: 'yes', развилка: 'reply' };
+function panelWords(status, label) {
+  const set = {
+    review: [['merge', 'deploy'], ['yes', 'go', 'no', 'reply']],
+    'in-progress': [['yes', 'no', 'reply'], ['go']],
+    backlog: [['take'], ['yes', 'go', 'no', 'reply']],
+    ready: [['take'], ['yes', 'go', 'no', 'reply']],
+  }[status];
+  if (!set) return null;
+  let [btns, more] = set;
+  const main = MAIN_WORD[label];
+  if (main && more.includes(main)) { btns = [...btns, main]; more = more.filter((x) => x !== main); }
+  return { btns, more, main: main && btns.includes(main) ? main : null };
+}
+
 function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
   const src = useMemo(() => streamSource(`/api/card/${encodeURIComponent(id)}`), [id]);
   const { data, failingSince, okAt, error } = useSource(src);
   const h = data?.header;
+  const ceh = useSource(cehSource);
+  const label = ceh.data?.waiting?.yes?.find((r) => r.id === id)?.mark;
+  const pf = data?.pult;
+  const words = pf?.enabled === true && pf?.words === true && h?.status ? panelWords(h.status, label) : null;
   const project = data?.project ?? id.split('-')[0]; // поле project ручки (5baefc7); префикс — пока ответа нет
   const stale = data && failingSince ? staleText({ lastOkAt: new Date(okAt).toISOString() }, true, now) : null;
 
@@ -183,10 +204,12 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
             <span>проект {project}</span>
           </div>
         )}
-        {/* «Принять»/«Вернуть» — у карточки в Review (§1.4); q null (битая шапка) — кнопок нет; отметка §3.2 — при любом статусе */}
-        {h?.status === 'review' && data?.pult
-          ? <><Pult card={id} q={data.pult.q ?? null} accept={data.pult.accept} mark={data.pult.mark} /><TraceBlock t={data.pult.trace} /></>
-          : data?.pult?.mark && <div className="pult"><PultMark m={data.pult.mark} /></div>}
+        {/* «Принять»/«Вернуть» — у карточки в Review (§1.4); кнопки-слова — по статусу; q null (битая шапка) — кнопок нет;
+            отметка §3.2 — при любом статусе. Флаги pult.words / pult.bell — из данных, не по 503 после нажатия */}
+        {pf && (h?.status === 'review' || words || pf.mark) && (
+          <Pult card={id} q={pf.q ?? null} accept={pf.accept} mark={pf.mark} ar={h?.status === 'review'} words={words} />
+        )}
+        {h?.status === 'review' && pf && <TraceBlock t={pf.trace} />}
         {stale && <div className="note">{stale}</div>}
       </div>
       <div className="pb">{body}</div>

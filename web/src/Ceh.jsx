@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
-import Pult, { PultMark } from './Pult.jsx';
+import Pult, { MarkLine } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 import { Summary } from './Summary.jsx';
 import Reread from './Reread.jsx';
+import { MyWords, Worktrees } from './Words.jsx';
 
 const STALE_MS = 60_000; // данные читателя старше минуты — серая строка 2.7 (опрос доски 5 с, журналов 1–2 с)
 const REVIEW_SHOWN = 10; // «Готово, посмотри» на живой доске — десятки строк; остальное по кнопке
@@ -81,7 +82,7 @@ function Answered({ rows, now }) {
       {rows.map((r) => (
         <div className="wrow" key={`a-${r.id}`}>
           <span className="src mono">{r.id}</span>
-          <span>{r.title}<PultMark m={r.pultMark} /></span>
+          <span>{r.title}<span className="mline"><MarkLine card={r.id} q={r.q ?? null} mark={r.pultMark} now={now} /></span></span>
           <span className="age num">{ageShort(r.pultMark?.at ?? r.at ?? r.since, now)}</span>
         </div>
       ))}
@@ -89,8 +90,13 @@ function Answered({ rows, now }) {
   );
 }
 
-function Waiting({ w, now, stale }) {
+// слова строк: метка строки (б) → главное слово; «нет» — рядом (§1.4 (б), решение Ивана 05.10)
+const MAIN_WORD = { сливай: 'merge', выкатывай: 'deploy', Б: 'yes', развилка: 'reply' };
+
+function Waiting({ w, now, stale, pult, threads }) {
   const o = useOpen('waiting');
+  const wordsOn = pult?.enabled === true && pult?.words === true;
+  const cardOf = new Map((threads || []).map((t) => [t.sessionId, t.card]));
   const yes = w.yes.filter((r) => !r.answered);
   const open = w.review.filter((r) => !r.answered);
   const answered = [...w.yes, ...w.review].filter((r) => r.answered);
@@ -106,29 +112,58 @@ function Waiting({ w, now, stale }) {
 
       {w.threads.length > 0 && (
         <Group id="threads" title="Тред ждёт ответа" count={w.threads.length}>
-          {w.threads.map((r) => (
+          {w.threads.map((r) => {
+            // ответ треду из строки (а): только вид question с номером сообщения; «го <ID>» — при поле card строки (§1.7, EXT-70).
+            // card у ответа — карточка треда из «Кто работает» или ничего, не поле card строки
+            const tc = cardOf.get(r.sessionId) || undefined;
+            const canReply = wordsOn && r.kind === 'question' && r.uuid && (pult.bell === true || tc);
+            const defer = r.key && !r.keyTemp && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={`тред ${r.title || ''}`.trim()} /><DeferNote rowKey={r.key} /></>;
+            if (canReply) {
+              return (
+                <div className="wrow pr stack" key={r.key}>
+                  <span className="src" title={r.title}><span className="k">тред</span>{r.title}
+                    {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
+                  </span>
+                  <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
+                  <span className="age num">{ageShort(r.since, now)}</span>
+                  <Pult card={null} q={{ uuid: r.uuid, at: r.since }} ar={false} mark={r.pultMark} thread={{ session: r.sessionId, card: tc, key: `${r.sessionId}|${r.uuid}` }}
+                    words={{ btns: [{ action: 'reply' }, ...(r.card ? [{ action: 'reply', text: `го ${r.card}`, label: `го ${r.card}` }] : [])] }} />
+                  {defer}
+                </div>
+              );
+            }
+            return (
             <div className="wrow df" key={r.key}>
               <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                 {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
               </span>
               <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
-              {r.key && !r.keyTemp && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={`тред ${r.title || ''}`.trim()} /><DeferNote rowKey={r.key} /></>}
+              {defer}
             </div>
-          ))}
+            );
+          })}
         </Group>
       )}
 
       {yes.length > 0 && (
         <Group id="yes" title="Нужно твоё «да»" count={yes.length}>
-          {yes.map((r) => (
+          {yes.map((r) => (wordsOn && r.q ? (
+            <div className="wrow pr" key={r.key}>
+              <span className="src mono">{r.id}</span>
+              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
+              <span className="age num">{ageShort(r.since, now)}</span>
+              <Pult card={r.id} q={r.q} ar={false} words={{ btns: [MAIN_WORD[r.mark] ?? 'yes', 'no'], main: MAIN_WORD[r.mark] ?? 'yes' }} />
+              {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
+            </div>
+          ) : (
             <div className="wrow df" key={r.key}>
               <span className="src mono">{r.id}</span>
               <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
               {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
-          ))}
+          )))}
         </Group>
       )}
 
@@ -170,7 +205,7 @@ function Projects({ projects, now, stale, onOpen }) {
       <Summary>Проекты <span className="cnt num">{projects.length}</span><span className="hint">порядок постоянный · строка открывает окно проекта</span></Summary>
       <div className="tw">
         <table className="ptable">
-          <thead><tr><th>Проект</th><th>Фаза · следующий шаг</th><th className="n">в работе</th><th className="n">очередь</th><th className="n">Review</th><th className="n hidesm">активность</th><th className="go"></th></tr></thead>
+          <thead><tr><th>Проект</th><th>Фаза · следующий шаг</th><th className="n">в работе</th><th className="n">очередь</th><th className="n">Review</th><th className="n">активность</th><th className="go"></th></tr></thead>
           <tbody>
             {projects.map((p) => (
               <tr className="p" key={p.code} tabIndex={0} onClick={() => onOpen(p.code)} onKeyDown={key(p.code)} aria-label={`Открыть окно проекта ${p.code}`}>
@@ -188,7 +223,7 @@ function Projects({ projects, now, stale, onOpen }) {
                   )}
                 </td>
                 {n0(p.inProgress)}{n0(p.ready)}{n0(p.review)}
-                <td className="n num muted hidesm">{p.activityAt ? ageShort(p.activityAt, now) : '—'}</td>
+                <td className="n num muted">{p.activityAt ? ageShort(p.activityAt, now) : '—'}</td>
                 <td className="go" aria-hidden="true">›</td>
               </tr>
             ))}
@@ -366,11 +401,13 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
   return (
     <div className="grid">
       <div className="col">
-        <Waiting w={data.waiting} now={now} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
+        <Waiting w={data.waiting} now={now} pult={data.pult} threads={data.workers?.threads} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
         <Projects projects={data.projects} now={now} stale={staleText(f.board, failing, now)} onOpen={onOpenProject} />
       </div>
       <div className="col">
         <Workers w={data.workers} now={now} stale={staleText(f.journals, failing, now)} />
+        {data.pult?.enabled === true && <MyWords words={data.pult.words === true} now={now} />}
+        {data.pult?.enabled === true && <Worktrees />}
       </div>
     </div>
   );
