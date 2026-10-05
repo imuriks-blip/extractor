@@ -176,7 +176,8 @@ function WRowBody({ r, now, sel, onOpen, noAge = false }) {
       <span className="src">{r.id}</span>
       <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}
         {!yes && !r.answered && <TraceBadge t={r.trace} />}
-        {r.answered && <PultMark m={r.pultMark} />}</span>
+        {/* отметка — у «отвечено» и у красной в своей группе (§1.7, слово Ивана 05.10); кнопки — в панели карточки */}
+        {r.pultMark && <PultMark m={r.pultMark} />}</span>
       {age}
     </button>
   );

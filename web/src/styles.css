@@ -43,6 +43,7 @@ button{font:inherit;color:inherit}
 .mbtn button,.hbtn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap}
 .mbtn button:hover:not(:disabled),.hbtn:hover{background:var(--hover);color:var(--fg)}
 .mbtn button:disabled{cursor:default;background:transparent}
+.mrun{color:var(--muted);font-size:12px}
 .mbtn-note{color:var(--red);font-size:12px}
 .mbtn-note:empty{display:none}
 .mbtn-off{font-size:12px}
@@ -146,7 +147,10 @@ details.grp>summary .cnt{color:var(--fg)}
   .wrow{grid-template-columns:minmax(0,1fr) auto;gap:0 10px;padding-left:12px}
   .wrow .src{grid-column:1/-1}
   .more{padding-left:12px}
-  .ptable .hidesm{display:none}
+  .ptable th,.ptable td{padding-inline:3px}
+  .ptable th{white-space:normal;vertical-align:bottom}
+  .ptable th.n,.ptable td.n{width:38px}
+  .ptable .go{width:10px;padding-inline:0}
   .sub{grid-template-columns:64px minmax(0,1fr) 50px;margin-left:4px}
   .sub .gauge{display:none}
 }
@@ -404,4 +408,55 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
   .gls-t td.g-term{font-size:15px}
   .gls-t td.g-ru{margin-left:6px;color:var(--muted)}
   .gls-t td.g-meaning,.gls-t td.g-example{display:block;width:auto;margin-top:2px}
+}
+
+/* ===== Кнопки-слова (EXT-70, макет ПТ7 5.10, утверждён «все по рекомендации»): те же кнопки и размеры, что у «Принять»/«Вернуть»;
+   подтверждение — под строкой фоном без рамки, как пометки треда (.alarm); статус слова 2.8 — словом и цветом ===== */
+.mline{display:block;font-size:12px}
+.w2{white-space:nowrap}
+.w2.q{color:var(--amber)} .w2.d{color:var(--fg)} .w2.ok{color:var(--green)} .w2.bad{color:var(--red)} .w2.off{color:var(--faint)}
+.going{color:var(--muted)}
+.going .num{color:var(--fg)}
+.todo{font-size:11px;padding:0 5px;margin-left:4px;border-radius:3px;background:var(--hover);color:var(--muted);font-weight:500;white-space:nowrap}
+.pbw{display:inline-flex;align-items:baseline}
+.pult>.cfm,.pult>.pret,.pult>.pml{flex-basis:100%}
+.qline{font-size:12px;color:var(--muted)}
+.cfm{margin:2px 0 4px;padding:5px 8px 6px;border-radius:3px;background:var(--hover);font-size:12px;color:var(--fg);max-width:640px}
+.cfm.b{background:var(--amber-bg)}
+.cfm .h{font-weight:600;margin-right:6px}
+.cfm.b .h{color:var(--amber)}
+.cfm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:1px 10px;margin:3px 0 5px}
+.cfm dt{color:var(--muted)} .cfm dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.cfm .pick{display:flex;flex-direction:column}
+.cfm .pick label{display:block;min-height:24px;padding-top:2px;cursor:pointer}
+.cfm .pick input{margin:0 6px 0 0;accent-color:var(--accent);vertical-align:-2px}
+.cfm .row{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.cfm .tmr{margin-left:auto;color:var(--muted)}
+/* «ещё ▾»: меню поверх содержимого под рядом кнопок, по его правому краю (как .dmenu «Отложить до …») — строки ниже не двигает */
+.pbtns{position:relative}
+.pmw{display:contents}
+.pmenu{position:absolute;right:0;top:calc(100% + 2px);z-index:15}
+.menu{text-align:left;display:inline-flex;flex-direction:column;padding:3px 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 4px 12px var(--shade);vertical-align:top}
+.menu button{background:none;border:0;text-align:left;padding:3px 10px;white-space:nowrap;cursor:pointer;font-size:13px}
+.menu button:hover,.menu button:focus-visible{background:var(--hover)}
+.menu button:focus-visible{outline-offset:-2px}
+/* «Мои слова» */
+.mw{display:grid;grid-template-columns:44px minmax(0,1fr);gap:0 10px;padding:4px 10px;border-top:1px solid var(--line);align-items:baseline}
+.mw .tm{color:var(--muted)}
+.mw .wd{min-width:0}
+.mw .wd b{font-weight:500}
+.mw .wd .id{font-family:var(--mono);font-size:12px;color:var(--accent);margin-left:6px}
+.mw .sub{display:block;margin:0;grid-column:2;font-size:12px;color:var(--muted)}
+.lnk{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit}
+/* рабочие копии */
+.wt{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:4px 10px;border-top:1px solid var(--line);align-items:baseline}
+.wt .p{font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+.wt .r{font-size:12px;color:var(--muted)}
+.wt.no,.wt.no .r{color:var(--faint)}
+.wtb{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:6px 10px;border-top:1px solid var(--line);font-size:12px}
+.wtb .cfm{margin:0;flex:1}
+
+/* строка с двумя кнопками слов на узком экране: кнопки — своей строкой под текстом, название треда не обрезается */
+@media (max-width:560px){
+  .wrow.pr.stack .pbtns{grid-area:3/1/4/-1}
 }
