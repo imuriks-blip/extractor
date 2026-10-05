@@ -3,28 +3,28 @@
     "подготовка: A прочитал один файл из трёх — missing ровно два": {
       "missing": [
         {
-          "path": "C:\\Users\\imuri\\AppData\\Local\\Temp\\pt6v-IfYoNy\\vault\\unorbis\\_meta\\Субагенты.md",
+          "path": "C:\\Users\\imuri\\AppData\\Local\\Temp\\pt6v-xOZqjN\\vault\\unorbis\\_meta\\Субагенты.md",
           "short": "unorbis/_meta/Субагенты.md"
         },
         {
-          "path": "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md",
-          "short": "~/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+          "path": "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md",
+          "short": "~/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
         }
       ],
       "expect": [
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
       ],
       "actual": [
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
       ]
     },
     "подготовка: E (не читала) — missing три; D без проекта и F свежая — пометки нет": {
       "E": [
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/CLAUDE.md",
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/CLAUDE.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
       ],
       "D": {
         "project": null,
@@ -39,13 +39,13 @@
       "row": {
         "kind": "question",
         "text": "Трурль: Брать вариант 1 или вариант 2?",
-        "key": "6854fbcc-7c42-4814-8a4c-d16220e89430|ec0cfc4f-4ba7-428f-9f5d-21b944b0568e"
+        "key": "4096da79-b3b8-429a-832d-a442ceab41a2|dc21f594-036c-4485-9164-21157b62388c"
       }
     },
     "основной путь": {
       "http": 200,
       "outcome": "ok",
-      "id": "W-261005-113757-b701",
+      "id": "W-261005-125101-722a",
       "steps": [
         "asked",
         "ring-queued",
@@ -58,8 +58,8 @@
       "ringNamesFile1": false,
       "ringFirstLine": "\"<task-notification>\\n<summary>Stop hook feedback</summary>\\n</task-notification>\\n<system-reminder>\\nStop hook blocking error from command \\\"Stop\\\": Слово Иван",
       "readsAfterRing": [
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
-        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-xOZqjN/home-claude.md"
       ],
       "readsMatchTwo": true,
       "toolsAfterRing": [
@@ -67,18 +67,52 @@
       ],
       "noWriteEditBash": true,
       "markAfter": null,
-      "rulesRereadAfter": "2026-10-05T08:38:01.354Z",
+      "rulesRereadAfter": "2026-10-05T09:51:06.618Z",
       "missingBefore": 2,
-      "statusProchitano": true
+      "statusProchitano_actionsApi": true
+    },
+    "«прочитано» по форме звонка в журнале A (st.rings из разбора витрины): id слова есть в st.rings (время — в readAt, не сверяется)": {
+      "read": true,
+      "readAt": "2026-10-05T09:51:02.113Z",
+      "ivanCount": 0,
+      "questionBefore": true,
+      "questionAfter": true,
+      "ringId": "W-261005-125101-722a",
+      "ok": true
+    },
+    "(б) «перечитать» не сообщение Ивана: вопрос треда (строка (а)) остался, счётчик 0": {
+      "read": true,
+      "readAt": "2026-10-05T09:51:02.113Z",
+      "ivanCount": 0,
+      "questionBefore": true,
+      "questionAfter": true,
+      "ok": true
+    },
+    "(б) отрицательный контроль: тот же звонок + обычное слово «да» — сообщение Ивана, вопрос снят; с карточкой — тоже": {
+      "mixed": {
+        "read": true,
+        "readAt": "2026-10-05T09:51:02.113Z",
+        "ivanCount": 1,
+        "questionBefore": true,
+        "questionAfter": null
+      },
+      "wordCard": {
+        "read": true,
+        "readAt": "2026-10-05T09:51:02.113Z",
+        "ivanCount": 1,
+        "questionBefore": true,
+        "questionAfter": null
+      },
+      "ok": true
     },
     "(а) после звонка: у A строка «Ждёт меня» есть": {
       "before": {
-        "key": "6854fbcc-7c42-4814-8a4c-d16220e89430|ec0cfc4f-4ba7-428f-9f5d-21b944b0568e",
+        "key": "4096da79-b3b8-429a-832d-a442ceab41a2|dc21f594-036c-4485-9164-21157b62388c",
         "text": "Трурль: Брать вариант 1 или вариант 2?"
       },
       "after": {
         "kind": "question",
-        "key": "6854fbcc-7c42-4814-8a4c-d16220e89430|3472d18d-e827-4b34-a036-39c861c3123d",
+        "key": "4096da79-b3b8-429a-832d-a442ceab41a2|6e65040a-36d9-446e-a204-cfeda29c8c25",
         "text": "Трурль: Брать вариант 1 или вариант 2?"
       },
       "answerEndsWithQuestion": true
@@ -165,7 +199,7 @@
       "first": {
         "http": 200,
         "outcome": "ok",
-        "id": "W-261005-113821-cf21",
+        "id": "W-261005-125126-3685",
         "steps": [
           "asked",
           "ring-queued",
@@ -177,7 +211,7 @@
         "outcome": "refused",
         "refusal": "queued",
         "prev": {
-          "id": "W-261005-113821-cf21",
+          "id": "W-261005-125126-3685",
           "status": "положено"
         },
         "steps": [
@@ -186,7 +220,7 @@
         ]
       },
       "signals": [
-        "81fd479f/W-261005-113821-cf21.ring"
+        "ae41f4ee/W-261005-125126-3685.ring"
       ],
       "yesWords503": {
         "http": 503,
@@ -198,15 +232,15 @@
       "http": 200,
       "outcome": "refused",
       "refusal": "bell-off",
-      "id": "W-261005-113828-923d",
+      "id": "W-261005-125133-570f",
       "signals": [
-        "81fd479f/W-261005-113821-cf21.ring"
+        "ae41f4ee/W-261005-125126-3685.ring"
       ]
     },
     "набор выключен: reread-off, 200, сигналов в bell/ нет": {
       "markA": {
         "kind": "oldRules",
-        "rulesUpdatedAt": "2026-10-05T08:37:34.000Z"
+        "rulesUpdatedAt": "2026-10-05T09:50:39.000Z"
       },
       "A": {
         "http": 200,
@@ -223,153 +257,153 @@
   },
   "pids": {
     "sessions": {
-      "A": 37176,
-      "D": 16992,
-      "E": 50732,
-      "F": 14592
+      "A": 64708,
+      "D": 25388,
+      "E": 50584,
+      "F": 31076
     },
-    "server": 63780
+    "server": 18920
   },
   "moment": {
-    "hash": "eb565ed2eb",
-    "at": "2026-10-05T11:37:34+03:00",
+    "hash": "fc7c242ed4",
+    "at": "2026-10-05T12:50:39+03:00",
     "note": "в CLAUDE.md добавлено правило 1б (проба ПТ6в)"
   },
   "actions": [
     {
-      "id": "W-261005-113757-b701",
+      "id": "W-261005-125101-722a",
       "step": "asked",
       "action": "reread",
-      "session": "6854fbcc"
+      "session": "4096da79"
     },
     {
-      "id": "W-261005-113757-b701",
+      "id": "W-261005-125101-722a",
       "step": "ring-queued",
       "action": "reread"
     },
     {
-      "id": "W-261005-113757-b701",
+      "id": "W-261005-125101-722a",
       "step": "done",
       "action": "reread"
     },
     {
-      "id": "W-261005-113757-b701",
+      "id": "W-261005-125101-722a",
       "step": "ring-delivered",
       "action": "reread"
     },
     {
-      "id": "W-261005-113807-0fb7",
+      "id": "W-261005-125113-bd53",
       "step": "asked",
       "action": "reread",
-      "session": "6854fbcc"
+      "session": "4096da79"
     },
     {
-      "id": "W-261005-113807-0fb7",
+      "id": "W-261005-125113-bd53",
       "step": "refused",
       "action": "reread",
       "refusal": "already-read"
     },
     {
-      "id": "W-261005-113807-55d7",
+      "id": "W-261005-125113-cdd1",
       "step": "asked",
       "action": "reread",
-      "session": "df524291"
+      "session": "521310ff"
     },
     {
-      "id": "W-261005-113807-55d7",
+      "id": "W-261005-125113-cdd1",
       "step": "refused",
       "action": "reread",
       "refusal": "no-mark"
     },
     {
-      "id": "W-261005-113808-5653",
+      "id": "W-261005-125113-9175",
       "step": "asked",
       "action": "reread",
-      "session": "3861d96e"
+      "session": "73cb6e54"
     },
     {
-      "id": "W-261005-113808-5653",
+      "id": "W-261005-125113-9175",
       "step": "refused",
       "action": "reread",
       "refusal": "no-mark"
     },
     {
-      "id": "W-261005-113808-3f2e",
+      "id": "W-261005-125114-d38c",
       "step": "asked",
       "action": "reread",
-      "session": "744d70b7"
+      "session": "86c97701"
     },
     {
-      "id": "W-261005-113808-3f2e",
+      "id": "W-261005-125114-d38c",
       "step": "refused",
       "action": "reread",
       "refusal": "thread-closed"
     },
     {
-      "id": "W-261005-113821-cf21",
+      "id": "W-261005-125126-3685",
       "step": "asked",
       "action": "reread",
-      "session": "81fd479f"
+      "session": "ae41f4ee"
     },
     {
-      "id": "W-261005-113821-cf21",
+      "id": "W-261005-125126-3685",
       "step": "ring-queued",
       "action": "reread"
     },
     {
-      "id": "W-261005-113821-cf21",
+      "id": "W-261005-125126-3685",
       "step": "done",
       "action": "reread"
     },
     {
-      "id": "W-261005-113821-3e3c",
+      "id": "W-261005-125127-c0dc",
       "step": "asked",
       "action": "reread",
-      "session": "81fd479f"
+      "session": "ae41f4ee"
     },
     {
-      "id": "W-261005-113821-3e3c",
+      "id": "W-261005-125127-c0dc",
       "step": "refused",
       "action": "reread",
       "refusal": "queued"
     },
     {
-      "id": "W-261005-113828-923d",
+      "id": "W-261005-125133-570f",
       "step": "asked",
       "action": "reread",
-      "session": "81fd479f"
+      "session": "ae41f4ee"
     },
     {
-      "id": "W-261005-113828-923d",
+      "id": "W-261005-125133-570f",
       "step": "refused",
       "action": "reread",
       "refusal": "bell-off"
     },
     {
-      "id": "W-261005-113821-cf21",
+      "id": "W-261005-125126-3685",
       "step": "withdrawn",
       "action": "reread"
     },
     {
-      "id": "W-261005-113834-9ee4",
+      "id": "W-261005-125140-d885",
       "step": "asked",
       "action": "reread",
-      "session": "6854fbcc"
+      "session": "4096da79"
     },
     {
-      "id": "W-261005-113834-9ee4",
+      "id": "W-261005-125140-d885",
       "step": "refused",
       "action": "reread",
       "refusal": "reread-off"
     },
     {
-      "id": "W-261005-113834-dced",
+      "id": "W-261005-125140-05d3",
       "step": "asked",
       "action": "reread",
-      "session": "81fd479f"
+      "session": "ae41f4ee"
     },
     {
-      "id": "W-261005-113834-dced",
+      "id": "W-261005-125140-05d3",
       "step": "refused",
       "action": "reread",
       "refusal": "reread-off"
@@ -377,11 +411,11 @@
   ],
   "killed": {
     "sessions": {
-      "A": 37176,
-      "D": 16992,
-      "E": 50732,
-      "F": 14592
+      "A": 64708,
+      "D": 25388,
+      "E": 50584,
+      "F": 31076
     },
-    "server": 63780
+    "server": 18920
   }
 }
