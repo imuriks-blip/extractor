@@ -1,5 +1,52 @@
 [
   {
+    "id": "W-261001-115800-7b2e",
+    "at": "2026-10-01T11:58:00+03:00",
+    "action": "reread",
+    "card": null,
+    "project": "EXT",
+    "text": null,
+    "status": "done",
+    "source": {
+      "image": "msedge.exe",
+      "ok": true
+    },
+    "ring": "доставлено",
+    "_session": "00000000-0000-4000-8000-00000000000a",
+    "_comment": "«Перечитать правила» (EXT-65, спека пульта 1.8): у reread нет карточки, project — проект треда из пометки; ring — статус звонка 2.8. Кнопка неактивна, пока последний reread треда «положено» или «доставлено» моложе 10 минут. _session — только в образце: настоящая ручка поле session отдаёт лишь фильтру ?session=, в ответ не кладёт; страница берёт последний reread со звонком (ring не null) из ответа на ?session=<sessionId треда>"
+  },
+  {
+    "id": "W-261001-115500-c41d",
+    "at": "2026-10-01T11:55:00+03:00",
+    "action": "reread",
+    "card": null,
+    "project": "LEDGER",
+    "text": null,
+    "status": "done",
+    "source": {
+      "image": "msedge.exe",
+      "ok": true
+    },
+    "ring": "положено",
+    "_session": "00000000-0000-4000-8000-000000000004"
+  },
+  {
+    "id": "W-261001-115100-0e9a",
+    "at": "2026-10-01T11:51:00+03:00",
+    "action": "reread",
+    "card": null,
+    "project": "EXT",
+    "text": null,
+    "status": "refused",
+    "source": {
+      "image": "msedge.exe",
+      "ok": true
+    },
+    "ring": null,
+    "_session": "00000000-0000-4000-8000-00000000000b",
+    "_comment": "отказ queued — звонка нет, ring null: статусом просьбы он не показывается"
+  },
+  {
     "id": "W-261002-195246-3fa1",
     "at": "2026-10-02T19:52:46+03:00",
     "action": "ping",

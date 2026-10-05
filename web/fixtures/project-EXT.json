@@ -204,6 +204,76 @@
           "compactions": 2,
           "warn": false
         }
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-00000000000a",
+        "title": "EXT · пульт",
+        "project": "EXT",
+        "state": "idle",
+        "card": "EXT-65",
+        "since": "2026-10-01T09:30:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "rulesFresh": false,
+        "subagents": [],
+        "marks": [
+          {
+            "kind": "oldRules",
+            "rulesUpdatedAt": "2026-10-01T10:15:00+03:00",
+            "missing": [
+              {
+                "path": "C:/Vault/CLAUDE.md",
+                "short": "CLAUDE.md"
+              },
+              {
+                "path": "C:/Vault/unorbis/_meta/Субагенты Claude Code.md",
+                "short": "unorbis/_meta/Субагенты Claude Code.md"
+              },
+              {
+                "path": "C:/Users/imuri/.claude/CLAUDE.md",
+                "short": "~/.claude/CLAUDE.md"
+              }
+            ]
+          }
+        ],
+        "procStatus": "idle",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
+        "waitingKind": null,
+        "lastState": null,
+        "projectBy": "title",
+        "rulesReread": null,
+        "memory": null
+      },
+      {
+        "sessionId": "00000000-0000-4000-8000-00000000000b",
+        "title": "EXT · зеркало",
+        "project": "EXT",
+        "state": "idle",
+        "card": "EXT-61",
+        "since": "2026-10-01T09:10:00+03:00",
+        "sinceKind": "card",
+        "lastSeenAt": "2026-10-01T12:00:00+03:00",
+        "rulesFresh": false,
+        "subagents": [],
+        "marks": [
+          {
+            "kind": "oldRules",
+            "rulesUpdatedAt": "2026-10-01T10:15:00+03:00",
+            "missing": [
+              {
+                "path": "C:/Users/imuri/.claude/CLAUDE.md",
+                "short": "~/.claude/CLAUDE.md"
+              }
+            ]
+          }
+        ],
+        "procStatus": "idle",
+        "statusUpdatedAt": "2026-10-01T12:00:00+03:00",
+        "waitingKind": null,
+        "lastState": null,
+        "projectBy": "title",
+        "rulesReread": null,
+        "memory": null
       }
     ],
     "_memory": "EXT-49 «память треда», третья строка треда (спека 2.1): memory {tokens — занято токенов (последний ответ главного треда: input + cache_creation + cache_read; после сжатия без ответа — postTokens), window — окно модели из config.json → contextWindow или null (модели нет в настройке), pct — целая часть процента или null, model, at — время ответа или сжатия (UTC ISO), compactions — сжатий в текущей сессии, warn — pct ≥ thresholds.memoryWarnPct (80)} или null — в журнале ещё нет ответа с usage (строку не показывать). Вид: «память N %» серым; warn — жёлтым «память N % — пора сделать снимок и открыть новый тред»; window null — «память N тыс.» без процента; compactions > 0 — «сжат N раз» серым рядом. Жёлтое тред не поднимает.",

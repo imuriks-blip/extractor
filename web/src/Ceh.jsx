@@ -7,6 +7,7 @@ import Pult, { PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 import { Summary } from './Summary.jsx';
+import Reread from './Reread.jsx';
 
 const STALE_MS = 60_000; // данные читателя старше минуты — серая строка 2.7 (опрос доски 5 с, журналов 1–2 с)
 const REVIEW_SHOWN = 10; // «Готово, посмотри» на живой доске — десятки строк; остальное по кнопке
@@ -231,7 +232,7 @@ function Done({ done }) {
   return done.map((c, i) => <span key={c.hash}>{i > 0 && '; '}<span className="mono">{c.hash}</span>{c.subject}</span>);
 }
 
-export function Mark({ m, now }) {
+export function Mark({ m, now, sid }) {
   const who = m.who || m.agent;
   switch (m.kind) {
     case 'partial':
@@ -260,7 +261,16 @@ export function Mark({ m, now }) {
         </div>
       );
     case 'oldRules':
-      return <div className="alarm"><span className="h">Старые правила</span>тред открыт до «правила обновлены» {dm(m.rulesUpdatedAt)}</div>;
+      // EXT-65: missing — файлы набора, которых тред после момента не прочитал; поля нет — набор выключен, строки нет.
+      // Закрытый тред (sid не передан) просить некому — строка без кнопки.
+      return (
+        <div className="alarm">
+          <span className="h">Старые правила</span>тред открыт до «правила обновлены» {dm(m.rulesUpdatedAt)}
+          {m.missing?.length > 0 && (sid
+            ? <Reread session={sid} missing={m.missing} now={now} />
+            : <div className="rr">не перечитаны: {m.missing.map((f) => f.short || f.path).join(', ')}</div>)}
+        </div>
+      );
     case 'collision': {
       // EXT-60 (§2.3): жёлтая; путь — short, полный — подсказкой; время — правка другого треда (otherAt)
       const files = m.files || [];
@@ -327,7 +337,7 @@ export function Thread({ t, now }) {
       </div>
       <Memory m={t.memory} />
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
-      {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} />)}
+      {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} sid={t.sessionId} />)}
     </div>
   );
 }
