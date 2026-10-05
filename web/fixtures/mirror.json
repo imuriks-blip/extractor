@@ -11,6 +11,286 @@
   "lastOk": "2026-10-02T16:12:46.030Z",
   "lastFullOk": "2026-10-01T18:38:24.185Z",
   "lastError": null,
-  "lastRun": {"kind": "changed", "startedAt": "2026-10-02T16:44:28.870Z", "endedAt": "2026-10-02T16:52:46.031Z", "code": 0, "seconds": 497, "requests": 196},
-  "reindex": {"running": false, "startedAt": null, "done": null, "total": null, "lastAt": "2026-10-05T12:00:00.000Z", "lastMs": 90000, "lastFiles": 1560, "lastError": null}
+  "lastRun": {
+    "kind": "changed",
+    "startedAt": "2026-10-02T16:44:28.870Z",
+    "endedAt": "2026-10-02T16:52:46.031Z",
+    "code": 0,
+    "seconds": 497,
+    "requests": 196
+  },
+  "reindex": {
+    "running": false,
+    "startedAt": null,
+    "done": null,
+    "total": null,
+    "lastAt": "2026-10-05T12:00:00.000Z",
+    "lastMs": 90000,
+    "lastFiles": 1560,
+    "lastError": null
+  },
+  "_states": {
+    "_note": "Образцы состояний для вёрстки и снимков (EXT-75, ПТ8): значения — целиком ответ GET /api/mirror. Ключи те же, что у настоящей ручки (сверяет test/pult.test.mjs). Проверенные ключи верхнего уровня — «обычный проход идёт»; блок _states сверяется отдельно (test/ext75-mirror-ui.test.mjs).",
+    "idle_green": {
+      "running": false,
+      "kind": null,
+      "phase": null,
+      "cardsDone": null,
+      "cardsTotal": null,
+      "requests": null,
+      "rpm": null,
+      "startedAt": null,
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": {
+        "kind": "changed",
+        "startedAt": "2026-10-02T16:44:28.870Z",
+        "endedAt": "2026-10-02T16:52:46.031Z",
+        "code": 0,
+        "seconds": 497,
+        "requests": 196
+      },
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": "2026-10-05T12:00:00.000Z",
+        "lastMs": 90000,
+        "lastFiles": 1560,
+        "lastError": null
+      }
+    },
+    "full_running": {
+      "running": true,
+      "kind": "full",
+      "phase": "cards",
+      "cardsDone": 312,
+      "cardsTotal": 700,
+      "requests": 980,
+      "rpm": 24,
+      "startedAt": "2026-10-05T10:20:00.000Z",
+      "at": "2026-10-05T11:30:00.000Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": {
+        "kind": "changed",
+        "startedAt": "2026-10-02T16:44:28.870Z",
+        "endedAt": "2026-10-02T16:52:46.031Z",
+        "code": 0,
+        "seconds": 497,
+        "requests": 196
+      },
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": "2026-10-05T12:00:00.000Z",
+        "lastMs": 90000,
+        "lastFiles": 1560,
+        "lastError": null
+      }
+    },
+    "changed_running": {
+      "running": true,
+      "kind": "changed",
+      "phase": "comments",
+      "cardsDone": 12,
+      "cardsTotal": 55,
+      "requests": 40,
+      "rpm": 23,
+      "startedAt": "2026-10-02T16:50:01.000Z",
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": {
+        "kind": "changed",
+        "startedAt": "2026-10-02T16:44:28.870Z",
+        "endedAt": "2026-10-02T16:52:46.031Z",
+        "code": 0,
+        "seconds": 497,
+        "requests": 196
+      },
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": "2026-10-05T12:00:00.000Z",
+        "lastMs": 90000,
+        "lastFiles": 1560,
+        "lastError": null
+      }
+    },
+    "last_red": {
+      "running": false,
+      "kind": null,
+      "phase": null,
+      "cardsDone": null,
+      "cardsTotal": null,
+      "requests": null,
+      "rpm": null,
+      "startedAt": null,
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": "проход красный — см. last-report.txt",
+      "lastRun": {
+        "kind": "full",
+        "startedAt": "2026-10-05T09:02:01.192Z",
+        "endedAt": "2026-10-05T10:38:24.187Z",
+        "code": 3,
+        "seconds": 5783,
+        "requests": 2231
+      },
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": "2026-10-05T12:00:00.000Z",
+        "lastMs": 90000,
+        "lastFiles": 1560,
+        "lastError": null
+      }
+    },
+    "last_full_green": {
+      "running": false,
+      "kind": null,
+      "phase": null,
+      "cardsDone": null,
+      "cardsTotal": null,
+      "requests": null,
+      "rpm": null,
+      "startedAt": null,
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": {
+        "kind": "full",
+        "startedAt": "2026-10-05T09:02:01.192Z",
+        "endedAt": "2026-10-05T10:38:24.187Z",
+        "code": 0,
+        "seconds": 5783,
+        "requests": 2231
+      },
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": "2026-10-05T12:00:00.000Z",
+        "lastMs": 90000,
+        "lastFiles": 1560,
+        "lastError": null
+      }
+    },
+    "no_runs": {
+      "running": false,
+      "kind": null,
+      "phase": null,
+      "cardsDone": null,
+      "cardsTotal": null,
+      "requests": null,
+      "rpm": null,
+      "startedAt": null,
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": null,
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": "2026-10-05T12:00:00.000Z",
+        "lastMs": 90000,
+        "lastFiles": 1560,
+        "lastError": null
+      }
+    },
+    "reindex_running": {
+      "running": false,
+      "kind": null,
+      "phase": null,
+      "cardsDone": null,
+      "cardsTotal": null,
+      "requests": null,
+      "rpm": null,
+      "startedAt": null,
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": {
+        "kind": "changed",
+        "startedAt": "2026-10-02T16:44:28.870Z",
+        "endedAt": "2026-10-02T16:52:46.031Z",
+        "code": 0,
+        "seconds": 497,
+        "requests": 196
+      },
+      "reindex": {
+        "running": true,
+        "startedAt": "2026-10-05T12:00:00.000Z",
+        "done": 18,
+        "total": 40,
+        "lastAt": null,
+        "lastMs": null,
+        "lastFiles": null,
+        "lastError": null
+      }
+    },
+    "reindex_failed": {
+      "running": false,
+      "kind": null,
+      "phase": null,
+      "cardsDone": null,
+      "cardsTotal": null,
+      "requests": null,
+      "rpm": null,
+      "startedAt": null,
+      "at": "2026-10-02T16:52:46.030Z",
+      "lastOk": "2026-10-02T16:12:46.030Z",
+      "lastFullOk": "2026-10-01T18:38:24.185Z",
+      "lastError": null,
+      "lastRun": {
+        "kind": "changed",
+        "startedAt": "2026-10-02T16:44:28.870Z",
+        "endedAt": "2026-10-02T16:52:46.031Z",
+        "code": 0,
+        "seconds": 497,
+        "requests": 196
+      },
+      "reindex": {
+        "running": false,
+        "startedAt": null,
+        "done": null,
+        "total": null,
+        "lastAt": null,
+        "lastMs": null,
+        "lastFiles": null,
+        "lastError": "EACCES"
+      }
+    }
+  },
+  "_confirm": {
+    "_note": "ответ POST /api/act на первый щелчок «полный» (форма — act.json.need-confirm); второй щелчок — тот же запрос с confirm = id первого и новым intentId. Подтверждение живёт 5 мин.",
+    "id": "W-261005-120000-abcd",
+    "outcome": "need-confirm",
+    "step": "need-confirm",
+    "message": "полный проход зеркала: ~1,5 ч, ~2 200 запросов, треды это время делят лимит Plane",
+    "confirm": {
+      "what": "«Прогони зеркало» — полный проход",
+      "follows": "~1,5 ч, ~2 200 запросов, треды это время делят лимит Plane",
+      "mirrorAt": "2026-10-05T09:00:00.000Z"
+    }
+  }
 }
