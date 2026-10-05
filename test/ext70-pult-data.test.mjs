@@ -1,0 +1,388 @@
+// ПТ7, серверная часть (EXT-70; спека пульта §1.7 «Данные страницы для кнопок-слов», §2.3, §2.8, §3.2, §3.4; спека витрины §1.4,
+// §2.4 (а)): pult {enabled, words, bell} в /api/ceh и /api/card, candidates с маской и staleMin, поле card у строки (а),
+// pultMark одной формы на все действия, отметка строки (а), контракт «го <ID>» из строки (а).
+// Подменный plane.py (test/fake-plane.mjs), временная доска; настоящий plane.py и mirror.mjs не запускаются.
+// Ожидаемые значения — из спеки и из того, что положено в тест, не из кода под тестом.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
+import { buildApp } from '../lib/app.mjs';
+import { createBoardReader } from '../lib/board-reader.mjs';
+import { createGitRead } from '../lib/git-read.mjs';
+import { createRegistryReader } from '../lib/registry.mjs';
+import { waitingThreads } from '../lib/waiting.mjs';
+import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
+
+const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
+const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
+const { scan } = await import(new URL(`file:///${BOARD_LIB}/secrets.mjs`).href);
+const lockLib = await import(new URL(`file:///${BOARD_LIB}/lock.mjs`).href);
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PORT = 4317;
+const SELF = `http://127.0.0.1:${PORT}`;
+const SECRET = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zAb7d';
+const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+let intents = 1700;
+const nextIntent = () => uuid(++intents);
+const SID = uuid(801);
+const SID2 = uuid(802);
+const QU = uuid(901);
+const Q_AT = '2026-10-03T09:00:00.000Z';
+const QT_AT = '2026-10-04T10:00:00.000Z';
+const Q_MD = 'Ветка готова — можно принимать?';
+const Q_HTML = `<p>${Q_MD}</p>`;
+const logWith = (body) => `### 2026-10-03 12:00 +03:00 · plane · коммент\n\n${body}\n`;
+
+// EXT-20, EXT-21 обычные; EXT-22, EXT-27 в Review; EXT-24 закрыта; CAR-5 — карточка чужого проекта
+const boardDir = makeBoard(tmpDir('ext70-board-'), { codes: ['EXT', 'CAR'], cards: [
+  { id: 'EXT-20', status: 'in-progress', title: 'Обычная' }, { id: 'EXT-21', status: 'in-progress', title: 'Вторая' },
+  { id: 'EXT-22', status: 'review', title: 'Слияние' }, { id: 'EXT-24', status: 'done', title: 'Закрыта' },
+  { id: 'EXT-27', status: 'review', title: 'Принять' }, { id: 'CAR-5', status: 'in-progress', title: 'Чужая' },
+] });
+for (const id of ['EXT-20', 'EXT-21', 'EXT-22', 'EXT-24', 'EXT-27']) fs.writeFileSync(path.join(boardDir, 'EXT', `${id}.log.md`), logWith(Q_MD));
+gitInitCommit(boardDir);
+fs.mkdirSync(path.join(boardDir, '.mirror'));
+fs.writeFileSync(path.join(boardDir, '.mirror', 'index.json'), '{}');
+fs.writeFileSync(path.join(boardDir, '.mirror', 'status.json'), JSON.stringify({ lastOkAt: '2026-10-03T09:30:00.000Z', lastOk: '2026-10-03T09:30:00.000Z' }));
+fs.mkdirSync(path.join(boardDir, 'tools'));
+fs.writeFileSync(path.join(boardDir, 'tools', 'mirror-hidden.js'), '// заглушка\n');
+const regFile = path.join(tmpDir('ext70-reg-'), 'registry.json');
+fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] }, CAR: { repos: [] } } }));
+const board = createBoardReader({ root: boardDir, git: createGitRead(), parseCard, parseLog, latest });
+await board.init();
+const registry = createRegistryReader(regFile);
+
+function fakeSpawn() {
+  const fn = (cmd, args, opts) => {
+    const ch = new EventEmitter();
+    ch.pid = 9100;
+    ch.unref = () => {};
+    process.nextTick(() => ch.emit('spawn'));
+    return ch;
+  };
+  return fn;
+}
+
+const thread = (sid, o = {}) => ({ sessionId: sid, title: `тред ${sid.slice(-3)}`, project: 'EXT', projectBy: 'title', card: null, state: 'idle', lastSeenAt: new Date().toISOString(), ...o });
+// тред, ждущий ответа на вопрос: строка (а) строится настоящей waitingThreads по выжимке журнала
+const waitingThread = (sid, o = {}) => thread(sid, { state: 'waiting', waitingKind: 'question', statusUpdatedAt: QT_AT, ...o });
+const sessionOf = (sid, text, uuidQ = QU, extra = {}) => ({ sessionId: sid, lines: 10, thread: { q: text === null ? null : { text, uuid: uuidQ, at: QT_AT } }, ...extra });
+
+// opts: threads, sessions (массив или функция), words/bell, bellDir (false — папка звонка не задана), clock {t}
+async function setup(plane = {}, { threads = [], sessions = [], words = true, bell = true, bellDir = true, enabled = true, clock = null } = {}) {
+  const data = tmpDir('ext70-data-');
+  const pdir = tmpDir('ext70-plane-');
+  fs.copyFileSync(path.join(HERE, 'fake-plane.mjs'), path.join(pdir, 'fake-plane.mjs'));
+  const stateFile = path.join(pdir, 'state.json');
+  fs.writeFileSync(stateFile, JSON.stringify({ status: 'In Progress', comments: [{ id: 'q1', created_at: '2026-10-03T09:00:41.018934Z', html: Q_HTML }], clock: '2026-10-03T09:20:00.123456Z', ...plane }));
+  const web = tmpDir('ext70-web-');
+  fs.writeFileSync(path.join(web, 'index.html'), '<!doctype html><html><head><meta name="vitrina-token" content="__VITRINA_TOKEN__"></head><body></body></html>');
+  const actionsLog = path.join(data, 'actions.log');
+  const live = { threads, sessions: typeof sessions === 'function' ? sessions : () => live.sess };
+  live.sess = Array.isArray(sessions) ? sessions : [];
+  const nowMs = () => (clock ? clock.t : Date.now());
+  const threadsApi = {
+    list: () => ({ threads: live.threads, waiting: waitingThreads({ threads: live.threads, sessions: live.sessions(), now: nowMs() }), subagentsCount: 0, unknownStatus: {} }),
+    state: () => ({ processes: { lastOkAt: '2026-10-04T09:00:00.000Z' }, desktop: null }) };
+  const journals = { state: () => ({ lastOkAt: null }), sessions: () => live.sessions() };
+  const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, threads: threadsApi, journals,
+    pult: { enabled, words, bell, ...(bellDir ? { bellDir: path.join(data, 'bell') } : {}), actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
+      python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
+    pultSeams: { spawn: fakeSpawn(), ...(clock ? { now: () => clock.t } : {}) } });
+  const r = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
+  const token = r.body.match(/name="vitrina-token" content="([^"]+)"/)[1];
+  const press = (body, intentId = nextIntent()) => app.inject({ method: 'POST', url: '/api/act', payload: JSON.stringify({ intentId, ...body }),
+    headers: { host: `127.0.0.1:${PORT}`, origin: SELF, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', 'x-vitrina-token': token } });
+  const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${PORT}` } })).json();
+  const lines = () => (fs.existsSync(actionsLog) ? fs.readFileSync(actionsLog, 'utf8') : '').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const pl = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  const rowOf = async (sid) => (await get('/api/ceh')).waiting.threads.find((x) => x.sessionId === sid);
+  return { app, press, get, lines, pl, live, rowOf, actionsLog };
+}
+
+const Q = { at: Q_AT, head: Q_MD };
+const QT = { uuid: QU, at: QT_AT };
+const MARK_KEYS = ['action', 'at', 'id', 'ring', 'state'];
+
+// ---------------- 1. pult {enabled, words, bell} ----------------
+
+test('1: /api/ceh и /api/card/:id отдают pult {enabled, words, bell}; bell — действующее состояние звонка (флаг и папка), не флаг из конфига', async () => {
+  const cases = [
+    [{}, { enabled: true, words: true, bell: true }],
+    [{ words: false }, { enabled: true, words: false, bell: true }],
+    [{ bell: false }, { enabled: true, words: true, bell: false }],
+    [{ bell: true, bellDir: false }, { enabled: true, words: true, bell: false }], // флаг включён, папки звонка нет — звонка нет
+    [{ enabled: false, words: false, bell: false }, { enabled: false, words: false, bell: false }],
+  ];
+  for (const [opts, want] of cases) {
+    const s = await setup({}, opts);
+    assert.deepEqual((await s.get('/api/ceh')).pult, want, JSON.stringify(opts));
+    const c = await s.get('/api/card/EXT-20');
+    assert.deepEqual({ enabled: c.pult.enabled, words: c.pult.words, bell: c.pult.bell }, want, JSON.stringify(opts));
+    // тот же bell, что on в /api/health
+    assert.equal((await s.get('/api/health')).bell.on, want.bell, JSON.stringify(opts));
+  }
+});
+
+// ---------------- 2. confirm.candidates ----------------
+
+test('2: candidates[] = {sessionId, title, by, staleMin?}: title по маске и тот же в шаге need-confirm actions.log; staleMin — только у «устарело»', async () => {
+  const clock = { t: Date.now() };
+  const stale = thread(SID2, { title: `тред ${SECRET}`, state: 'stale', lastSeenAt: new Date(clock.t - 20 * 60000).toISOString() });
+  const s = await setup({}, { clock, threads: [thread(SID), stale] });
+  const b = (await s.press({ action: 'yes', card: 'EXT-20', q: Q })).json();
+  assert.equal(b.outcome, 'need-confirm');
+  const byId = Object.fromEntries(b.confirm.candidates.map((c) => [c.sessionId, c]));
+  assert.deepEqual(byId[SID], { sessionId: SID, title: 'тред 801', by: 'project' }, 'исправный: staleMin нет совсем');
+  assert.deepEqual(Object.keys(byId[SID2]).sort(), ['by', 'sessionId', 'staleMin', 'title']);
+  assert.equal(byId[SID2].staleMin, 20);
+  assert.ok(!byId[SID2].title.includes(SECRET), 'в ответе страницы — по маске');
+  const logged = s.lines().find((l) => l.id === b.id && l.step === 'need-confirm');
+  assert.deepEqual(logged.confirm.candidates, b.confirm.candidates, 'в журнал уходит та же замаскированная строка');
+  assert.ok(!fs.readFileSync(s.actionsLog, 'utf8').includes(SECRET), 'секрета в actions.log нет');
+});
+
+// ---------------- 3. поле card у строки (а) ----------------
+
+const rowCard = async (text, { project = 'EXT', kind = 'question', board: extra = null } = {}) => {
+  const s = await setup({}, { threads: [waitingThread(SID, { project, waitingKind: kind })], sessions: [sessionOf(SID, text)] });
+  return { s, row: await s.rowOf(SID) };
+};
+
+test('3: card строки (а) — единственный номер с кодом проекта треда в полном тексте (после 160 знаков, без \\b); иначе поля нет', async () => {
+  const long = `${'Длинный абзац. '.repeat(20)}Принимаешь EXT-21?`; // номер за обрезкой в 160 знаков
+  assert.ok(long.indexOf('EXT-21') > 160);
+  for (const [text, want] of [
+    ['Принимаешь EXT-21?', 'EXT-21'],
+    [long, 'EXT-21'],
+    ['Принимаешь EXT-21? Да, именно EXT-21?', 'EXT-21'], // тот же номер дважды — один номер
+    ['карточка:EXT-21?', 'EXT-21'],
+    ['вопрос по карточкеEXT-21а, ок?', 'EXT-21'], // кириллица вплотную: \b тут не работает
+    ['Принимаешь EXT-21 или EXT-20?', undefined], // два разных — поля нет
+    ['Принимаешь CAR-5?', undefined], // код чужого проекта
+    ['Принимаешь EXT-21 и CAR-5?', 'EXT-21'], // чужой код не мешает
+    ['Принимаешь EXT-99?', undefined], // карточки нет в файлах доски
+    ['Принимаешь EXT-24?', undefined], // закрыта (done)
+    ['Принимаешь XEXT-21?', undefined], // латинская буква вплотную — не номер
+    ['Без номера?', undefined],
+  ]) {
+    const { row } = await rowCard(text);
+    assert.equal(row.card, want, text);
+    if (want === undefined) assert.ok(!('card' in row), `поля нет совсем: ${text}`);
+  }
+});
+
+test('3: тред без проекта и строки не-question — поля card нет', async () => {
+  assert.ok(!('card' in (await rowCard('Принимаешь EXT-21?', { project: null })).row), 'тред без проекта');
+  assert.ok(!('card' in (await rowCard('Принимаешь EXT-21?', { kind: 'askUserQuestion' })).row), 'askUserQuestion кнопок не получает');
+});
+
+// ---------------- 4. pultMark одной формы ----------------
+
+// читатель доски кэширует разбор журнала карточки по mtime: каждая правка файла в тесте получает свой, строго растущий mtime
+let mt = Math.floor(Date.now() / 1000) + 1000;
+const editLog = (file, fn) => { fs.writeFileSync(file, fn(fs.readFileSync(file, 'utf8'))); fs.utimesSync(file, ++mt, mt); };
+const cardMark = async (s, id) => (await s.get(`/api/card/${id}`)).pult.mark;
+
+test('4: у всех действий одна форма {id, action, at, state, ring}: слова — state null, ring по 2.8; «Принять» — ring null, missing и text; «Вернуть» — ring', async () => {
+  const s = await setup({}, { threads: [thread(SID, { card: 'EXT-20' })] });
+  const yes = (await s.press({ action: 'yes', card: 'EXT-20', q: Q })).json();
+  const m = await cardMark(s, 'EXT-20');
+  assert.deepEqual(Object.keys(m).sort(), MARK_KEYS, 'у слов нет missing и text');
+  assert.equal(m.id, yes.id);
+  assert.equal(m.action, 'yes');
+  assert.equal(m.state, null);
+  assert.equal(m.ring, 'положено');
+  assert.match(m.at, /^\d{4}-\d\d-\d\dT/);
+  // строка (б)/(в) несёт ту же отметку и уходит в «отвечено, ждёт зеркала»
+  const acc = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-27' })] });
+  const a = (await acc.press({ action: 'accept', card: 'EXT-27', q: Q })).json();
+  const am = await cardMark(acc, 'EXT-27');
+  assert.deepEqual(Object.keys(am).sort(), [...MARK_KEYS, 'missing', 'text'].sort());
+  assert.deepEqual([am.id, am.action, am.state, am.ring, am.missing], [a.id, 'accept', 'Done', null, false]);
+  assert.match(am.text, /^принято · Done в Plane \d\d:\d\d · зеркало ещё не видело$/);
+  const ret = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-27' })] });
+  const r = (await ret.press({ action: 'return', card: 'EXT-27', q: Q, text: 'не так' })).json();
+  const rm = await cardMark(ret, 'EXT-27');
+  assert.deepEqual([rm.id, rm.action, rm.state, rm.ring, rm.missing], [r.id, 'return', 'In Progress', 'положено', false]);
+  assert.match(rm.text, /^возвращено · In Progress в Plane/);
+  const row = (await ret.get('/api/ceh')).waiting.review.find((x) => x.id === 'EXT-27');
+  assert.deepEqual(row.pultMark, rm);
+  assert.equal(row.answered, true);
+});
+
+test('4: слова всех видов ставят отметку (yes, go, no, reply с карточкой, merge и deploy после второго щелчка)', async () => {
+  for (const [action, extra, card, status] of [['go', {}, 'EXT-20'], ['no', { text: 'нет' }, 'EXT-20'], ['reply', { text: 'делай' }, 'EXT-20'],
+    ['merge', {}, 'EXT-22', 'Review'], ['deploy', {}, 'EXT-22', 'Review']]) {
+    const s = await setup(status ? { status } : {}, { threads: [thread(SID, { card })] });
+    let b = (await s.press({ action, card, q: Q, ...extra })).json();
+    if (b.outcome === 'need-confirm') b = (await s.press({ action, card, q: Q, ...extra, confirm: b.id })).json();
+    assert.equal(b.outcome, 'ok', `${action}: ${b.message}`);
+    const m = await cardMark(s, card);
+    assert.deepEqual([m.id, m.action, m.state, m.ring], [b.id, action, null, 'положено'], action);
+  }
+});
+
+test('4: отметка — только при исходе ok/partial: отказ (карточка закрыта), ошибка (Plane не принял) и need-confirm её не ставят', async () => {
+  const s = await setup({}, { threads: [thread(SID, { card: 'EXT-20' })] });
+  assert.equal((await s.press({ action: 'yes', card: 'EXT-24', q: Q })).json().outcome, 'refused');
+  assert.equal(await cardMark(s, 'EXT-24'), null);
+  const err = await setup({ fail: { comment: 'refuse' } }, { threads: [thread(SID, { card: 'EXT-20' })] });
+  assert.equal((await err.press({ action: 'yes', card: 'EXT-20', q: Q })).json().outcome, 'error');
+  assert.equal(await cardMark(err, 'EXT-20'), null);
+  const bd = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-22' })] });
+  assert.equal((await bd.press({ action: 'merge', card: 'EXT-22', q: Q })).json().outcome, 'need-confirm');
+  assert.equal(await cardMark(bd, 'EXT-22'), null);
+  // исправный случай: то же слово ok — отметка есть
+  assert.equal((await s.press({ action: 'yes', card: 'EXT-20', q: Q })).json().outcome, 'ok');
+  assert.notEqual(await cardMark(s, 'EXT-20'), null);
+});
+
+test('4: partial («Принять»: запись есть, статус не сменился) ставит отметку той же формы, state null', async () => {
+  const s = await setup({ status: 'Review', fail: { state: 'net' } });
+  const b = (await s.press({ action: 'accept', card: 'EXT-27', q: Q })).json();
+  assert.equal(b.outcome, 'partial');
+  const m = await cardMark(s, 'EXT-27');
+  assert.deepEqual([m.id, m.action, m.state, m.missing], [b.id, 'accept', null, false]);
+  assert.match(m.text, /^частично: запись есть, статус не сменился/);
+});
+
+test('4: одна отметка на карточку — побеждает последнее действие; красная «зеркало не видит» держится, пока не снята; mirror-seen — и для слов', async () => {
+  const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
+  const s = await setup({}, { clock, threads: [thread(SID, { card: 'EXT-20' })] });
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  const cardLog = path.join(boardDir, 'EXT', 'EXT-20.log.md');
+  try {
+    const first = (await s.press({ action: 'yes', card: 'EXT-20', q: Q })).json();
+    // правило «последнее действие» без красной: второе слово вытесняет первое
+    clock.t += 60000;
+    const second = (await s.press({ action: 'go', card: 'EXT-20', q: Q })).json();
+    assert.equal((await cardMark(s, 'EXT-20')).id, second.id, 'побеждает последнее действие');
+    // проход зеркала между двумя действиями: после первого, до второго — красная только у первого
+    fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T12:00:10Z')).toISOString()} · начало · changed · pid 1
+${new Date(Date.parse('2026-10-04T12:00:20Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
+`);
+    const held = await cardMark(s, 'EXT-20');
+    assert.equal(held.id, first.id, 'красная первого держится, хотя последнее действие — второе');
+    assert.equal(held.action, 'yes');
+    assert.deepEqual(Object.keys(held).sort(), MARK_KEYS, 'у слов в форме нет missing и text');
+    // отрицательный контроль: без красной у первого (проход до обоих действий) — побеждает последнее
+    fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T11:00:00Z')).toISOString()} · начало · changed · pid 1
+${new Date(Date.parse('2026-10-04T11:00:05Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
+`);
+    assert.equal((await cardMark(s, 'EXT-20')).id, second.id);
+    fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T12:00:10Z')).toISOString()} · начало · changed · pid 1
+${new Date(Date.parse('2026-10-04T12:00:20Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
+`);
+    // запись второго действия дотянута, первого — нет: красная первого держится; mirror-seen пишется для слова
+    editLog(cardLog, (t) => t + `
+### 2026-10-04 15:10 +03:00 · plane · коммент
+
+**Слово Ивана · кнопка витрины · ${second.id}**: «го»
+`);
+    assert.equal((await cardMark(s, 'EXT-20')).id, first.id);
+    await s.app.pult.tick();
+    await s.app.pult.tick();
+    assert.equal(s.lines().filter((l) => l.id === second.id && l.step === 'mirror-seen').length, 1, 'mirror-seen для слова');
+    assert.equal(s.lines().filter((l) => l.id === first.id && l.step === 'mirror-seen').length, 0);
+    assert.equal(s.lines().filter((l) => l.id === first.id && l.step === 'mirror-missing').length, 1, 'красная первого записана шагом');
+    // запись первого пришла — отметка снята
+    editLog(cardLog, (t) => t + `
+### 2026-10-04 15:11 +03:00 · plane · коммент
+
+**Слово Ивана · кнопка витрины · ${first.id}**: «да»
+`);
+    assert.equal(await cardMark(s, 'EXT-20'), null);
+    await s.app.pult.tick();
+    assert.equal(s.lines().filter((l) => l.id === first.id && l.step === 'mirror-seen').length, 1);
+  } finally {
+    if (fs.existsSync(runs)) fs.unlinkSync(runs);
+    editLog(cardLog, () => logWith(Q_MD)); // доска общая для файла
+  }
+});
+
+test('4: проход зеркала без записи слова — шаг mirror-missing пишется и для слова, отметка слова на месте', async () => {
+  const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
+  const s = await setup({}, { clock, threads: [thread(SID, { card: 'EXT-21' })] });
+  const w = (await s.press({ action: 'yes', card: 'EXT-21', q: Q })).json();
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  fs.writeFileSync(runs, `${new Date(clock.t + 1000).toISOString()} · начало · changed · pid 1\n${new Date(clock.t + 2000).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3\n`);
+  try {
+    await s.app.pult.tick();
+    assert.equal(s.lines().filter((l) => l.id === w.id && l.step === 'mirror-missing').length, 1, 'шаг mirror-missing и для слова');
+    assert.equal((await cardMark(s, 'EXT-21')).id, w.id);
+  } finally { fs.unlinkSync(runs); editLog(path.join(boardDir, 'EXT', 'EXT-21.log.md'), () => logWith(Q_MD)); }
+});
+
+// ---------------- 5. отметка строки (а) ----------------
+
+test('5: после «Ответить» строка (а) несёт pultMark той же формы (ключ — session и q.uuid), ring «положено»; чужая строка и новый вопрос — без отметки', async () => {
+  const s = await setup({}, { threads: [waitingThread(SID), waitingThread(SID2)], sessions: [sessionOf(SID, 'Слышишь?'), sessionOf(SID2, 'Слышишь?', uuid(902))] });
+  assert.equal((await s.rowOf(SID)).pultMark, null, 'до ответа — null');
+  const b = (await s.press({ action: 'reply', session: SID, q: QT, text: 'слышу' })).json();
+  assert.equal(b.outcome, 'ok', b.message);
+  const m = (await s.rowOf(SID)).pultMark;
+  assert.deepEqual(Object.keys(m).sort(), MARK_KEYS);
+  assert.deepEqual([m.id, m.action, m.state, m.ring], [b.id, 'reply', null, 'положено']);
+  assert.equal((await s.rowOf(SID2)).pultMark, null, 'другой тред — без отметки');
+  // тред задал новый вопрос — у строки новый uuid, отметка к ней не липнет
+  s.live.sess = [sessionOf(SID, 'Новый вопрос?', uuid(903)), sessionOf(SID2, 'Слышишь?', uuid(902))];
+  assert.equal((await s.rowOf(SID)).pultMark, null);
+  // строка остаётся в «Ждёт меня» и в счётчике: отметка строку не убирает
+  assert.ok((await s.get('/api/ceh')).waiting.threads.some((x) => x.sessionId === SID));
+});
+
+test('5: ring отметки строки (а) идёт по 2.8: «прочитано» — форма звонка есть в журнале треда; последняя просьба — по общему правилу (новее по at)', async () => {
+  const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
+  const s = await setup({}, { clock, threads: [waitingThread(SID)], sessions: [sessionOf(SID, 'Слышишь?')] });
+  const one = (await s.press({ action: 'reply', session: SID, q: QT, text: 'раз' })).json();
+  clock.t += 120000;
+  const two = (await s.press({ action: 'reply', session: SID, q: QT, text: 'два' })).json();
+  const m = (await s.rowOf(SID)).pultMark;
+  assert.equal(m.id, two.id, 'побеждает последняя просьба');
+  assert.notEqual(m.id, one.id);
+  // тред прочитал звонок второй просьбы (журнал: rings) — статус «прочитано»
+  s.live.sess = [sessionOf(SID, 'Слышишь?', QU, { rings: { [two.id]: '2026-10-04T12:03:00.000Z' } })];
+  assert.equal((await s.rowOf(SID)).pultMark.ring, 'прочитано');
+  // отрицательный контроль: «прочитано» первой просьбы не делает отметку «прочитано»
+  s.live.sess = [sessionOf(SID, 'Слышишь?', QU, { rings: { [one.id]: '2026-10-04T12:03:00.000Z' } })];
+  assert.equal((await s.rowOf(SID)).pultMark.ring, 'положено');
+});
+
+test('5: ответ, отказанный или не доставленный (error), отметки строки не ставит', async () => {
+  const s = await setup({}, { threads: [waitingThread(SID)], sessions: [sessionOf(SID, 'Слышишь?')] });
+  const bad = (await s.press({ action: 'reply', session: SID, q: { uuid: uuid(999), at: QT_AT }, text: 'мимо' })).json();
+  assert.equal(bad.outcome, 'refused');
+  assert.equal((await s.rowOf(SID)).pultMark, null);
+});
+
+// ---------------- 5б. контракт «го <ID>» из строки (а) ----------------
+
+test('контракт «го <ID>»: reply с текстом «го <ID>», session и q.uuid строки; card у reply — карточка треда или ничего, поле card строки сервер не принимает как карточку reply', async () => {
+  const text = 'Принимаешь EXT-21?';
+  // тред без карточки: reply без card — запись на доске нет, звонок «без карточки»; со строковой card — отказ thread-card
+  const s = await setup({}, { threads: [waitingThread(SID)], sessions: [sessionOf(SID, text)] });
+  const row = await s.rowOf(SID);
+  assert.equal(row.card, 'EXT-21');
+  const wrong = (await s.press({ action: 'reply', session: SID, card: row.card, q: { uuid: row.uuid, at: QT_AT }, text: `го ${row.card}` })).json();
+  assert.equal(wrong.outcome, 'refused', 'card строки у reply — не карточка треда');
+  assert.equal(s.lines().at(-1).refusal, 'thread-card');
+  assert.equal(s.pl().calls, undefined, 'Plane не звался');
+  const right = (await s.press({ action: 'reply', session: SID, q: { uuid: row.uuid, at: QT_AT }, text: `го ${row.card}` })).json();
+  assert.equal(right.outcome, 'ok', right.message);
+  const asked = s.lines().find((l) => l.id === right.id && l.step === 'asked');
+  assert.equal(asked.card, undefined, 'у reply card нет');
+  assert.equal(asked.text, 'го EXT-21');
+  assert.equal(s.pl().calls, undefined, 'записи на доске нет');
+  // тред с карточкой EXT-20: reply с card треда — запись на EXT-20 с текстом «го EXT-21»; поле card строки в запись не попадает
+  const t2 = await setup({}, { threads: [waitingThread(SID, { card: 'EXT-20' })], sessions: [sessionOf(SID, text)] });
+  const ok = (await t2.press({ action: 'reply', session: SID, card: 'EXT-20', q: { uuid: row.uuid, at: QT_AT }, text: 'го EXT-21' })).json();
+  assert.equal(ok.outcome, 'ok', ok.message);
+  const html = t2.pl().comments.at(-1).html;
+  assert.ok(html.includes('<p>го EXT-21</p>'), html);
+  assert.equal(t2.lines().find((l) => l.id === ok.id && l.step === 'asked').card, 'EXT-20');
+});

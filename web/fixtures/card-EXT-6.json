@@ -115,6 +115,10 @@
   },
   "logError": null,
   "pult": {
+    "enabled": true,
+    "words": true,
+    "bell": true,
+    "_flags": "EXT-70 (§1.7): enabled / words / bell — как pult в /api/ceh (bell — действующее состояние звонка, не флаг конфига). mark — отметка карточки одной формы на все действия: {id, action, at, state, ring, missing?, text?}; «Принять»/«Вернуть» — state Done / In Progress, ring null / статус 2.8, missing и text; слова (да, го, сливай, выкатывай, нет, ответ) — state null, ring — статус 2.8 («положено» → «доставлено» → «прочитано»), без missing и text, например {\"id\": \"W-261005-101500-3c2d\", \"action\": \"yes\", \"at\": \"2026-10-05T07:15:00.000Z\", \"state\": null, \"ring\": \"положено\"}. Ставится только при исходе ok/partial; одна отметка на карточку — побеждает последнее действие, кроме красной «зеркало не видит запись <id>» (missing: true), она держится до снятия.",
     "accept": {
       "can": true,
       "why": null,
@@ -126,6 +130,7 @@
       "action": "accept",
       "at": "2026-10-03T07:42:10.000Z",
       "state": "Done",
+      "ring": null,
       "missing": false,
       "text": "принято · Done в Plane 10:42 · зеркало ещё не видело"
     },
