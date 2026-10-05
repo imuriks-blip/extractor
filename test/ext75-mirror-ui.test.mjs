@@ -9,7 +9,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { secs, runResult, reindexLine, FRESH_MS } from '../web/src/mirrorData.js';
+import { secs, runResult, reindexLine, phaseWord, FRESH_MS } from '../web/src/mirrorData.js';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -108,4 +108,13 @@ test('reindexLine: идёт — «пересобираю: N из M журнал�
   assert.deepEqual(reindexLine(fx._states.reindex_failed.reindex), { cls: 'pbad', text: 'не удалось пересобрать: EACCES' });
   assert.equal(reindexLine(null).cls, 'faint');
   assert.equal(reindexLine({ running: false, lastAt: null, lastError: null }).cls, 'faint');
+});
+
+test('phaseWord: каждая фаза, которую настоящий mirror.mjs кладёт в status.json progress.phase, имеет русское слово (проба ПТ8: в шапке были «projects», «relations», «write»)', () => {
+  const real = fs.readFileSync(`${BOARD_LIB}/../mirror.mjs`, 'utf8');
+  const phases = [...new Set([...real.matchAll(/phase: '([a-z]+)'/g)].map((m) => m[1]))].sort();
+  assert.deepEqual(phases, ['cards', 'comments', 'projects', 'relations', 'write'], 'набор фаз настоящего прохода');
+  for (const p of phases) assert.match(phaseWord(p), /^[а-яё]+$/, p);
+  assert.equal(phaseWord('новая-фаза'), 'новая-фаза', 'незнакомая — как есть');
+  assert.equal(phaseWord(null), null);
 });

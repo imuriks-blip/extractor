@@ -5,12 +5,11 @@
 // каждый запуск, флаг pult.enabled читается при старте), кнопка до перезапуска витрины не показывается.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { dm, hm } from './format.js';
-import { readMirror, runResult } from './mirrorData.js';
+import { phaseWord, readMirror, runResult } from './mirrorData.js';
 import { clear403, postAct, reloadOn403, setPuller, store, take403, token, tokenMark as mark } from './act.js';
 
 const POLL_MS = 4000;
 const OFF_KEY = 'vitrina.pultOff'; // отпечаток токена запуска сервера, на котором пульт ответил 503
-const PHASE = { comments: 'комменты', cards: 'карточки', index: 'индекс', links: 'связи', assets: 'вложения' }; // фазы status.json → слова; незнакомая — как есть
 const HINT = 'прогнать зеркало доски: свежие карточки из Plane (обычный проход, несколько минут)';
 const FULL_HINT = 'полный проход зеркала: вся доска заново, спросит подтверждение с ценой';
 const CONFIRM_MS = 5 * 60000; // подтверждение живёт 5 мин (спека пульта §1.1 п.7)
@@ -139,7 +138,7 @@ export default function MirrorButton({ label }) {
   const text = phase === 'pending' ? 'запускаю…' : running ? 'идёт…' : 'Обновить';
   // ход зеркала (таблица 1.3): фаза, N из M, запросов, темп, с какого времени — из GET /api/mirror
   const prog = running ? [
-    st?.phase && (nums ? `${PHASE[st.phase] ?? st.phase} ${st.cardsDone} из ${st.cardsTotal}` : (PHASE[st.phase] ?? st.phase)),
+    st?.phase && (nums ? `${phaseWord(st.phase)} ${st.cardsDone} из ${st.cardsTotal}` : phaseWord(st.phase)),
     Number.isFinite(st?.requests) && `${st.requests} запросов`,
     Number.isFinite(st?.rpm) && `${st.rpm}/мин`,
     st?.startedAt && `с ${hm(st.startedAt)}`,
