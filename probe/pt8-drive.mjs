@@ -205,7 +205,7 @@ function pageApi(b) {
 // подтверждения — против прямоугольников всех прочих блоков страницы и шапки; position подтверждения; высота «Служебного»
 const SVC = 'details[aria-label="Служебное"]'
 const openService = async (P) => { await P.waitFor(`document.querySelector('${SVC}')`); await P.b.ev(`(()=>{const d=document.querySelector('${SVC}');if(d&&!d.open)d.querySelector('summary').click()})()`); await sleep(300) }
-// страница прокручивается к началу перед замером (автофокус «запустить полный» её прокручивает — это не сдвиг вёрстки);
+// страница прокручивается к началу перед замером (автофокус «отмена» её прокручивает — это не сдвиг вёрстки);
 // координаты — от начала документа
 const RECTS = `(()=>{const sy=window.scrollY;window.scrollTo(0,0);const R=(e)=>{const r=e.getBoundingClientRect();return {top:r.top+window.scrollY,left:r.left,right:r.right,bottom:r.bottom+window.scrollY,h:r.height}};
   const svc=document.querySelector('${SVC}');const cf=svc?svc.querySelector('.cfm'):null;
@@ -249,6 +249,9 @@ try {
     must(`${w}: первый щелчок «Полный проход зеркала»: нажата`, await P.btn('Полный проход зеркала'), null)
     must(`${w}: подтверждение с ценой и «запустить полный» — внутри «Служебного»`, await P.waitFor(`document.querySelector('${SVC} .cfm')`), await P.text(SVC + ' .cfm'))
     await sleep(250)
+    // Голем дирижёра на экран ПТ8: фокус после раскрытия — на «отмена» (автоповтор Enter не нажимает «запустить полный»)
+    const focused = await b.ev(`(()=>{const a=document.activeElement;return {tag:a?.tagName.toLowerCase()??null,text:a?.textContent.trim()??null,inCfm:!!a?.closest('.cfm')}})()`)
+    must(`${w}: фокус после раскрытия подтверждения — на «отмена» внутри подтверждения`, focused.tag === 'button' && focused.text === 'отмена' && focused.inCfm, focused)
     const after = await b.ev(RECTS)
     const hit = after.cfm.flatMap((r) => after.blocks.filter((k) => cross(r, k)).map((k) => `${r.tag} × ${k.name}`))
     const moved = before.blocks.filter((k) => { const a = after.blocks.find((x) => x.name === k.name); return !a || Math.abs(a.top - k.top) > 0.5 })

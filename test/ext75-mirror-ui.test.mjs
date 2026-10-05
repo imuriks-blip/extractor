@@ -9,7 +9,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { secs, runResult, reindexLine, phaseWord, isRefusal, FRESH_MS } from '../web/src/mirrorData.js';
+import { secs, runResult, reindexLine, phaseWord, isRefusal, refusalNote, FRESH_MS } from '../web/src/mirrorData.js';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,4 +118,32 @@ test('phaseWord: каждая фаза, которую настоящий mirror
   for (const p of phases) assert.match(phaseWord(p), /^[а-яё]+$/, p);
   assert.equal(phaseWord('новая-фаза'), 'новая-фаза', 'незнакомая — как есть');
   assert.equal(phaseWord(null), null);
+});
+
+// Голем дирижёра на экран ПТ8: отказ rate-limit на первом щелчке «полный» писал «подтверждение не годится — нажми ещё раз».
+// Тела отказов — настоящие ответы сервера (не образцы): чужое подтверждение и 31-е действие за минуту.
+test('refusalNote: у «полного» «подтверждение не годится» — только на отказ подтверждения (bad-confirm, confirm-expired); rate-limit и прочие — «отказ» с причиной, как у «Обновить»', async () => {
+  const { act } = await server();
+  const bad = await act({ action: 'mirror', kind: 'full', confirm: 'W-000000-000000-0000' });
+  assert.equal(bad.json().refusal, 'bad-confirm');
+  let rl = null;
+  for (let i = 0; i < 40 && !rl; i++) { const r = await act({ action: 'mirror', kind: 'full' }); if (r.statusCode === 429) rl = r.json(); }
+  assert.equal(rl?.refusal, 'rate-limit', 'сервер отказал по частоте');
+  assert.deepEqual(refusalNote('full', bad.json()), { text: 'подтверждение не годится — нажми ещё раз', title: bad.json().message });
+  assert.deepEqual(refusalNote('full', { outcome: 'refused', refusal: 'confirm-expired', message: 'просрочено' }), { text: 'подтверждение не годится — нажми ещё раз', title: 'просрочено' });
+  assert.deepEqual(refusalNote('full', rl), { text: 'отказ', title: rl.message }, 'частота — не подтверждение');
+  assert.match(rl.message, /действий в минуту/);
+  assert.deepEqual(refusalNote('changed', rl), { text: 'отказ', title: rl.message });
+  assert.deepEqual(refusalNote('changed', bad.json()), { text: 'отказ', title: bad.json().message }, 'у обычного подтверждения нет');
+  assert.deepEqual(refusalNote('full', { outcome: 'refused' }), { text: 'отказ', title: 'пульт отказал' }, 'без кода и текста');
+  assert.ok(src('Mirror.jsx').includes('refusalNote('), 'экран берёт пометку отказа из refusalNote');
+});
+
+// Голем дирижёра на экран ПТ8: автоповтор Enter на «Полный проход зеркала» нажимал автофокусный «запустить полный» —
+// фокус после раскрытия подтверждения — на «отмена» (в живом браузере — проба pt8-drive)
+test('подтверждение «полного»: автофокус — на «отмена», не на «запустить полный»', () => {
+  const s = src('Mirror.jsx');
+  const tag = (label) => { const i = s.indexOf(`>${label}</button>`); assert.ok(i > 0, label); return s.slice(s.lastIndexOf('<button', i), i); };
+  assert.doesNotMatch(tag('запустить полный'), /autoFocus/);
+  assert.match(tag('отмена'), /autoFocus/);
 });

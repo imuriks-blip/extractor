@@ -9,7 +9,7 @@
 // каждый запуск, флаг pult.enabled читается при старте), кнопки до перезапуска витрины не показываются.
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { dm, hm } from './format.js';
-import { isRefusal, phaseWord, readMirror, runResult } from './mirrorData.js';
+import { isRefusal, phaseWord, readMirror, refusalNote, runResult } from './mirrorData.js';
 import { clear403, postAct, reloadOn403, setPuller, store, take403, token, tokenMark as mark } from './act.js';
 
 const POLL_MS = 4000;
@@ -91,9 +91,9 @@ async function send(payload) {
   }
   setCf(null);
   if (body?.outcome === 'refused' && !isRefusal(body, 'mirror-running')) {
-    // у полного — подтверждение чужое, потраченное или просроченное: нажать заново; у обычного — отказ, причина в подсказке
-    if (kind === 'full') fail('подтверждение не годится — нажми ещё раз', body.message || 'подтверждение не годится');
-    else fail('отказ', body.message || 'пульт отказал');
+    // у полного отказ подтверждения (чужое, потраченное, просроченное) — нажать заново; прочие отказы — причина в подсказке
+    const n = refusalNote(kind, body);
+    fail(n.text, n.title);
     return;
   }
   if ((r.status >= 200 && r.status < 300) || (r.status === 409 && body?.outcome === 'refused')) {
@@ -201,8 +201,9 @@ export function FullMirror() {
           <span className="h">{cf.c.what}</span>{cf.c.follows}
           {cf.c.mirrorAt && <span className="faint"> Сейчас зеркало от {dm(cf.c.mirrorAt)}.</span>}
           <span className="row">
-            <button type="button" className="pbtn pmain" autoFocus onClick={() => press('full', cf.id)}>запустить полный</button>
-            <button type="button" className="pbtn" onClick={closeCf}>отмена</button>
+            {/* фокус после раскрытия — на «отмена»: автоповтор Enter на «Полный проход зеркала» не нажимает запуск */}
+            <button type="button" className="pbtn pmain" onClick={() => press('full', cf.id)}>запустить полный</button>
+            <button type="button" className="pbtn" autoFocus onClick={closeCf}>отмена</button>
             <span className="tmr num">действует до {hm(new Date(cf.until).toISOString())}</span>
           </span>
         </div>

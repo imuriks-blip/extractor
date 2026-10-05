@@ -8,6 +8,14 @@ const PHASE = { projects: 'проекты', cards: 'карточки', comments:
 export const phaseWord = (p) => (p ? PHASE[p] ?? p : null);
 // отказ сервера по коду refusal в теле ответа /api/act (outcome 'refused'): 'mirror-running', 'reindex-running', 'bad-confirm', …
 export const isRefusal = (body, code) => body?.outcome === 'refused' && body.refusal === code;
+// пометка отказа нажатия зеркала {text, title}: у «полного» «подтверждение не годится» — только на отказ самого подтверждения
+// (чужое, потраченное, просроченное — нажать заново); любой другой отказ (rate-limit, …) — «отказ» с причиной в подсказке,
+// как у «Обновить» (Голем дирижёра на экран ПТ8: rate-limit первого щелчка писал «подтверждение не годится»)
+const CONFIRM_REFUSALS = new Set(['bad-confirm', 'confirm-expired']);
+export function refusalNote(kind, body) {
+  if (kind === 'full' && CONFIRM_REFUSALS.has(body?.refusal)) return { text: 'подтверждение не годится — нажми ещё раз', title: body.message || 'подтверждение не годится' };
+  return { text: 'отказ', title: body?.message || 'пульт отказал' };
+}
 export const FRESH_MS = 60 * 60000; // зелёный итог в шапке — час после конца прохода, дальше его место занимает время зеркала
 
 // «8 мин», «1 ч 36 мин», «45 с» — длительность прохода из lastRun.seconds
