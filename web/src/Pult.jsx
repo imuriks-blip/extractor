@@ -115,13 +115,15 @@ function ReturnForm({ onSend, onCancel, label = 'Причина возврата
   );
 }
 
-// Отметка из данных (§3.2): у «Принять»/«Вернуть» — текст сервера («принято · Done в Plane ЧЧ:ММ · зеркало ещё не видело»),
-// missing — красная; у слов текста нет — строится из полей: слово, время записи, статус звонка 2.8
-export function PultMark({ m, now }) {
+// Отметка из данных (§3.2, §1.7 «Местная отметка»): text — у «Принять»/«Вернуть» всегда («принято · Done в Plane ЧЧ:ММ ·
+// зеркало ещё не видело», «частично: …»), у слов — только у красной (missing: true, «зеркало не видит запись <id>»);
+// у не красной отметки слова text нет — строка строится из полей: слово, время записи, статус звонка 2.8.
+// tail — приписка к красной (у частичного исхода: статус не сменился)
+export function PultMark({ m, now, tail = null }) {
   if (!m) return null;
   if (m.text) {
     // missing: сервер уже кладёт в text «зеркало не видит запись <id>» — тот же текст, красным
-    return <span className={m.missing ? 'pmark pbad' : 'pmark'}>{m.text}{m.ring && <> · тред: <Ring ring={m.ring} /></>}</span>;
+    return <span className={m.missing ? 'pmark pbad' : 'pmark'}>{m.text}{tail}{m.ring && <> · тред: <Ring ring={m.ring} /></>}</span>;
   }
   const w = WORD[m.action];
   return (
@@ -135,11 +137,15 @@ export function PultMark({ m, now }) {
 // «Принять»/«Вернуть» с state null — частичный исход: запись легла, статус не сменился (§1.7, таблица 1.3)
 export const isPartialMark = (m) => !!m && (m.action === 'accept' || m.action === 'return') && m.state === null;
 
-// отметка карточки; у частичного исхода — «повторить» (accept — сразу, return — снова с причиной)
-export function MarkLine({ card, q, mark, now }) {
+// отметка карточки; у частичного исхода — «повторить» (accept — сразу, return — снова с причиной), только при включённом
+// пульте (can = pult.enabled: иначе ответ 503). Частичный под красной — красный текст в строке и «статус не сменился»;
+// «повторить» не нужно: под красной у строки и панели снова обычные кнопки (слово Ивана 05.10, §1.7)
+export function MarkLine({ card, q, mark, now, can = true }) {
   const [form, setForm] = useState(false);
   if (!mark) return null;
   if (!isPartialMark(mark)) return <PultMark m={mark} now={now} />;
+  if (mark.missing) return <PultMark m={mark} now={now} tail={<span className="pamb"> · частично: статус не сменился</span>} />;
+  if (!can) return <span className="pnote pamb" role="status">частично: запись есть, статус не сменился</span>;
   return (
     <>
       <span className="pnote pamb" role="status">частично: запись есть, статус не сменился —{' '}
@@ -212,20 +218,30 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   const [menu, setMenu] = useState(false);
   const retBtn = useRef(null);
   const backFocus = useRef(false);
+  const menuBox = useRef(null);
   useEffect(() => { resume403(key); }, [key]);
   useEffect(() => { if (!form && backFocus.current) { backFocus.current = false; retBtn.current?.focus(); } }, [form]);
+  // меню «ещё ▾» закрывается щелчком мимо (второй щелчок по кнопке — onClick ниже)
+  useEffect(() => {
+    if (!menu) return undefined;
+    const away = (e) => { if (!menuBox.current?.contains(e.target)) setMenu(false); };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [menu]);
 
   const st = st0 && st0.phase === 'ok' && Date.now() - st0.at > OK_SHOWN_MS ? null : st0;
   const phase = st?.phase;
   const busy = phase === 'busy';
   const confirming = phase === 'confirm';
   const markMine = mark && (!st || (phase === 'ok' && (!st.id || st.id === mark.id)));
-  const markPartial = isPartialMark(mark) && !st;
+  // красная «зеркало не видит запись <id>» (§1.7, слово Ивана 05.10): кнопки слов снова есть — отметка над ними
+  const red = !thread && mark?.missing === true;
+  const markPartial = isPartialMark(mark) && !st && !red;
 
-  // карточка: отметка из данных пришла — нажатие исполнено, кнопок нет, видна она
-  if (!thread && markMine) return <div className="pult"><MarkLine card={card} q={q} mark={mark} /></div>;
+  // карточка: обычная отметка из данных пришла — нажатие исполнено, кнопок нет, видна она
+  if (!thread && markMine && !red) return <div className="pult"><MarkLine card={card} q={q} mark={mark} can={ar} /></div>;
   if (!thread && phase === 'ok') return <div className="pult"><span className="pmark" role="status">{st.msg}</span></div>;
-  if (!q && !st) return null;
+  if (!q && !st && !(red && markMine)) return null;
   // строка (а): кнопки неактивны, пока слово в пути — по отметке из данных или по свежему исходу без отметки (§1.7)
   const inFlight = thread && ((markMine && FLIGHT.includes(mark.ring)) || (phase === 'ok' && !markMine));
 
@@ -303,6 +319,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
 
   return (
     <div className="pult">
+      {red && markMine && !busy && !confirming && <span className="pml"><MarkLine card={card} q={q} mark={mark} can={ar} /></span>}
       {(arShown || wordsShown) && (
         <span className="pbtns">
           {arShown && accept && canAccept && <button type="button" className="pbtn pmain" disabled={busy || confirming || !!form} onClick={() => press('accept')}>Принять</button>}
@@ -312,14 +329,17 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
             <span key={w.action + (w.text ?? '')} className="pbw">{wordBtn(w)}{w.action === 'take' && <span className="todo">ещё нет</span>}</span>
           ))}
           {wordsShown && moreWords.length > 0 && (
-            <button type="button" className="pbtn" disabled={off} aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu((v) => !v)}>ещё ▾</button>
+            // меню — поверх содержимого под кнопками, по правому краю ряда кнопок (как «Отложить до …»): строку «След» не двигает
+            <span className="pmw" ref={menuBox}>
+              <button type="button" className="pbtn" disabled={off} aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu((v) => !v)}>ещё ▾</button>
+              {menu && (
+                <span className="menu pmenu" role="menu" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setMenu(false); } }}>
+                  {moreWords.map((w) => <button key={w.action} type="button" role="menuitem" onClick={() => onWord(w)}>{labelOf(w)}{w.action === 'reply' ? '…' : ''}</button>)}
+                </span>
+              )}
+            </span>
           )}
         </span>
-      )}
-      {wordsShown && menu && (
-        <div className="pmenu"><span className="menu" role="menu" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setMenu(false); } }}>
-          {moreWords.map((w) => <button key={w.action} type="button" role="menuitem" onClick={() => onWord(w)}>{labelOf(w)}{w.action === 'reply' ? '…' : ''}</button>)}
-        </span></div>
       )}
       {q && hint && !note && <span className="phint">{hint}</span>}
       {note}

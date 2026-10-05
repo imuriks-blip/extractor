@@ -419,7 +419,7 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
 .going .num{color:var(--fg)}
 .todo{font-size:11px;padding:0 5px;margin-left:4px;border-radius:3px;background:var(--hover);color:var(--muted);font-weight:500;white-space:nowrap}
 .pbw{display:inline-flex;align-items:baseline}
-.pult>.cfm,.pult>.pret,.pult>.pmenu{flex-basis:100%}
+.pult>.cfm,.pult>.pret,.pult>.pml{flex-basis:100%}
 .qline{font-size:12px;color:var(--muted)}
 .cfm{margin:2px 0 4px;padding:5px 8px 6px;border-radius:3px;background:var(--hover);font-size:12px;color:var(--fg);max-width:640px}
 .cfm.b{background:var(--amber-bg)}
@@ -432,7 +432,10 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
 .cfm .pick input{margin:0 6px 0 0;accent-color:var(--accent);vertical-align:-2px}
 .cfm .row{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
 .cfm .tmr{margin-left:auto;color:var(--muted)}
-.pmenu{margin-top:2px;text-align:right}
+/* «ещё ▾»: меню поверх содержимого под рядом кнопок, по его правому краю (как .dmenu «Отложить до …») — строки ниже не двигает */
+.pbtns{position:relative}
+.pmw{display:contents}
+.pmenu{position:absolute;right:0;top:calc(100% + 2px);z-index:15}
 .menu{text-align:left;display:inline-flex;flex-direction:column;padding:3px 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 4px 12px var(--shade);vertical-align:top}
 .menu button{background:none;border:0;text-align:left;padding:3px 10px;white-space:nowrap;cursor:pointer;font-size:13px}
 .menu button:hover,.menu button:focus-visible{background:var(--hover)}

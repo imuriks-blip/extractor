@@ -3,7 +3,8 @@
 // через python = node — настоящий Plane не вызывается), выдуманные треды. Страница — настоящая web/dist этой копии.
 // Браузер — headless Chrome со своим --user-data-dir во временной папке, управление по протоколу CDP (без видимых окон).
 // Нажатия вживую: «да» (панель), «сливай» (второй щелчок и выбор треда), «Ответить» и «го <ID>» из строки (а), «Принять»
-// с частичным исходом; снимки 1280 и 400, светлая и тёмная (тема — кнопкой приложения); words=false и bell=false — по DOM.
+// с частичным исходом; красная у слова — проход зеркала без записи (кнопки под красной, под обычной — нет); меню «ещё ▾»
+// поверх; снимки 1280 и 400, светлая и тёмная (тема — кнопкой приложения); words=false, bell=false, enabled=false — по DOM.
 //   node probe/pt7-drive.mjs <папка-для-снимков> [chrome.exe]
 // Охранник: из папки живой витрины и на порту 4317 — отказ до любой записи.
 import { spawn, execFileSync } from 'node:child_process'
@@ -75,8 +76,8 @@ function makeEnv() {
 const thread = (sid, o = {}) => ({ sessionId: sid, title: 'тред', project: null, projectBy: 'title', card: null, state: 'idle', lastSeenAt: iso(min(1)), since: iso(min(60)), sinceKind: 'open', subagents: [], marks: [], ...o })
 const sessionOf = (sid, text, uuidQ) => ({ sessionId: sid, lines: 10, thread: { q: { text, uuid: uuidQ, at: iso(min(14)) } } })
 
-// opts: words, bell
-async function startInstance({ words = true, bell = true } = {}) {
+// opts: words, bell, enabled (pult.enabled)
+async function startInstance({ words = true, bell = true, enabled = true } = {}) {
   const { boardDir, regFile } = makeEnv()
   const data = tmpDir('pt7-data-')
   const pdir = tmpDir('pt7-plane-')
@@ -104,14 +105,16 @@ async function startInstance({ words = true, bell = true } = {}) {
   const journals = { state: () => ({ lastOkAt: iso(min(0)) }), sessions: () => sessions }
   const spawnStub = () => { const ch = new EventEmitter(); ch.pid = 9100; ch.unref = () => {}; process.nextTick(() => ch.emit('spawn')); return ch }
   const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, threads: threadsApi, journals,
-    pult: { enabled: true, words, bell, bellDir: path.join(data, 'bell'), actionsLog: path.join(data, 'actions.log'), mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
+    pult: { enabled, words, bell, bellDir: path.join(data, 'bell'), actionsLog: path.join(data, 'actions.log'), mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
     pultSeams: { spawn: spawnStub } })
   await app.listen({ host: '127.0.0.1', port: PORT })
   const planeSt = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'))
   const setPlane = (patch) => fs.writeFileSync(stateFile, JSON.stringify({ ...planeSt(), ...patch }))
   const actions = () => (fs.existsSync(path.join(data, 'actions.log')) ? fs.readFileSync(path.join(data, 'actions.log'), 'utf8') : '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
-  return { app, data, planeSt, setPlane, actions, close: () => app.close() }
+  // проход зеркала (changed, код 0), начавшийся после действий: записей в файлах доски нет → отметки красные (§3.2)
+  const mirrorPass = () => { const t = Date.now(); fs.appendFileSync(path.join(boardDir, '.mirror', 'runs.log'), `${iso(new Date(t))} · начало · changed · pid 77\n${iso(new Date(t + 1000))} · конец · changed · pid 77 · код 0 · 1 с · запросов 3\n`) }
+  return { app, data, planeSt, setPlane, actions, mirrorPass, close: () => app.close() }
 }
 
 // ---------- браузер по CDP ----------
@@ -253,8 +256,20 @@ async function scenario(w, theme, full) {
     await P.goto('#/project/EXT/EXT-62')
     await P.waitFor('document.querySelector(".panel .pult .pbtns")')
     await sleep(600)
+    const trTop = () => b.ev(`Math.round(document.querySelector('.panel .trb')?.getBoundingClientRect().top ?? -1)`)
+    const t0 = await trTop()
     await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
+    await sleep(200)
+    check(`${w}/${theme} «ещё ▾»: меню поверх — «След» не сдвинулся, px`, { до: t0, после: await trTop(), меню: await b.ev(`(()=>{const m=document.querySelector('.panel .pmenu');if(!m)return null;const s=getComputedStyle(m);const r=m.getBoundingClientRect();const p=document.querySelector('.panel .ph').getBoundingClientRect();return {position:s.position,shadow:s.boxShadow!=='none',border:s.borderTopWidth,внутриПанели:r.left>=p.left&&r.right<=p.right}})()`) })
     await P.shot('10-panel-review-menu-eshche')
+    await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
+    await sleep(150)
+    check(`${w}/${theme} «ещё ▾»: второй щелчок закрывает`, await b.ev('!document.querySelector(".panel .pmenu")'))
+    await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
+    await sleep(150)
+    await b.ev(`document.querySelector('.panel .pb').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`)
+    await sleep(150)
+    check(`${w}/${theme} «ещё ▾»: щелчок мимо закрывает`, await b.ev('!document.querySelector(".panel .pmenu")'))
     await P.goto('#/project/EXT/EXT-70')
     await P.waitFor('document.querySelector(".panel .pult")')
     await sleep(600)
@@ -273,6 +288,41 @@ async function scenario(w, theme, full) {
     await P.shot('13-panel-posle-da')
     const da = inst.actions().filter((l) => l.action === 'yes')
     check('«да» из панели: журнал', da.map((l) => l.step + (l.card ? ':' + l.card : '')).join(','))
+
+    // 6б. Красная у слова (слово Ивана 05.10, §1.7). Отрицательный контроль: под обычной отметкой кнопок слов нет —
+    // в панели EXT-58 («да» выше) и в строке LEDGER-168 («сливай» выше, строка в «Отвечено, ждёт зеркала»)
+    await P.goto('#/project/EXT/EXT-58')
+    await P.waitFor('document.querySelector(".panel .pult .pmark")', 12000)
+    await sleep(500)
+    check(`${w}/${theme} обычная отметка: панель EXT-58 — отметка, кнопок нет`, { отметка: await P.text('.panel .pult .pmark'), кнопки: await b.ev(`[...document.querySelectorAll('.panel .pult button')].map(x=>x.textContent.trim())`) })
+    await P.goto('#/')
+    await P.waitFor('document.querySelector(".wrow")')
+    await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
+    const rowOf = (id) => `[...document.querySelectorAll('.wrow')].find(x=>x.querySelector('.src')?.textContent.trim()===${JSON.stringify(id)})`
+    const rowInfo = (id) => b.ev(`(()=>{const r=${rowOf(id)};if(!r)return null;return {группа:r.closest('details.grp')?.querySelector('summary')?.textContent.replace(/\\s+/g,' ').trim().slice(0,40)??null,отвечено:!!r.closest('details.grp.ans'),текст:r.textContent.replace(/\\s+/g,' ').trim(),кнопки:[...r.querySelectorAll('.pbtns button')].filter(x=>!x.disabled).map(x=>x.textContent.trim()),красная:!!r.querySelector('.pbad')}})()`)
+    check(`${w}/${theme} обычная отметка: строка LEDGER-168`, await rowInfo('LEDGER-168'))
+    // проход зеркала после действий кончился, записей в файлах доски нет → красные у LEDGER-168 («сливай»), EXT-58 («да»),
+    // EXT-61 («Принять» частично)
+    inst.mirrorPass()
+    // runs.log сигнала changed не даёт — страница перечитывается целиком (смена одного хеша данные не перечитывает)
+    await P.goto('#/')
+    await b.call('Page.reload', { ignoreCache: true })
+    await sleep(900)
+    await P.waitFor(`${rowOf('LEDGER-168')}?.querySelector('.pbad')`, 12000)
+    await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
+    check(`${w}/${theme} красная: строка LEDGER-168 в «Ждёт меня» — отметка и кнопки`, await rowInfo('LEDGER-168'))
+    check(`${w}/${theme} красная + частично: строка EXT-61 — текст в строке и кнопки`, await rowInfo('EXT-61'))
+    await P.shot('15-ceh-krasnaya-knopki')
+    await P.goto('#/project/EXT/EXT-58')
+    await P.waitFor('document.querySelector(".panel .pult .pbad")', 12000)
+    await sleep(500)
+    check(`${w}/${theme} красная: панель EXT-58 — отметка над кнопками`, { отметка: await P.text('.panel .pult .pbad'), кнопки: await b.ev(`[...document.querySelectorAll('.panel .pult .pbtns button')].filter(x=>!x.disabled).map(x=>x.textContent.trim())`),
+      отметкаВыше: await b.ev(`document.querySelector('.panel .pult .pml').getBoundingClientRect().bottom <= document.querySelector('.panel .pult .pbtns').getBoundingClientRect().top + 1`),
+      строкаОкнаПроектаEXT61: await b.ev(`[...document.querySelectorAll('.prow')].find(x=>x.querySelector('.src')?.textContent.trim()==='EXT-61')?.querySelector('.pbad')?.textContent ?? null`) })
+    await P.shot('15-panel-krasnaya-knopki')
+    await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
+    await sleep(200)
+    await P.shot('15-panel-krasnaya-menu-eshche')
 
     // 7. «Мои слова» и «Рабочие копии» на «Цехе»
     await P.goto('#/')
@@ -306,18 +356,18 @@ async function narrow(w) {
 
 // флаги: words=false — кнопок-слов нет; bell=false — звонковых нет
 async function flags() {
-  for (const [words, bell] of [[false, true], [true, false]]) {
-    const inst = await startInstance({ words, bell })
+  for (const [words, bell, enabled] of [[false, true, true], [true, false, true], [true, true, false]]) {
+    const inst = await startInstance({ words, bell, enabled })
     const b = await openBrowser()
     const P = pageApi(b, 1280, 'light')
     try {
       await P.size(900); await P.goto('#/'); await P.waitFor('document.querySelector(".wrow")'); await sleep(500)
       await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
       const labels = await b.ev(`[...document.querySelectorAll('.wrow button.pbtn')].map(x=>x.textContent.trim()).filter(t=>t!=='Отложить')`)
-      check(`pult.words=${words}, pult.bell=${bell}: кнопки в строках «Ждёт меня» (кроме «Отложить»)`, labels)
+      check(`pult.enabled=${enabled}, pult.words=${words}, pult.bell=${bell}: кнопки в строках «Ждёт меня» (кроме «Отложить»)`, labels)
       await P.goto('#/project/EXT/EXT-58'); await P.waitFor('document.querySelector(".panel")'); await sleep(700)
-      check(`pult.words=${words}, pult.bell=${bell}: кнопки панели EXT-58`, await b.ev(`[...document.querySelectorAll('.panel .pult button')].map(x=>x.textContent.trim())`))
-      await P.shot(`17-flags-words-${words}-bell-${bell}`)
+      check(`pult.enabled=${enabled}, pult.words=${words}, pult.bell=${bell}: кнопки панели EXT-58`, await b.ev(`[...document.querySelectorAll('.panel .pult button')].map(x=>x.textContent.trim())`))
+      await P.shot(`17-flags-${enabled ? '' : 'pult-off-'}words-${words}-bell-${bell}`)
     } finally { await b.close(); await inst.close(); S.profiles = [...(S.profiles ?? []), b.dir] }
   }
 }
