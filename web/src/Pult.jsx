@@ -272,8 +272,9 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   };
   const onWord = (w) => {
     setMenu(false);
+    // как pick в «Отложить»: пункт уходит из DOM — фокус обратно на «ещё ▾» (у «Ответить…» его забирает поле ответа)
     if (w.action === 'reply' && !w.text) setForm((f) => (f === 'reply' ? null : 'reply'));
-    else press(w.action, w.text);
+    else { moreBtn.current?.focus(); press(w.action, w.text); }
   };
 
   let note = null;
