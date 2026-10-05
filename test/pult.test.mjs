@@ -590,7 +590,7 @@ test('GET /api/mirror: из status.json и run.lock, running по правилу
   const lock = (o) => fs.writeFileSync(path.join(dir, 'run.lock'), JSON.stringify(o));
   const { app } = await setup({ mirrorDir: dir });
   const get = async () => (await app.inject({ method: 'GET', url: '/api/mirror', headers: { host: `127.0.0.1:${PORT}` } })).json();
-  const KEYS = ['at', 'cardsDone', 'cardsTotal', 'kind', 'lastError', 'lastFullOk', 'lastOk', 'phase', 'requests', 'rpm', 'running', 'startedAt'];
+  const KEYS = ['at', 'cardsDone', 'cardsTotal', 'kind', 'lastError', 'lastFullOk', 'lastOk', 'lastRun', 'phase', 'reindex', 'requests', 'rpm', 'running', 'startedAt'];
   const none = await get();
   assert.deepEqual(Object.keys(none).sort(), KEYS);
   assert.equal(none.running, false);
@@ -888,17 +888,17 @@ test('mirror: запуск — wscript //B //Nologo //E:JScript <доска>\\to
   assert.equal(c.unref, 1);
 });
 
-test('mirror: kind — только changed (по умолчанию); full — 501 «ещё не подключено» без записи и запуска; иное — 400', async () => {
+test('mirror: kind — changed (по умолчанию) и full; full без confirm — need-confirm, ничего не запущено (EXT-75; полная проверка — ext75-mirror-full.test.mjs); иное — 400', async () => {
   const spawn = fakeSpawn();
   const { app, lines } = await setup({ boardRoot: launcherBoard(), spawn });
   const token = await pageToken(app);
   const full = await act(app, token, mirrorBody({ kind: 'full' }));
-  assert.equal(full.statusCode, 501);
-  assert.match(full.json().message, /полный.*ещё не подключено/);
+  assert.equal(full.statusCode, 200);
+  assert.equal(full.json().outcome, 'need-confirm');
   for (const kind of ['bogus', 1, '', 'card']) assert.equal((await act(app, token, mirrorBody({ kind }))).statusCode, 400, String(kind));
   assert.equal((await act(app, token, { body: { action: 'ping', intentId: nextIntent(), kind: 'changed' } })).statusCode, 400, 'kind — только у mirror');
   assert.equal(spawn.calls.length, 0);
-  assert.equal(lines().length, 0);
+  assert.deepEqual(steps(lines()), ['asked', 'need-confirm']);
   assert.equal((await act(app, token, mirrorBody({ kind: 'changed' }))).statusCode, 200);
   assert.deepEqual(spawn.calls[0].args.slice(5, 6), ['--changed']);
 });
