@@ -1,0 +1,75 @@
+{
+  "note": "часть 1 (оборвалась на баге самой пробы после «го» EXT-69; продолжена --part2)",
+  "checks": {
+    "q от витрины": {
+      "EXT-68": {
+        "at": "2026-10-05T06:38:00.000Z",
+        "head": "Проба ПТ6: слово будет принято? (вопрос кладёт проба)"
+      },
+      "EXT-69": {
+        "at": null
+      },
+      "planeQ": {
+        "id": "b57992af-008c-4b4d-b397-74323f91a870",
+        "created_at": "2026-10-05T06:38:51.128863Z"
+      }
+    },
+    "EXT-68 слово «да» проходит": {
+      "http": 200,
+      "outcome": "ok",
+      "id": "W-261005-093902-660d",
+      "steps": [
+        "asked",
+        "fresh",
+        "plane:comment",
+        "ring-queued",
+        "done"
+      ],
+      "planeRecord": {
+        "commentId": "5c1e3710-1b13-451b-8bee-48376e49d23f",
+        "text": "Слово Ивана · кнопка витрины · W-261005-093902-660d: «да» В ответ на: запись 05.10 09:38 «Проба ПТ6: слово будет принято? (вопрос кладёт проба)» Кто решил: слово Ивана · кнопка витрины · W-261005-093902-660d",
+        "hasId": true,
+        "hasReplyTo": true,
+        "hasPultMark": true
+      },
+      "commentCallsAdded": 1,
+      "bellLogRing": {
+        "ids": [
+          "W-261005-093902-660d"
+        ]
+      },
+      "sessionWoke": true,
+      "sessionAnswer": "принял: W-261005-093902-660d",
+      "journalRows": 1,
+      "journalHasId": true
+    },
+    "EXT-68 Б-слово (сливай) без второго щелчка": {
+      "http": 200,
+      "outcome": "need-confirm",
+      "message": "Б-дело (слово «сливай»): нужен второй щелчок — потом запись на карточке и звонок",
+      "steps": [
+        "asked",
+        "need-confirm"
+      ],
+      "planeCommentsBefore": 2,
+      "planeCommentsAfter": 2,
+      "planeCallsAdded": 0,
+      "newRings": 0
+    },
+    "EXT-68 «да» на старый вопрос после нового коммента": {
+      "newCommentId": "fe8cd1d2-3ec0-45ac-af4e-ccb28ad04e59",
+      "http": 200,
+      "outcome": "refused",
+      "message": "на карточке новое сообщение от 09:39 — посмотри и ответь заново",
+      "steps": [
+        "asked",
+        "fresh",
+        "refused"
+      ],
+      "planeCommentsBefore": 3,
+      "planeCommentsAfter": 3,
+      "commentWritesByServer": 0,
+      "newRings": 0
+    }
+  }
+}
