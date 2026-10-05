@@ -1,8 +1,10 @@
 // «Служебное» на «Цехе» (EXT-75, ПТ8; спека пульта §1.3 «Пересобрать индекс», §1.4): кнопка пересбора индекса читателя
 // журналов. POST /api/act {action: "reindex"} — без второго щелчка (пересчитываемое, уровень А); ход и время — из
 // GET /api/mirror → reindex {running, done, total, lastAt, lastMs, lastFiles, lastError}. «Уже идёт» (409) — не ошибка.
+// Второй строкой — «Полный проход зеркала» (Mirror.jsx, FullMirror): переехал сюда из шапки (решение Ивана 05.10).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clear403, postAct, reloadOn403, take403 } from './act.js';
+import { FullMirror } from './Mirror.jsx';
 import { isRefusal, readMirror, reindexLine } from './mirrorData.js';
 import { useOpen } from './prefs.js';
 import { Summary } from './Summary.jsx';
@@ -63,6 +65,7 @@ export function Service() {
           onClick={() => go({ action: 'reindex', intentId: crypto.randomUUID() })}>{running ? 'идёт…' : 'Пересобрать индекс'}</button>
         <span className={msg && !running ? msg.cls : line.cls} role="status">{msg && !running ? msg.text : line.text}</span>
       </div>
+      <FullMirror />
     </details>
   );
 }

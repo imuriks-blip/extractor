@@ -1,4 +1,5 @@
-// Проба ПТ8 (EXT-75, такт 3): полный проход зеркала, рестарт витрины во время прохода, «Пересобрать индекс», снимки.
+// Проба ПТ8 (EXT-75, такт 3; вид по решениям Ивана 05.10 — «полный» в «Служебном», подтверждение в потоке): полный проход
+// зеркала, рестарт витрины во время прохода, «Пересобрать индекс», снимки.
 // Тестовый экземпляр витрины этой копии В ТОМ ЖЕ ПРОЦЕССЕ (buildApp; сигнала changed без start.mjs нет — страница перечитывается),
 // свой порт, своя data во временной папке, ВРЕМЕННАЯ доска с копией настоящего tools/mirror-hidden.js (JScript-обёртка, только
 // прочитана) и ПОДМЕННЫМ tools/mirror.mjs (probe/pt8-fake-mirror.mjs: формат status.json/run.lock/runs.log как у настоящего, идёт
@@ -196,8 +197,22 @@ function pageApi(b) {
   }
   P.shotAll = async (name) => { for (const [w, th] of COMBOS) { await P.view(w, th); await P.shot(name, w, th) } }
   P.overflowX = () => b.ev('document.documentElement.scrollWidth - window.innerWidth')
+  P.b = b
   return P
 }
+
+// «Служебное» и замер «подтверждение ничего не накрывает» (EXT-75, решение Ивана 05.10): прямоугольник каждого элемента
+// подтверждения — против прямоугольников всех прочих блоков страницы и шапки; position подтверждения; высота «Служебного»
+const SVC = 'details[aria-label="Служебное"]'
+const openService = async (P) => { await P.waitFor(`document.querySelector('${SVC}')`); await P.b.ev(`(()=>{const d=document.querySelector('${SVC}');if(d&&!d.open)d.querySelector('summary').click()})()`); await sleep(300) }
+// страница прокручивается к началу перед замером (автофокус «запустить полный» её прокручивает — это не сдвиг вёрстки);
+// координаты — от начала документа
+const RECTS = `(()=>{const sy=window.scrollY;window.scrollTo(0,0);const R=(e)=>{const r=e.getBoundingClientRect();return {top:r.top+window.scrollY,left:r.left,right:r.right,bottom:r.bottom+window.scrollY,h:r.height}};
+  const svc=document.querySelector('${SVC}');const cf=svc?svc.querySelector('.cfm'):null;
+  const blocks=[...document.querySelectorAll('.blk')].filter(e=>e!==svc&&!e.contains(svc)&&!svc.contains(e)).map(e=>{const h=e.querySelector('summary,h2,h3');return {name:(h?h.textContent:e.className).replace(/›/g,'').trim().replace(/\s+/g,' ').slice(0,40),...R(e)}});
+  const top=document.querySelector('.top');if(top)blocks.push({name:'шапка',...R(top)});
+  return {scrolledBy:sy,blocks,svc:R(svc),pos:cf?getComputedStyle(cf).position:null,cfmBox:cf?R(cf):null,cfm:cf?[cf,...cf.querySelectorAll('*')].map(e=>({tag:e.tagName.toLowerCase()+(e.className?'.'+String(e.className).split(' ')[0]:''),...R(e)})).filter(r=>r.h>0):[]}})()`
+const cross = (a, k) => a.left < k.right - 0.5 && a.right > k.left + 0.5 && a.top < k.bottom - 0.5 && a.bottom > k.top + 0.5
 
 // ---------- сценарий ----------
 const RUN_RE = /^(\S+) · (начало|конец) · full · pid (\d+)(?: · код (\d+) · (\d+) с · запросов (\d+))?$/
@@ -216,19 +231,40 @@ try {
   // ===== 1. Полный проход =====
   const m0 = await inst.mirror()
   must('до: проход не идёт, итога нет', m0.running === false && m0.lastRun === null && runsLines().length === 0, { running: m0.running, lastRun: m0.lastRun, runsLog: runsLines().length })
-  must('до: «полный» и «Обновить» есть в шапке', (await P.text('.top .mbtn')).includes('полный') && (await P.text('.top .mbtn')).includes('Обновить'), await P.text('.top .mbtn'))
+  // решение Ивана 05.10: в шапке только «Обновить» (сразу за временем зеркала), «полный» — в «Служебном» на «Цехе»
+  const hdr0 = await b.ev(`[...document.querySelectorAll('.top .mbtn button')].map(x=>x.textContent.trim())`)
+  must('покой: в шапке одна кнопка зеркала — «Обновить», «полного» в шапке нет', JSON.stringify(hdr0) === '["Обновить"]', hdr0)
+  await P.shotAll('1-pokoy')
+  await openService(P)
+  const svc0 = await P.text(SVC + ' .wtb')
+  must('«Служебное»: «Пересобрать индекс» и «Полный проход зеркала», у полного — когда был последний (lastFullOk)', svc0.includes('Пересобрать индекс') && svc0.includes('Полный проход зеркала') && /последний полный — \d\d\.\d\d/.test(svc0), svc0)
+  await P.shotAll('2-sluzhebnoe')
 
-  // первый щелчок: need-confirm с ценой, ничего не запущено
-  must('первый щелчок «полный»: нажата', await P.btn('полный'), null)
-  must('первый щелчок: окно подтверждения с ценой и «запустить полный»', await P.waitFor('document.querySelector(".mcfm")'), await P.text('.mcfm'))
-  const cfmText = await P.text('.mcfm')
+  // первый щелчок: need-confirm с ценой, ничего не запущено; подтверждение — в потоке, ничего не накрывает (1280 и 400)
+  for (const w of [1280, 400]) {
+    await P.view(w, 'light')
+    if (await b.ev(`!!document.querySelector('${SVC} .cfm')`)) await P.btn('отмена')
+    await sleep(200)
+    const before = await b.ev(RECTS)
+    must(`${w}: первый щелчок «Полный проход зеркала»: нажата`, await P.btn('Полный проход зеркала'), null)
+    must(`${w}: подтверждение с ценой и «запустить полный» — внутри «Служебного»`, await P.waitFor(`document.querySelector('${SVC} .cfm')`), await P.text(SVC + ' .cfm'))
+    await sleep(250)
+    const after = await b.ev(RECTS)
+    const hit = after.cfm.flatMap((r) => after.blocks.filter((k) => cross(r, k)).map((k) => `${r.tag} × ${k.name}`))
+    const moved = before.blocks.filter((k) => { const a = after.blocks.find((x) => x.name === k.name); return !a || Math.abs(a.top - k.top) > 0.5 })
+    const wait = (x) => x.blocks.find((k) => k.name.startsWith('Ждёт меня'))?.top ?? null
+    must(`${w}: подтверждение в потоке — position static, ни один его элемент не пересекает другие блоки и шапку, их верх не сдвинут, «Служебное» выросло на высоту подтверждения`,
+      after.pos === 'static' && hit.length === 0 && moved.length === 0 && after.blocks.length >= 4 && after.svc.h - before.svc.h >= after.cfmBox.h - 1,
+      { pos: after.pos, прокруткаАвтофокусом: Math.round(after.scrolledBy), пересечений: hit, сдвинуты: moved.map((k) => k.name), верхЖдётМеня: { до: wait(before), после: wait(after) }, служебное: { до: Math.round(before.svc.h), после: Math.round(after.svc.h) }, подтверждение: after.cfmBox && { top: Math.round(after.cfmBox.top), h: Math.round(after.cfmBox.h) }, элементов: after.cfm.length, блоки: after.blocks.map((k) => k.name) })
+    for (const th of ['light', 'dark']) { await P.view(w, th); await P.shot('3-polnyj-podtverzhdenie', w, th) }
+  }
+  const cfmText = await P.text(SVC + ' .cfm')
   must('первый щелчок: цена в тексте (~1,5 ч, ~2 200 запросов)', /~1,5 ч/.test(cfmText) && /~2 200 запросов/.test(cfmText), cfmText)
   const a1 = actions()
   const first = a1.filter((l) => l.action === 'mirror')
   must('первый щелчок: в журнале нажатий asked и need-confirm, не done', first.some((l) => l.step === 'asked' && l.kind === 'full') && first.some((l) => l.step === 'need-confirm') && !first.some((l) => l.step === 'done'), first.map((l) => l.step))
   must('первый щелчок: ничего не запущено (spawn не вызывался, run.lock и runs.log нет, процесса пробы нет)', spawns.length === 0 && !fs.existsSync(path.join(ENV.mdir, 'run.lock')) && runsLines().length === 0 && fakePid() === null, { spawns: spawns.length, lock: fs.existsSync(path.join(ENV.mdir, 'run.lock')), runs: runsLines().length })
   must('первый щелчок: /api/mirror — проход не идёт', (await inst.mirror()).running === false, null)
-  await P.shotAll('1-polnyj-podtverzhdenie')
 
   // второй щелчок: запуск
   must('второй щелчок «запустить полный»: нажата', await P.btn('запустить полный'), null)
@@ -264,7 +300,7 @@ try {
   const hdr = await P.text('.top .mrun')
   must('шапка: числа хода (N из M, запросов, /мин)', /\d+ из 60/.test(hdr) && /\d+ запросов/.test(hdr) && /23\/мин/.test(hdr), hdr)
   must('шапка: фаза словами (не projects/relations/write)', /карточки \d+ из 60/.test(hdr) && !/projects|relations|write|comments/.test(hdr), hdr)
-  must('шапка: кнопки «Обновить» и «полный» во время прохода недоступны/скрыты', await b.ev(`(()=>{const bs=[...document.querySelectorAll('.top .mbtn > button')];return bs.every(x=>x.disabled)&&!bs.some(x=>x.textContent.trim()==='полный')})()`), await b.ev(`[...document.querySelectorAll('.top .mbtn > button')].map(x=>x.textContent.trim()+(x.disabled?'(выкл)':''))`))
+  must('во время прохода: кнопка шапки одна и недоступна; в «Служебном» «Полный проход зеркала» недоступна', await b.ev(`(()=>{const bs=[...document.querySelectorAll('.top .mbtn > button')];const f=[...document.querySelectorAll('${SVC} button')].find(y=>y.textContent.trim()==='Полный проход зеркала');return bs.length===1&&bs.every(x=>x.disabled)&&!!f&&f.disabled})()`), await b.ev(`[...document.querySelectorAll('.top .mbtn > button, ${SVC} button')].map(x=>x.textContent.trim()+(x.disabled?'(выкл)':''))`))
 
   // повторный запуск во время прохода
   const n0 = actions().length
@@ -292,7 +328,9 @@ try {
   const P2 = pageApi(b)
   await P2.size(1280, 900); await P2.goto('#/'); await P2.view(1280, 'light')
   must('после рестарта: шапка показывает полный проход с числами', await P2.waitFor('document.querySelector(".top .mrun")?.textContent.includes("полный проход идёт")') && /\d+ из 60/.test(await P2.text('.top .mrun')), await P2.text('.top .mrun'))
-  await P2.shotAll('2-polnyj-idet')
+  await openService(P2)
+  must('после рестарта: в «Служебном» «Полный проход зеркала» недоступна, рядом «идёт — ход вверху»', await b.ev(`(()=>{const x=[...document.querySelectorAll('${SVC} button')].find(y=>y.textContent.trim()==='Полный проход зеркала');return !!x&&x.disabled})()`) && (await P2.text(SVC + ' .wtb')).includes('ход вверху'), await P2.text(SVC + ' .wtb'))
+  await P2.shotAll('4-polnyj-idet')
 
   // дождаться конца
   const ended = await until(async () => { const m = await inst.mirror(); return m.running === false && m.lastRun ? m : null }, 150000, 1000)
@@ -308,7 +346,7 @@ try {
   must('журнал нажатий: «запущено» одно (done), без error', doneLines.length === 1 && !actions().some((l) => l.action === 'mirror' && l.step === 'error'), actions().filter((l) => l.action === 'mirror').map((l) => l.step))
   await P2.goto('#/') // сигнала changed без start.mjs нет — страница перечитывается целиком
   must('шапка после конца: зелёный итог «итог · полный · … · запросов»', await P2.waitFor('document.querySelector(".top .mres")'), await P2.text('.top .mbtn'))
-  await P2.shotAll('3-polnyj-itog')
+  await P2.shotAll('5-polnyj-itog')
 
   // красный случай: обычный проход со сбоем (код 5) — итог красный, lastRun.code 5
   ENV.setFake({ seconds: 6, total: TOTAL_CARDS, exit: 5, error: 'подменный сбой пробы ПТ8: нет доступа к Plane' })
@@ -317,7 +355,7 @@ try {
   must('сбойный проход: lastRun changed код 5, lastError словами', !!bad && bad.lastRun.code === 5 && /подменный сбой/.test(bad.lastError ?? ''), bad && { lastRun: bad.lastRun, lastError: bad.lastError })
   await P2.goto('#/')
   must('шапка: красный итог с причиной', await P2.waitFor('document.querySelector(".top .mbtn-note")?.textContent.includes("красный")'), await P2.text('.top .mbtn-note'))
-  await P2.shotAll('4-itog-krasnyj')
+  await P2.shotAll('6-itog-krasnyj')
   ENV.setFake({ seconds: FULL_SECONDS, total: TOTAL_CARDS, exit: 0 })
 
   // ===== 3. «Пересобрать индекс» =====
@@ -351,7 +389,7 @@ try {
     seq.push([r.running, r.done, r.total])
     if (!shotsDone && r.running && r.done >= 3 && r.done < 12) {
       must('шапка блока «Служебное»: «пересобираю: N из 31 журналов», кнопка «идёт…» недоступна', await P2.waitFor('document.querySelector("details[aria-label=\\"Служебное\\"] .wtb")?.textContent.includes("из 31 журналов")', 8000) && await b.ev(`(()=>{const x=[...document.querySelectorAll('details[aria-label="Служебное"] button')].find(y=>y.textContent.trim()==='идёт…');return !!x&&x.disabled})()`), await P2.text('details[aria-label="Служебное"] .wtb'))
-      await P2.shotAll('5-reindex-idet')
+      await P2.shotAll('7-reindex-idet')
       shotsDone = true
     }
     if (!r.running && r.lastAt) break
@@ -376,7 +414,7 @@ try {
   await P2.goto('#/')
   await b.ev(`(()=>{const d=document.querySelector('details[aria-label="Служебное"]');if(d&&!d.open)d.querySelector('summary').click()})()`)
   must('блок «Служебное» после: «пересобран … 31 журнал», кнопка снова доступна', await P2.waitFor('document.querySelector("details[aria-label=\\"Служебное\\"] .wtb")?.textContent.includes("пересобран")') && /31 журнал/.test(await P2.text('details[aria-label="Служебное"] .wtb')), await P2.text('details[aria-label="Служебное"] .wtb'))
-  await P2.shotAll('6-reindex-gotov')
+  await P2.shotAll('8-reindex-gotov')
 
   // красный случай: сбой чтения журнала — отказ, прежний индекс цел, строка error в журнале нажатий, на экране «не удалось»
   const goodBytes = fs.readFileSync(idxFile, 'utf8')
@@ -391,7 +429,7 @@ try {
   await P2.goto('#/')
   await b.ev(`(()=>{const d=document.querySelector('details[aria-label="Служебное"]');if(d&&!d.open)d.querySelector('summary').click()})()`)
   must('экран: «не удалось пересобрать: EIO» красным', await P2.waitFor('document.querySelector("details[aria-label=\\"Служебное\\"] .wtb .pbad")?.textContent.includes("не удалось пересобрать")'), await P2.text('details[aria-label="Служебное"] .wtb'))
-  await P2.shotAll('7-reindex-sboj')
+  await P2.shotAll('9-reindex-sboj')
   check('горизонтальная прокрутка страницы на 400, px', await (async () => { await P2.size(400, 900); return P2.overflowX() })())
 } catch (e) {
   S.error = String(e?.stack ?? e)
