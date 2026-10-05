@@ -523,3 +523,20 @@ test('rowMarks: отметка при ok и partial, не при refused/error (
   const m = rowMarks({ lines });
   assert.deepEqual([...m.keys()].sort(), [`${SID}|u1`, `${SID}|u2`]);
 });
+
+// хвост ПТ7 (EXT-70, п.1 ТЗ): строка «Моих слов» несёт признак Б-дела шага need-confirm — bdeal как в actions.log; страница по
+// нему отличает «ждёт второго щелчка» (Б-дело) от «ждёт выбора треда» (несколько тредов без pick, Б нет)
+test('GET /api/actions: строка need-confirm несёт bdeal шага need-confirm (как в actions.log); выбор треда без Б-дела — bdeal null', async () => {
+  const s = await setup({ status: 'Review' }, { threads: [thread(SID), thread(SID2)] });
+  const b = (await s.press({ action: 'merge', card: 'EXT-22', q: Q })).json();
+  const p = (await s.press({ action: 'yes', card: 'EXT-22', q: Q })).json();
+  assert.deepEqual([b.outcome, p.outcome], ['need-confirm', 'need-confirm']);
+  const rows = await s.get('/api/actions');
+  const rb = rows.find((x) => x.id === b.id);
+  const rp = rows.find((x) => x.id === p.id);
+  assert.equal(rb.status, 'need-confirm');
+  assert.equal(rb.bdeal, 'слово «сливай»', 'Б-дело — признак из шага need-confirm');
+  assert.equal(rb.bdeal, s.lines().find((l) => l.id === b.id && l.step === 'need-confirm').bdeal, 'как в actions.log');
+  assert.equal(rp.status, 'need-confirm');
+  assert.equal(rp.bdeal, null, 'выбор треда без Б-дела — признака нет');
+});

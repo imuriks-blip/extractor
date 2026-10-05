@@ -6,6 +6,7 @@ import { ageShort, dd, dm, hm, minutes, plural } from './format.js';
 import { mdToHtml } from './md.js';
 import { staleText } from './Ceh.jsx';
 import Pult from './Pult.jsx';
+import { cardMainMark } from './pultData.js';
 import { TraceBlock } from './Trace.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8): серая строка у коммитов — после трёх пропущенных проходов
@@ -163,7 +164,7 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
   const { data, failingSince, okAt, error } = useSource(src);
   const h = data?.header;
   const ceh = useSource(cehSource);
-  const label = ceh.data?.waiting?.yes?.find((r) => r.id === id)?.mark;
+  const label = cardMainMark(ceh.data?.waiting, id); // строка (б) живая или отложенная (EXT-70, Мелочь 5)
   const pf = data?.pult;
   const words = pf?.enabled === true && pf?.words === true && h?.status ? panelWords(h.status, label) : null;
   const project = data?.project ?? id.split('-')[0]; // поле project ручки (5baefc7); префикс — пока ответа нет

@@ -7,6 +7,7 @@ import { streamSource, useSource } from './data.js';
 import { hm, plural } from './format.js';
 import { useOpen } from './prefs.js';
 import { Ring, WORD } from './Pult.jsx';
+import { outcomeText } from './pultData.js';
 import { Summary } from './Summary.jsx';
 
 const actionsSource = streamSource('/api/actions');
@@ -16,18 +17,9 @@ const SERVICE = new Set(['mirror', 'defer', 'undefer', 'reindex', 'ping', 'clean
 const LABEL = { ...WORD, accept: 'принять', return: 'вернуть', reread: 'перечитать правила', 'new-card': 'новая карточка' };
 const SHOWN = 6;
 
-const OUTCOME = {
-  done: 'записано',
-  partial: 'частично: запись есть, статус не сменился',
-  refused: 'отказ',
-  error: 'не записано',
-  asked: 'идёт или оборвано',
-  'need-confirm': 'ждёт второго щелчка',
-};
-
 function Row({ r, now }) {
   const word = r.action === 'reply' ? <b>ответ</b> : <b>«{LABEL[r.action] ?? r.action}»</b>;
-  const out = OUTCOME[r.status] ?? r.status ?? '—';
+  const out = outcomeText(r);
   const bad = r.status === 'refused' ? 'pamb' : r.status === 'error' ? 'pbad' : null;
   return (
     <div className="mw">

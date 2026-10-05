@@ -574,7 +574,7 @@ test('GET /api/actions: строки по действию (последний �
   assert.deepEqual(all.map((r) => [r.id, r.status]), [['W-261002-110000-bbbb', 'asked'], ['W-261002-100000-aaaa', 'done']]);
   assert.ok(!JSON.stringify(all).includes(SECRET));
   assert.match(all[1].text, /\[скрыто/);
-  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'card', 'id', 'project', 'ring', 'ringAt', 'source', 'status', 'text']);
+  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'bdeal', 'card', 'id', 'project', 'ring', 'ringAt', 'source', 'status', 'text']); // bdeal — EXT-70
   assert.equal(all[0].ringAt, null, 'доставки нет (EXT-65)');
   assert.equal(all[0].ring, null, 'звонка у действия нет');
   assert.equal(all[0].source, null, 'источник — ПТ1б');

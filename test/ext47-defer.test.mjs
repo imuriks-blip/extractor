@@ -503,3 +503,30 @@ test('М8: строка (б) «нужно твоё да» — defer прячет
   assert.deepEqual(s.shown.map((x) => [x.title, x.body]), [['вернулось: EXT-8 · Слить витрину', 'сливай · нужно твоё «да»']]);
   assert.equal((await s.ceh()).waiting.count, 1);
 });
+
+// хвост ПТ7 (EXT-70, п.2 ТЗ; Мелочь 5 Голема прораба): отложенная строка (б) несёт метку строки — ту же, что у живой строки
+// (б) в waiting; панель карточки по ней держит рамку главного слова. Строка (а) метки не несёт.
+test('deferred[]: отложенная строка (б) несёт mark — ту же, что у живой строки; отложенная строка (а) — без mark', async () => {
+  const dir = makeBoard(tmpDir('board-'), { codes: ['EXT', 'CAR'], cards: [{ id: 'EXT-8', status: 'in-progress', title: 'Слить витрину' }] });
+  const [d, t] = localIso(new Date(Date.now() - H)).split('T');
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-8.log.md'), `### ${d} ${t.slice(0, 5)} ${t.slice(8)} · plane · коммент\n\nВетка готова — сливай?\n\n`);
+  gitInitCommit(dir);
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
+  await board.init();
+  const s = await setup({ boardR: { dir, board } });
+  const w0 = (await s.ceh()).waiting;
+  const row = w0.yes.find((r) => r.id === 'EXT-8');
+  assert.equal(row.mark, 'сливай', 'живая строка (б) — метка «сливай»');
+  const thr = w0.threads[0];
+  assert.ok(thr?.key && !thr.keyTemp, 'есть строка (а) с постоянным ключом');
+  assert.equal((await s.act({ action: 'defer', rowKey: row.key, until: '1h' })).json().outcome, 'ok');
+  assert.equal((await s.act({ action: 'defer', rowKey: thr.key, until: '1h' })).json().outcome, 'ok');
+  const w1 = (await s.ceh()).waiting;
+  const dy = w1.deferred.find((x) => x.group === 'yes');
+  const dt = w1.deferred.find((x) => x.group === 'thread');
+  assert.equal(dy.card, 'EXT-8');
+  assert.equal(dy.mark, 'сливай', 'отложенная (б) — та же метка');
+  assert.ok(dt && !('mark' in dt), 'отложенная (а) — без mark');
+  const pd = (await s.project('EXT')).deferred.find((x) => x.group === 'yes');
+  assert.equal(pd?.mark, 'сливай', 'окно проекта — та же форма deferred[]');
+});
