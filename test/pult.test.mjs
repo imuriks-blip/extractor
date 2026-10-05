@@ -371,14 +371,14 @@ test('config.default.json: pult.enabled, pult.words и pult.bell — false; па
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------
 
-// «Принять» и «Вернуть» подключены в ПТ3 — их проверки в test/pult-accept.test.mjs
+// «Принять» и «Вернуть» подключены в ПТ3 — их проверки в test/pult-accept.test.mjs; слова (да, го, сливай, выкатывай, нет, ответ) — в ПТ6,
+// проверки в test/pult-words.test.mjs: здесь 501 только у ещё не подключённых
 test('словарь §1.3: пятнадцать действий таблицы (с defer и undefer, EXT-47) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
   assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'return', 'take', 'undefer', 'yes'].sort());
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай'].sort());
   const { app, lines } = await setup();
   const token = await pageToken(app);
-  const body = { yes: { card: 'EXT-6' }, go: { card: 'EXT-6' }, merge: { card: 'EXT-6' }, deploy: { card: 'EXT-6' }, no: { card: 'EXT-6' }, reply: { card: 'EXT-6', text: 'ответ' },
-    take: { card: 'EXT-6' }, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
+  const body = { take: { card: 'EXT-6' }, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
   for (const [action, extra] of Object.entries(body)) {
     const r = await act(app, token, { body: { action, intentId: nextIntent(), ...extra } });
     assert.equal(r.statusCode, 501, action);
@@ -411,9 +411,10 @@ test('параметры: пределы текстов по таблице (н�
   const { app } = await setup();
   const token = await pageToken(app);
   const code = async (b) => (await act(app, token, { body: { intentId: nextIntent(), ...b } })).statusCode;
-  assert.equal(await code({ action: 'no', card: 'EXT-6', text: 'я'.repeat(300) }), 501);
-  assert.equal(await code({ action: 'no', card: 'EXT-6', text: 'я'.repeat(301) }), 400);
-  assert.equal(await code({ action: 'no', card: 'EXT-6', text: 'я'.repeat(300) + '\u0007\u0000' }), 501);
+  // «нет» подключено (ПТ6): проходит проверку параметров (не 400) и идёт к обработчику; plane.py тут не задан — не предмет теста
+  assert.notEqual(await code({ action: 'no', card: 'EXT-6', q: { at: null }, text: 'я'.repeat(300) }), 400);
+  assert.equal(await code({ action: 'no', card: 'EXT-6', q: { at: null }, text: 'я'.repeat(301) }), 400);
+  assert.notEqual(await code({ action: 'no', card: 'EXT-6', q: { at: null }, text: 'я'.repeat(300) + '\u0007\u0000' }), 400);
   assert.equal(await code({ action: 'reply', card: 'EXT-6', text: 'я'.repeat(501) }), 400);
   assert.equal(await code({ action: 'return', card: 'EXT-6', text: 'я'.repeat(501) }), 400);
   assert.equal(await code({ action: 'return', card: 'EXT-6' }), 400, 'причина «Вернуть» обязательна');
@@ -783,7 +784,10 @@ test('конфиг не выключает защиту: checks и handlers вн
   const app = await buildApp({ port: PORT, board, registry, scan, webDir: web, pult: { enabled: true, words: true, actionsLog: path.join(data, 'actions.log'), checks: [], handlers: { yes: async () => ({ outcome: 'ok' }) } } });
   const token = await pageToken(app);
   assert.equal((await act(app, token, { headers: { origin: EVIL } })).statusCode, 403);
-  assert.equal((await act(app, token, { body: { action: 'yes', intentId: nextIntent(), card: 'EXT-6' } })).statusCode, 501);
+  // «да» с ПТ6 подключено настоящим обработчиком; подставной из конфига не действует: «ok» от него не приходит (plane.py не задан — не ok)
+  const yes = await act(app, token, { body: { action: 'yes', intentId: nextIntent(), card: 'EXT-6', q: { at: null } } });
+  assert.equal(yes.json().outcome, 'error');
+  assert.equal(yes.json().message, 'ошибка: NOT_CONNECTED'); // очередь Plane не подключена (planePy не задан)
 });
 
 test('withToken: без <head> — после <html …> или после <!doctype>, <header> не принимается за <head>', () => {

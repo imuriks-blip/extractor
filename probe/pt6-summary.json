@@ -1,0 +1,90 @@
+{
+  "checks": {
+    "EXT-69 состояние на входе части 2": {
+      "planeComments": [
+        {
+          "id": "9342c00c-a8fd-4545-943c-b1646dcd736d",
+          "text": "Слово Ивана · кнопка витрины · W-261005-093947-0ff7: «го» В ответ на: записей не было Кто "
+        }
+      ]
+    },
+    "EXT-69 «го» после появления коммента": {
+      "newCommentId": "b72fae77-9555-4129-94b0-ad2bcfd032d9",
+      "http": 200,
+      "outcome": "refused",
+      "message": "на карточке новое сообщение от 09:40 — посмотри и ответь заново",
+      "steps": [
+        "asked",
+        "fresh",
+        "refused"
+      ],
+      "planeCommentsBefore": 2,
+      "planeCommentsAfter": 2,
+      "commentWritesByServer": 0
+    },
+    "pult.words=false": {
+      "word": {
+        "http": 503,
+        "outcome": "refused",
+        "message": "слова с витрины включатся после правки правил",
+        "planeCallsAfterWord": 0
+      },
+      "accept": {
+        "http": 200,
+        "outcome": "ok",
+        "message": "принято · Done в Plane 09:41 · зеркало: ждёт",
+        "steps": [
+          "asked",
+          "fresh",
+          "plane:comment",
+          "plane:state",
+          "done"
+        ],
+        "planeStatus": "Done",
+        "planeCalls": [
+          "show",
+          "comment",
+          "state"
+        ],
+        "recordHasId": true
+      }
+    }
+  },
+  "comments": {
+    "EXT-68": [],
+    "EXT-69": [
+      {
+        "by": "проба",
+        "id": "b72fae77-9555-4129-94b0-ad2bcfd032d9",
+        "created_at": "2026-10-05T06:40:53.626517Z",
+        "text": "Проба ПТ6: первое сообщение на карточке без вопросов (кладёт проба)"
+      }
+    ]
+  },
+  "pids": {
+    "server": 46924,
+    "server2": 21304
+  },
+  "bellLog": [],
+  "actions": [
+    {
+      "id": "W-261005-094056-e9d9",
+      "step": "asked",
+      "action": "go",
+      "card": "EXT-69"
+    },
+    {
+      "id": "W-261005-094056-e9d9",
+      "step": "fresh",
+      "action": "go",
+      "card": "EXT-69"
+    },
+    {
+      "id": "W-261005-094056-e9d9",
+      "step": "refused",
+      "action": "go",
+      "card": "EXT-69",
+      "refusal": "new-question"
+    }
+  ]
+}
