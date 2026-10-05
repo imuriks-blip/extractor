@@ -29,7 +29,8 @@
     "staleMin": 15,
     "runSilentMin": 30,
     "memoryWarnPct": 80,
-    "collisionWindowH": 12
+    "collisionWindowH": 12,
+    "foremanStartMin": 10
   },
   "collisions": {
     "_comment": "«Общий файл»: ignore — пути с этой подстрокой (разделители и регистр не важны) не считаются. Массив в живом config.json ЗАМЕНЯЕТ этот список целиком, а не дополняет: свой список — вместе с нужными умолчаниями",
