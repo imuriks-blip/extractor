@@ -14,6 +14,7 @@ import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { restoreIntents } from '../lib/pult/routes.mjs';
 import { bDeal } from '../lib/pult/words.mjs';
+import { acceptState, recordHtml } from '../lib/pult/accept.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, writeCard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -44,10 +45,12 @@ const boardDir = makeBoard(tmpDir('words-board-'), { codes: ['EXT', 'CAR'], card
   { id: 'EXT-22', status: 'review', title: 'Слияние' }, { id: 'EXT-23', status: 'in-progress', title: 'Метка Б', markB: true },
   { id: 'EXT-24', status: 'done', title: 'Закрыта' }, { id: 'EXT-25', status: 'in-progress', title: 'Миграция базы клиентов' },
   { id: 'EXT-26', status: 'in-progress', title: 'Вопрос про слияние' }, { id: 'EXT-27', status: 'review', title: 'Принять' },
+  { id: 'EXT-28', status: 'review', title: 'Слияние два' }, { id: 'EXT-29', status: 'review', title: 'Слияние три' }, { id: 'EXT-31', status: 'in-progress', title: 'Обычная два' },
 ] });
 for (const id of ['EXT-20', 'EXT-22', 'EXT-23', 'EXT-24', 'EXT-25', 'EXT-27']) fs.writeFileSync(path.join(boardDir, 'EXT', `${id}.log.md`), logWith(Q_MD));
 fs.rmSync(path.join(boardDir, 'EXT', 'EXT-21.log.md'));
-fs.writeFileSync(path.join(boardDir, 'EXT', 'EXT-26.log.md'), logWith('Сливай ветку в main?'));
+for (const id of ['EXT-26', 'EXT-28', 'EXT-29']) fs.writeFileSync(path.join(boardDir, 'EXT', `${id}.log.md`), logWith('Сливай ветку в main?'));
+fs.writeFileSync(path.join(boardDir, 'EXT', 'EXT-31.log.md'), logWith(Q_MD));
 gitInitCommit(boardDir);
 fs.mkdirSync(path.join(boardDir, '.mirror'));
 fs.writeFileSync(path.join(boardDir, '.mirror', 'index.json'), '{}');
@@ -209,13 +212,13 @@ test('Б-дело по карточке: mark_b · вопрос «сливай?�
   const plain = await setup();
   assert.equal((await plain.press({ action: 'yes', card: 'EXT-20', q: Q })).json().outcome, 'ok');
   // свободный ответ строки (а) согласием на Б-дело не считается никогда (К2) — у него Б не бывает, второго щелчка нет
-  const row = await setup({}, { threads: [thread(SID)], sessions: sessionQ(QU) });
+  const row = await setup({}, { threads: [thread(SID, { card: 'EXT-23' })], sessions: sessionQ(QU) });
   const r = (await row.press({ action: 'reply', card: 'EXT-23', session: SID, q: { uuid: QU, at: '2026-10-04T10:00:00.000Z' }, text: 'да, делай' })).json();
   assert.equal(r.outcome, 'ok', r.message);
   // Б-карточка: записи пульта — приписка «Б — ждёт «да» в чате» (1.2), хотя второго щелчка нет
   const rec = row.pl().comments.at(-1).html;
   assert.ok(rec.includes('<p>Б — ждёт «да» в чате.</p>'), rec);
-  const rowA = await setup({}, { threads: [thread(SID)], sessions: sessionQ(QU) });
+  const rowA = await setup({}, { threads: [thread(SID, { card: 'EXT-20' })], sessions: sessionQ(QU) });
   assert.equal((await rowA.press({ action: 'reply', card: 'EXT-20', session: SID, q: { uuid: QU, at: '2026-10-04T10:00:00.000Z' }, text: 'да, делай' })).json().outcome, 'ok');
   assert.ok(!rowA.pl().comments.at(-1).html.includes('Б — ждёт'), 'не Б-карточка — приписки нет');
   // ответ на развилку (строка (б), без session) на Б-карточке — Б
@@ -252,6 +255,7 @@ test('второй щелчок: чужой/неизвестный номер, �
   await ref({ action: 'merge', card: 'EXT-22', q: Q, confirm: 'W-261004-120000-ffff' }, 'bad-confirm');
   await ref({ action: 'deploy', card: 'EXT-22', q: Q, confirm: first.id }, 'bad-confirm'); // другое слово
   await ref({ action: 'merge', card: 'EXT-22', q: { at: null }, confirm: first.id }, 'bad-confirm'); // другой вопрос
+  await ref({ action: 'merge', card: 'EXT-28', q: Q, confirm: first.id }, 'bad-confirm'); // другая карточка (тоже в Review)
   await ref({ action: 'merge', card: 'EXT-22', q: Q, text: 'x', confirm: first.id }, 'bad-confirm'); // у слова нет текста — другой текст
   // исправный: тот же щелчок — проходит; повторно с тем же номером — «использовано»
   assert.equal((await s.press({ action: 'merge', card: 'EXT-22', q: Q, confirm: first.id })).json().outcome, 'ok');
@@ -345,7 +349,7 @@ test('ответ треду без карточки: в Plane — ничего, 
 });
 
 test('ответ треду из строки (а) с карточкой: запись на карточке («В ответ на: сообщение треда»), звонок — треду строки, а не треду карточки', async () => {
-  const s = await setup({}, { threads: [thread(SID), thread(SID2, { card: 'EXT-20' })], sessions: sessionQ(QU) });
+  const s = await setup({}, { threads: [thread(SID, { card: 'EXT-20' }), thread(SID2, { card: 'EXT-20' })], sessions: sessionQ(QU) });
   const b = (await s.press({ action: 'reply', card: 'EXT-20', session: SID, q: { uuid: QU, at: '2026-10-04T10:00:00.000Z' }, text: 'слышу' })).json();
   assert.equal(b.outcome, 'ok', b.message);
   const html = s.pl().comments[1].html;
@@ -486,17 +490,30 @@ test('неясный исход comment: коммент лёг (код 3) — н
   assert.deepEqual((await miss.bellGet(SID)).ids, [again.id]);
 });
 
-test('несколько живых тредов проекта — запись есть, звонка нет, перечень; с pick (выбор Ивана, 2.3 п.4) — слово тому треду', async () => {
+test('несколько живых тредов проекта: любое слово без pick — need-confirm с кандидатами ДО записи (2.3 п.4); с pick — одна запись и слово тому треду', async () => {
   const s = await setup({}, { threads: [thread(SID), thread(SID2)] });
-  const many = (await s.press({ action: 'go', card: 'EXT-20', q: Q })).json();
-  assert.equal(many.outcome, 'ok');
-  assert.match(many.message, /живых тредов EXT несколько: «тред 801», «тред 802» — звонка нет/);
-  assert.deepEqual((await s.bellGet(SID)).ids, []);
-  s.setPlane({ comments: s.pl().comments.filter((c) => c.id === 'q1') }); // вопрос тот же: новая запись пульта не мешает и так
+  for (const [action, extra] of [['yes', {}], ['go', {}], ['no', { text: 'не надо' }], ['reply', { text: 'делай' }]]) {
+    const many = (await s.press({ action, card: 'EXT-20', q: Q, ...extra })).json();
+    assert.equal(many.outcome, 'need-confirm', action);
+    assert.deepEqual(many.confirm.candidates.map((c) => c.sessionId).sort(), [SID, SID2].sort(), action);
+  }
+  assert.equal(s.pl().calls, undefined, 'до выбора треда в Plane ничего');
+  assert.equal(s.pl().comments.length, 1, 'записи нет');
+  assert.ok(!fs.existsSync(path.join(s.bellDir, SID)) && !fs.existsSync(path.join(s.bellDir, SID2)), 'звонка нет');
+  // комменты Plane не стираются: с pick ложится ровно одна запись
   const picked = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
   assert.equal(picked.outcome, 'ok', picked.message);
+  assert.equal(s.pl().comments.length, 2, 'запись одна');
   assert.deepEqual((await s.bellGet(SID2)).ids, [picked.id]);
   assert.deepEqual((await s.bellGet(SID)).ids, []);
+  // Б-дело при нескольких тредах: кандидаты в первом окне, второй щелчок с pick
+  const b = await setup({ status: 'Review' }, { threads: [thread(SID), thread(SID2)] });
+  const first = (await b.press({ action: 'merge', card: 'EXT-22', q: Q })).json();
+  assert.equal(first.outcome, 'need-confirm');
+  assert.equal(first.confirm.candidates.length, 2);
+  const second = (await b.press({ action: 'merge', card: 'EXT-22', q: Q, confirm: first.id, pick: SID })).json();
+  assert.equal(second.outcome, 'ok', second.message);
+  assert.deepEqual((await b.bellGet(SID)).ids, [second.id]);
 });
 
 test('тот же intentId — прежний исход, второй записи нет; need-confirm переживает рестарт (restoreIntents)', async () => {
@@ -510,4 +527,71 @@ test('тот же intentId — прежний исход, второй запи�
   assert.equal(restored.code, 200);
   assert.equal(restored.body.outcome, 'need-confirm');
   assert.equal(restored.body.confirm.what, a.confirm.what);
+});
+
+// ---------------- починка по вердикту Голема (ПТ6, круг 1) ----------------
+
+const logOf = (id) => path.join(boardDir, 'EXT', `${id}.log.md`);
+const pultEntry = (time, html) => `\n### 2026-10-03 ${time} +03:00 · plane · коммент\n\n${html}\n`;
+
+test('Критично 1: Б-признак переживает запись пульта — «сливай» → второй щелчок → «да» на ту же карточку просит второй щелчок; «Принять» не появляется', async () => {
+  const s = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-28' })] });
+  const b1 = (await s.press({ action: 'merge', card: 'EXT-28', q: Q })).json();
+  assert.equal(b1.outcome, 'need-confirm');
+  const b2 = (await s.press({ action: 'merge', card: 'EXT-28', q: Q, confirm: b1.id })).json();
+  assert.equal(b2.outcome, 'ok', b2.message);
+  // зеркало принесло запись пульта в журнал карточки — она теперь последняя
+  fs.appendFileSync(logOf('EXT-28'), pultEntry('13:00', s.pl().comments.at(-1).html));
+  await board.init();
+  assert.equal(acceptState(board.card('EXT-28'), { state: 'ok' }).why, 'b-deal');
+  const yes = (await s.press({ action: 'yes', card: 'EXT-28', q: Q })).json();
+  assert.equal(yes.outcome, 'need-confirm', yes.message);
+  assert.equal(s.pl().comments.length, 2, 'второй записи нет');
+  // запись пульта без приписки — Б держится на последней записи не пульта (вопрос «сливай?»)
+  fs.appendFileSync(logOf('EXT-29'), pultEntry('13:05', recordHtml({ id: 'W-261003-130500-abcd', word: 'да', q: { at: Q_AT, head: 'x' } })));
+  await board.init();
+  assert.ok(bDeal(board.card('EXT-29'), 'yes'));
+  assert.equal(acceptState(board.card('EXT-29'), { state: 'ok' }).why, 'b-deal');
+  // исправный: обычный вопрос + запись пульта «да» — не Б
+  fs.appendFileSync(logOf('EXT-31'), pultEntry('13:05', recordHtml({ id: 'W-261003-130501-abce', word: 'да', q: { at: Q_AT, head: 'x' } })));
+  await board.init();
+  assert.equal(bDeal(board.card('EXT-31'), 'yes'), null);
+});
+
+test('Важно 2: ответ треду с session и card — карточка должна принадлежать этому треду, иначе отказ без записи и звонка', async () => {
+  for (const th of [thread(SID), thread(SID, { card: 'EXT-21' })]) {
+    const s = await setup({}, { threads: [th], sessions: sessionQ(QU) });
+    const r = (await s.press({ action: 'reply', card: 'EXT-20', session: SID, q: { uuid: QU, at: '2026-10-04T10:00:00.000Z' }, text: 'слышу' })).json();
+    assert.equal(r.outcome, 'refused', JSON.stringify(th));
+    assert.equal(s.lines().at(-1).refusal, 'thread-card');
+    assert.equal(s.pl().calls, undefined);
+    assert.ok(!fs.existsSync(path.join(s.bellDir, SID)));
+  }
+});
+
+test('Мелочь 2: подтверждение без шага need-confirm (asked без окна) — bad-confirm, в Plane ничего', async () => {
+  const s = await setup({ status: 'Review' });
+  fs.appendFileSync(s.actionsLog, JSON.stringify({ id: 'W-261004-120000-0001', step: 'asked', at: new Date().toISOString(), action: 'merge', card: 'EXT-22', q: Q }) + '\n');
+  const r = (await s.press({ action: 'merge', card: 'EXT-22', q: Q, confirm: 'W-261004-120000-0001' })).json();
+  assert.equal(r.outcome, 'refused');
+  assert.equal(s.lines().at(-1).refusal, 'bad-confirm');
+  assert.equal(s.pl().calls, undefined);
+});
+
+test('Мелочь 7: нажатие, переиспользовавшее прежнюю запись (без нового comment), тоже тратит подтверждение', async () => {
+  const P = 'W-261003-120000-aaaa';
+  const s = await setup({ status: 'Review', comments: [{ id: 'q1', created_at: '2026-10-03T09:00:41.018934Z', html: Q_HTML },
+    { id: 'p1', created_at: '2026-10-03T09:10:00.000000Z', html: `<p><b>Слово Ивана · кнопка витрины · ${P}</b>: «сливай»</p>` }] });
+  const at = new Date().toISOString();
+  fs.appendFileSync(s.actionsLog, [{ id: P, step: 'asked', at, action: 'merge', card: 'EXT-22', q: Q },
+    { id: P, step: 'plane', at, action: 'merge', card: 'EXT-22', cmd: 'comment', result: { code: 0 } }].map((l) => JSON.stringify(l)).join('\n') + '\n');
+  const first = (await s.press({ action: 'merge', card: 'EXT-22', q: Q })).json();
+  assert.equal(first.outcome, 'need-confirm');
+  const second = (await s.press({ action: 'merge', card: 'EXT-22', q: Q, confirm: first.id })).json();
+  assert.equal(second.outcome, 'ok', second.message);
+  assert.equal(s.lines().find((l) => l.id === second.id && l.step === 'done').result.record, P, 'прежний номер');
+  assert.equal(s.pl().comments.length, 2, 'нового комментария нет');
+  const third = (await s.press({ action: 'merge', card: 'EXT-22', q: Q, confirm: first.id })).json();
+  assert.equal(third.outcome, 'refused', 'подтверждение уже израсходовано');
+  assert.equal(s.lines().at(-1).refusal, 'bad-confirm');
 });
