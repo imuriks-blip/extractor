@@ -12,7 +12,7 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { restoreIntents } from '../lib/pult/routes.mjs';
-import { ringText, ringLine, RING_HEAD } from '../lib/pult/bell.mjs';
+import { ringText, ringLine, RING_HEAD, REREAD_WORD, clipNote } from '../lib/pult/bell.mjs';
 import { newSessionState, feedSession, pathKey } from '../lib/journal-parse.mjs';
 import { buildMarks, buildWorkers } from '../lib/waiting.mjs';
 import { createRulesMoment, parseChronicle } from '../lib/rules-moment.mjs';
@@ -369,15 +369,71 @@ test('reread queued: второе нажатие, пока слово полож
   assert.equal(s.lines().filter((l) => l.step === 'ring-queued').length, 2);
 });
 
-test('reread queued: другой тред не мешает; «прочитано» (форма звонка в журнале) снимает запрет, пока пометка ещё стоит', async () => {
+test('reread queued: другой тред не мешает; «прочитано» окно НЕ снимает (§1.8, вариант Б): тред ещё читает файлы, пока доставлено моложе 10 минут', async () => {
   const reads = {};
   const s = await setup({ threads: [thread(801), thread(802)], sessions: () => [{ sessionId: sid(801), rings: reads }] });
   const a = (await s.press(RR(801))).json();
   assert.equal((await s.press(RR(802))).json().outcome, 'ok', 'второй тред — свой звонок');
   assert.equal((await s.press(RR(801))).json().outcome, 'refused');
-  reads[a.id] = '2026-10-05T12:01:00.000Z'; // тред прочёл звонок, но файлы прочёл не все — пометка осталась
+  // ждущий прозвонил, такт записал ring-delivered; тред прочёл звонок (первая секунда), но файлы прочёл не все — пометка осталась
+  s.bellLog({ sid: sid(801), event: 'ring', ids: [a.id] });
+  await s.app.pult.tick();
+  reads[a.id] = new Date(NOW).toISOString();
+  s.clock.t = NOW + 60000;
+  const still = (await s.press(RR(801))).json();
+  assert.equal(still.outcome, 'refused', JSON.stringify(still));
+  assert.equal(still.prev.status, 'прочитано');
+  assert.equal(s.lines().filter((l) => l.step === 'ring-queued' && l.target?.sessionId === sid(801)).length, 1, 'второго звонка нет');
+  // исправный рядом: доставлено старше 10 минут, пометка стоит — звонок снова разрешён, хотя статус «прочитано»
+  s.clock.t = NOW + 11 * 60000;
   const again = (await s.press(RR(801))).json();
   assert.equal(again.outcome, 'ok', JSON.stringify(again));
+});
+
+test('GET /api/actions: строка со звонком несёт ringAt — время шага ring-delivered (не время просьбы); до доставки — null; session — только у reread', async () => {
+  const s = await setup();
+  const a = (await s.press(RR())).json();
+  let row = (await s.get('/api/actions')).find((x) => x.id === a.id);
+  assert.equal(row.ringAt, null, 'до доставки');
+  assert.equal(row.session, sid(801));
+  s.clock.t = NOW + 3 * 60000;
+  s.bellLog({ sid: sid(801), event: 'ring', ids: [a.id] });
+  await s.app.pult.tick();
+  row = (await s.get('/api/actions')).find((x) => x.id === a.id);
+  const dl = s.lines().find((l) => l.id === a.id && l.step === 'ring-delivered');
+  assert.ok(dl, 'шаг ring-delivered записан');
+  assert.equal(row.ringAt, dl.at);
+  assert.notEqual(row.ringAt, row.at, 'время доставки, а не просьбы');
+  assert.equal(row.ring, 'доставлено');
+});
+
+test('/api/health: флаг пульта отдаётся; pult.enabled = false при включённом звонке — pult.enabled false (кнопки нет)', async () => {
+  const on = await setup();
+  const h = await on.get('/api/health');
+  assert.equal(h.pult.enabled, true);
+  assert.equal(h.bell.on, true);
+  // pult.enabled = false: каркас setup не умеет — строим приложение отдельно
+  const web = tmpDir('reread-off-web-');
+  fs.writeFileSync(path.join(web, 'index.html'), '<!doctype html><html><head></head><body></body></html>');
+  const off = await buildApp({ port: PORT, board, registry, scan, webDir: web,
+    threads: { list: () => ({ threads: [], subagentsCount: 0, unknownStatus: {} }), rulesNote: () => null, state: () => ({ processes: { lastOkAt: null }, desktop: null }) },
+    journals: { state: () => ({ lastOkAt: null }), sessions: () => [] }, pult: { enabled: false, bell: true } });
+  const hj = (await off.inject({ method: 'GET', url: '/api/health', headers: { host: `127.0.0.1:${PORT}` } })).json();
+  assert.equal(hj.pult.enabled, false);
+});
+
+test('строка хроники в звонке — до 300 знаков вместе с «…»: 300 как есть, 301 — 299 + «…»; многобайтные (кириллица, эмодзи) считаются знаками', () => {
+  const at = new Date(NOW).toISOString();
+  const noteOf = (n) => ringText([{ id: 'W-1', at, action: 'reread', card: null, word: REREAD_WORD, paths: [], note: n }]).match(/«([^»]*)» — если она/)?.[1];
+  for (const ch of ['п', '😀']) {
+    assert.equal(clipNote(ch.repeat(300)), ch.repeat(300), `${ch} 300`);
+    const c = clipNote(ch.repeat(301));
+    assert.equal([...c].length, 300, `${ch} 301 → 300`);
+    assert.equal(c, `${ch.repeat(299)}…`);
+    assert.equal(clipNote(clipNote(ch.repeat(500))), clipNote(ch.repeat(500)), 'повторно — то же');
+    assert.equal([...noteOf(ch.repeat(500))].length, 300, `${ch}: звонок`);
+    assert.equal(noteOf(ch.repeat(300)), ch.repeat(300));
+  }
 });
 
 test('reread: «сброшено перезапуском» / «не доставлено: тред закрыт» запрет не держат (слова в памяти нет)', async () => {
@@ -413,9 +469,10 @@ test('reread: строка хроники длиннее 300 знаков — о
   const s = await setup({ note: 'п'.repeat(500) });
   await s.press(RR());
   const t = (await s.bellGet(sid(801))).text;
-  const m = t.match(/«(п+)…?»/);
+  const m = t.match(/«(п+…?)»/);
   assert.ok(m, t.slice(0, 200));
-  assert.ok([...m[1]].length <= 300);
+  assert.equal([...m[1]].length, 300, 'вместе с «…» ровно 300');
+  assert.ok(m[1].endsWith('…'));
 });
 
 test('reread: ни одна GET-ручка по-прежнему не меняет состояние: два GET /api/bell подряд — одинаковый ответ, actions.log не растёт', async () => {
@@ -426,4 +483,52 @@ test('reread: ни одна GET-ручка по-прежнему не меняе
   const b = await s.bellGet(sid(801));
   assert.deepEqual(a, b);
   assert.equal(s.lines().length, n);
+});
+
+// ---------------- 5. Страница: кнопка и общий опрос (web/src/rereadFeed.js) ----------------
+
+const feedMod = await import('../web/src/rereadFeed.js');
+
+test('кнопка: окно считается от доставки (ringAt), а не от времени просьбы; «прочитано» окно не снимает; положено — держит; старше 10 минут — нет', () => {
+  const t0 = Date.parse('2026-10-05T12:00:00Z');
+  const row = (o) => ({ at: '2026-10-05T11:00:00Z', ring: 'доставлено', ringAt: '2026-10-05T11:58:00Z', ...o });
+  const { inFlight } = feedMod;
+  assert.equal(inFlight(row(), t0), true, 'просьба час назад, доставлена 2 минуты назад — неактивна');
+  assert.equal(inFlight(row({ ringAt: '2026-10-05T11:49:00Z' }), t0), false, 'доставлена 11 минут назад');
+  assert.equal(inFlight(row({ at: '2026-10-05T11:59:00Z', ringAt: '2026-10-05T11:40:00Z' }), t0), false, 'просьба свежая, доставка старая — по доставке');
+  assert.equal(inFlight(row({ ring: 'прочитано' }), t0), true, '«прочитано» не снимает');
+  assert.equal(inFlight(row({ ring: 'прочитано', ringAt: '2026-10-05T11:49:00Z' }), t0), false);
+  assert.equal(inFlight(row({ ring: 'положено', ringAt: null }), t0), true);
+  assert.equal(inFlight(row({ ring: 'сброшено перезапуском', ringAt: null }), t0), false);
+  assert.equal(inFlight(null, t0), false);
+});
+
+test('опрос страницы: на любое число блоков — по одному запросу /api/health и /api/actions (без session) за период; пульт выключен — on false; отписка останавливает', async () => {
+  const calls = [];
+  let enabled = true;
+  const sidA = sid(901), sidB = sid(902);
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    const body = String(url).startsWith('/api/health') ? { pult: { enabled }, bell: { on: true } }
+      : [{ id: 'W-1', action: 'reread', ring: 'доставлено', session: sidA, at: 'x' }, { id: 'W-2', action: 'yes', ring: 'прочитано', session: null }, { id: 'W-3', action: 'reread', ring: null, session: sidB }];
+    return { ok: true, json: async () => body };
+  };
+  const seen = [];
+  const offs = [1, 2, 3].map((i) => feedMod.subscribe((st) => seen.push([i, st])));
+  await feedMod.refreshNow();
+  assert.equal(calls.filter((u) => u.startsWith('/api/health')).length, 1);
+  assert.equal(calls.filter((u) => u.startsWith('/api/actions')).length, 1);
+  assert.ok(calls.every((u) => !u.includes('session=')), calls.join());
+  const st = seen.at(-1)[1];
+  assert.equal(st.on, true);
+  assert.deepEqual(st.rows.map((r) => r.id), ['W-1'], 'только reread со звонком');
+  assert.equal(feedMod.lastFor(st.rows, sidA).id, 'W-1');
+  assert.equal(feedMod.lastFor(st.rows, sidB), null);
+  enabled = false;
+  await feedMod.refreshNow();
+  assert.equal(seen.at(-1)[1].on, false, 'pult.enabled = false при включённом звонке — кнопки нет');
+  offs.forEach((f) => f());
+  const n = calls.length;
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(calls.length, n);
 });

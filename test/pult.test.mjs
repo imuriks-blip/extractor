@@ -574,7 +574,8 @@ test('GET /api/actions: строки по действию (последний �
   assert.deepEqual(all.map((r) => [r.id, r.status]), [['W-261002-110000-bbbb', 'asked'], ['W-261002-100000-aaaa', 'done']]);
   assert.ok(!JSON.stringify(all).includes(SECRET));
   assert.match(all[1].text, /\[скрыто/);
-  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'card', 'id', 'project', 'ring', 'source', 'status', 'text']);
+  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'card', 'id', 'project', 'ring', 'ringAt', 'source', 'status', 'text']);
+  assert.equal(all[0].ringAt, null, 'доставки нет (EXT-65)');
   assert.equal(all[0].ring, null, 'звонка у действия нет');
   assert.equal(all[0].source, null, 'источник — ПТ1б');
   assert.deepEqual((await get('?since=2026-10-01T00:00:00Z&card=EXT-6')).json().map((r) => r.id), ['W-261002-100000-aaaa']);
@@ -657,7 +658,9 @@ test('образцы web/fixtures пульта: ключи как у насто�
   const ok = (await act(app, await pageToken(app))).json();
   assert.deepEqual(keys(fx('act.json').ok), Object.keys(ok).sort());
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${PORT}` } })).json();
-  assert.deepEqual(keys(fx('actions.json')[0]), Object.keys((await get('/api/actions'))[0]).sort());
+  const plain = fx('actions.json').find((x) => x.action === 'ping');
+  assert.deepEqual(keys(plain), Object.keys((await get('/api/actions'))[0]).sort());
+  assert.deepEqual(keys(fx('actions.json').find((x) => x.action === 'reread')), [...Object.keys((await get('/api/actions'))[0]), 'session'].sort(), 'у reread — ещё session (EXT-65)');
   assert.deepEqual(keys(fx('mirror.json')), Object.keys(await get('/api/mirror')).sort());
   assert.deepEqual(keys(fx('worktrees.json')[0]), ['branch', 'card', 'eligible', 'ignored', 'path', 'reason', 'repo'], 'форма §1.7; ручка пока пустая (ПТ8б)');
   assert.deepEqual(await get('/api/worktrees'), []);

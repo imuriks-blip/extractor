@@ -1,55 +1,20 @@
 // «Перечитать правила» (EXT-65; спека пульта §1.8, §2.8, спека витрины §2.3 «Не перечитаны»): строка и кнопка внутри
 // блока «Старые правила» под тредом — «Цех» и окно проекта. POST /api/act ровно {action: 'reread', intentId, session};
-// путей страница не шлёт — сервер берёт missing у пометки сам. Кнопки нет при выключенном звонке (/api/health → bell.on).
-// Статус просьбы — из GET /api/actions?session=: последний reread этого треда со звонком (поле ring, §2.8).
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+// путей страница не шлёт — сервер берёт missing у пометки сам. Кнопки нет при выключенном пульте или звонке (/api/health → pult.enabled, bell.on).
+// Статус просьбы — из общего опроса GET /api/actions (rereadFeed.js, один на страницу): последний reread этого треда со звонком (поле ring, §2.8).
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { clear403, postAct, reloadOn403, take403 } from './act.js';
 import { hm } from './format.js';
+import { inFlight, lastFor, refreshNow, subscribe } from './rereadFeed.js';
 
-const POLL_MS = 5000;
-const FRESH_MS = 10 * 60_000; // «доставлено» моложе 10 минут, а Read в журнале ещё не виден — кнопка неактивна (§1.8)
-const HEALTH_TTL_MS = 20_000;
-
-// флаг звонка — один запрос на все блоки страницы; сбой чтения = «выключен» (кнопки нет, строка остаётся)
-let health = { at: 0, p: null };
-const bellOn = () => {
-  if (!health.p || Date.now() - health.at > HEALTH_TTL_MS) {
-    health = {
-      at: Date.now(),
-      p: fetch('/api/health', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => j?.bell?.on === true).catch(() => false),
-    };
-  }
-  return health.p;
-};
-
-async function lastReread(session) {
-  const r = await fetch(`/api/actions?session=${encodeURIComponent(session)}`, { cache: 'no-store' });
-  if (!r.ok) return null;
-  const rows = await r.json();
-  // ответ — от новых к старым; отказы (без звонка) ring не имеют и «просьбой в пути» не считаются
-  return (Array.isArray(rows) ? rows : []).find((x) => x.action === 'reread' && x.ring) ?? null;
-}
-
-const inFlight = (row, now) => !!row && (row.ring === 'положено' || (row.ring === 'доставлено' && now - Date.parse(row.at) < FRESH_MS));
 const sad = (ring) => /^(не доставлено|сброшено)/.test(ring);
 
 function useReread(session, now) {
-  const [on, setOn] = useState(false);
-  const [row, setRow] = useState(null);
+  const [feed, setFeed] = useState({ on: false, rows: [] });
   const [act, setAct] = useState(null); // {phase: busy|refused|error|net, msg, payload}
-  const alive = useRef(true);
-  const refresh = useCallback(async () => {
-    const [b, r] = await Promise.all([bellOn(), lastReread(session).catch(() => undefined)]);
-    if (!alive.current) return;
-    setOn(b);
-    if (r !== undefined) setRow(r);
-  }, [session]);
-  useEffect(() => {
-    alive.current = true;
-    refresh();
-    const t = setInterval(refresh, POLL_MS);
-    return () => { alive.current = false; clearInterval(t); };
-  }, [refresh]);
+  useEffect(() => subscribe(setFeed), []);
+  const on = feed.on;
+  const row = lastFor(feed.rows, session);
 
   const send = useCallback(async (payload) => {
     setAct({ phase: 'busy', payload });
@@ -71,8 +36,8 @@ function useReread(session, now) {
     const msg = b.message || `ошибка: HTTP ${r.status}`;
     if (outcome === 'ok') setAct(null); // дальше — статус из журнала действий
     else setAct({ phase: outcome === 'refused' ? 'refused' : 'error', msg });
-    refresh();
-  }, [refresh]);
+    refreshNow();
+  }, []);
 
   // после перезагрузки на 403 — то же намерение тем же ключом (§1.1 п.3 пульта)
   useEffect(() => {
