@@ -9,7 +9,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { secs, runResult, reindexLine, phaseWord, FRESH_MS } from '../web/src/mirrorData.js';
+import { secs, runResult, reindexLine, phaseWord, isRefusal, FRESH_MS } from '../web/src/mirrorData.js';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -70,12 +70,13 @@ test('образец _confirm совпадает с настоящим отве�
   assert.equal(calls.length, 0);
 });
 
-test('экран знает отказы сервера: «уже идёт» зеркала и пересбора — по коду refusal; потраченное и просроченное подтверждение — «нажми ещё раз»', () => {
-  assert.ok(lib('mirror-run.mjs').includes("'mirror-running'"));
-  assert.ok(lib('reindex.mjs').includes("'reindex-running'"));
-  assert.ok(lib('routes.mjs').includes("'bad-confirm'") && lib('routes.mjs').includes("'confirm-expired'"));
-  assert.ok(src('Mirror.jsx').includes("'mirror-running'"), 'Mirror.jsx отличает «уже идёт» от отказа подтверждения');
-  assert.ok(src('Service.jsx').includes("'reindex-running'"));
+test('isRefusal: экран отличает «уже идёт» (mirror-running / reindex-running) от отказа подтверждения и от успеха — по коду refusal в теле (сам ответ сервера проверен в ext75-mirror-full)', () => {
+  const body = (refusal) => ({ id: 'W-1', step: 'refused', outcome: 'refused', refusal, message: 'x' });
+  assert.equal(isRefusal(body('mirror-running'), 'mirror-running'), true);
+  assert.equal(isRefusal(body('reindex-running'), 'reindex-running'), true);
+  for (const other of ['bad-confirm', 'confirm-expired', 'rate-limit', undefined]) assert.equal(isRefusal(body(other), 'mirror-running'), false, String(other));
+  assert.equal(isRefusal({ outcome: 'ok', refusal: 'mirror-running' }, 'mirror-running'), false);
+  assert.equal(isRefusal(undefined, 'mirror-running'), false);
 });
 
 test('secs: секунды → «45 с», «8 мин», «1 ч 36 мин», «2 ч»; нет числа — null', () => {

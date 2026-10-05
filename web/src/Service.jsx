@@ -3,7 +3,7 @@
 // GET /api/mirror → reindex {running, done, total, lastAt, lastMs, lastFiles, lastError}. «Уже идёт» (409) — не ошибка.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clear403, postAct, reloadOn403, take403 } from './act.js';
-import { readMirror, reindexLine } from './mirrorData.js';
+import { isRefusal, readMirror, reindexLine } from './mirrorData.js';
 import { useOpen } from './prefs.js';
 import { Summary } from './Summary.jsx';
 
@@ -37,7 +37,7 @@ export function Service() {
     } else {
       clear403(payload.intentId);
       const b = r.body || {};
-      if (r.status === 409 && b.refusal === 'reindex-running') setMsg({ cls: 'muted', text: 'уже идёт' });
+      if (r.status === 409 && isRefusal(b, 'reindex-running')) setMsg({ cls: 'muted', text: 'уже идёт' });
       else if (r.status === 501) setMsg({ cls: 'muted', text: 'ещё не подключено' });
       else if (r.status < 200 || r.status >= 300) setMsg({ cls: 'pbad', text: b.message || `ошибка: HTTP ${r.status}` });
       await check();

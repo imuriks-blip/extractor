@@ -14,6 +14,7 @@ import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { createJournalReader } from '../lib/journal-reader.mjs';
 import { readLastRun } from '../lib/pult/mirror-status.mjs';
+import { isRefusal } from '../web/src/mirrorData.js';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -366,4 +367,102 @@ test('rebuild читателя: сбой чтения журнала — отк�
   assert.equal(JSON.stringify(r.sessions()), before);
   breakIt = false;
   assert.ok((await r.rebuild()).files >= 2);
+});
+
+// ---------------- 5. вердикт Голема на db1837f ----------------
+
+test('Голем, Критично: тело ответа /api/act несёт refusal — «уже идёт» зеркала и пересбора, bad-confirm (ответ, по которому экран различает отказы)', async () => {
+  const dir = tmpDir('mirror-');
+  const t0 = Date.now();
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: new Date(t0 - 2000).toISOString(), kind: 'full', progress: { phase: 'cards', at: new Date(t0 - 2000).toISOString(), started_at: new Date(t0 - 60000).toISOString() } }));
+  const j = fakeJournals();
+  const run = await setup({ mirrorDir: dir, journals: j });
+  const m = await run.act({ action: 'mirror', kind: 'full' });
+  assert.equal(m.statusCode, 409);
+  assert.equal(m.json().refusal, 'mirror-running');
+  assert.equal((await run.act({ action: 'reindex' })).json().outcome, 'ok');
+  const r = await run.act({ action: 'reindex' });
+  assert.equal(r.statusCode, 409);
+  assert.equal(r.json().refusal, 'reindex-running');
+  // отрицательный контроль: другой отказ несёт свой код — экран не примет его за «уже идёт»
+  const idle = await setup();
+  const bad = await idle.act({ action: 'mirror', kind: 'full', confirm: 'W-261005-120000-aaaa' });
+  assert.equal(bad.json().outcome, 'refused');
+  assert.equal(bad.json().refusal, 'bad-confirm');
+  assert.equal(isRefusal(bad.json(), 'mirror-running'), false);
+  assert.equal(isRefusal(r.json(), 'reindex-running'), true);
+  assert.equal(isRefusal(m.json(), 'mirror-running'), true);
+  assert.equal(isRefusal({ outcome: 'ok' }, 'mirror-running'), false);
+  assert.equal(isRefusal(null, 'mirror-running'), false);
+});
+
+test('Голем, Важно 2: lastRun — только обычный и полный проход; card/assets/links/decide (в том числе упавший card) итог не затирают; начало — ближайшее предшествующее того же pid и вида', async () => {
+  const dir = tmpDir('mirror-');
+  fs.writeFileSync(path.join(dir, 'runs.log'), [
+    '2026-10-02T16:44:28.870Z · начало · changed · pid 19612',
+    '2026-10-02T16:52:46.031Z · конец · changed · pid 19612 · код 0 · 497 с · запросов 196',
+    '2026-10-02T17:00:00.000Z · начало · card · pid 20',
+    '2026-10-02T17:00:09.000Z · конец · card · pid 20 · код 5 · 9 с · запросов 3',
+    '2026-10-02T17:01:00.000Z · начало · assets · pid 21',
+    '2026-10-02T17:01:02.000Z · конец · assets · pid 21 · код 0 · 2 с · запросов 1',
+    '2026-10-02T17:02:00.000Z · начало · links · pid 22',
+    '2026-10-02T17:02:02.000Z · конец · links · pid 22 · код 0 · 2 с · запросов 1',
+    '2026-10-02T17:03:00.000Z · начало · decide-file · pid 23',
+    '2026-10-02T17:03:02.000Z · конец · decide-file · pid 23 · код 0 · 2 с · запросов 1',
+  ].join('\n'));
+  const { mirror } = await setup({ mirrorDir: dir });
+  assert.deepEqual((await mirror()).lastRun, { kind: 'changed', startedAt: '2026-10-02T16:44:28.870Z', endedAt: '2026-10-02T16:52:46.031Z', code: 0, seconds: 497, requests: 196 });
+  // pid переиспользован: «начало» старого прохода не липнет к «концу» нового без своего «начала»; ближайшее предшествующее — своё
+  fs.writeFileSync(path.join(dir, 'runs.log'), [
+    '2026-10-01T10:00:00.000Z · начало · full · pid 7',
+    '2026-10-01T11:00:00.000Z · конец · full · pid 7 · код 0 · 3600 с · запросов 2000',
+    '2026-10-02T10:00:00.000Z · конец · full · pid 7 · код 0 · 5 с · запросов 9',
+  ].join('\n'));
+  assert.equal((await mirror()).lastRun.startedAt, null, 'начало уже использовано первым «концом»');
+  fs.writeFileSync(path.join(dir, 'runs.log'), [
+    '2026-10-01T10:00:00.000Z · начало · full · pid 7',
+    '2026-10-01T10:30:00.000Z · начало · full · pid 7',
+    '2026-10-01T11:00:00.000Z · конец · full · pid 7 · код 0 · 1800 с · запросов 5',
+  ].join('\n'));
+  assert.equal((await mirror()).lastRun.startedAt, '2026-10-01T10:30:00.000Z', 'ближайшее предшествующее');
+});
+
+const jlines = (root) => { let n = 0; const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (p.endsWith('.jsonl')) n += fs.readFileSync(p, 'utf8').split('\n').filter((l) => l.trim()).length; } }; walk(root); return n; };
+
+test('Голем, Важно 3: гонка rebuild — параллельный refresh и дозапись журнала во время пересбора: после подмены lines = числу строк файлов, без потерь и двойного счёта', async () => {
+  const root = tree();
+  const indexDir = tmpDir('index-');
+  const r = createJournalReader({ root, indexDir });
+  await r.refresh();
+  const sess = path.join(root, 'P1', `${SID}.jsonl`);
+  const lastLine = fs.readFileSync(sess, 'utf8').split('\n').filter((l) => l.trim()).at(-1);
+  let n = 0;
+  const parallel = [];
+  await r.rebuild({ onProgress: () => { fs.appendFileSync(sess, `${lastLine}\n`); n++; parallel.push(r.refresh()); } });
+  assert.ok(n >= 3, 'дозаписей во время пересбора');
+  await Promise.all(parallel);
+  await r.refresh({ full: true });
+  assert.equal(r.state().lines, jlines(root), 'строк в состоянии = строк в файлах');
+  r.flush();
+  const r2 = createJournalReader({ root, indexDir });
+  await r2.refresh();
+  assert.equal(r2.state().lines, jlines(root), 'и после рестарта по записанному индексу');
+});
+
+test('Голем, Важно 4: rebuild — журнал исчез между обходом и чтением (ENOENT): пересбор не валится, журнала нет в новом индексе; иной сбой чтения по-прежнему отказ', async () => {
+  const root = tree();
+  const indexDir = tmpDir('index-');
+  let vanish = null;
+  const gone = { ...fs, statSync: (p, ...a) => { if (vanish && String(p).endsWith(vanish)) throw Object.assign(new Error('x'), { code: 'ENOENT' }); return fs.statSync(p, ...a); } };
+  const r = createJournalReader({ root, indexDir, fs: gone });
+  await r.refresh();
+  const total = Object.keys(JSON.parse(JSON.stringify(r.takeFiles()))).length;
+  vanish = `${SID}.jsonl`;
+  const seen = [];
+  const res = await r.rebuild({ onProgress: (d, m) => seen.push([d, m]) });
+  assert.equal(res.files, total - 1);
+  assert.deepEqual(seen.at(-1), [total, total], 'ход дошёл до конца');
+  const idx = JSON.parse(fs.readFileSync(path.join(indexDir, 'journals.json'), 'utf8'));
+  assert.equal(Object.keys(idx.files).length, total - 1);
+  assert.equal(r.state().errors, 0);
 });

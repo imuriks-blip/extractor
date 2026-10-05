@@ -6,6 +6,8 @@ export const KIND = { changed: 'обычный', full: 'полный' };
 // фазы прохода в status.json progress.phase (tools/mirror.mjs доски): projects, cards, comments, relations, write; незнакомая — как есть
 const PHASE = { projects: 'проекты', cards: 'карточки', comments: 'комменты', relations: 'связи', write: 'запись' };
 export const phaseWord = (p) => (p ? PHASE[p] ?? p : null);
+// отказ сервера по коду refusal в теле ответа /api/act (outcome 'refused'): 'mirror-running', 'reindex-running', 'bad-confirm', …
+export const isRefusal = (body, code) => body?.outcome === 'refused' && body.refusal === code;
 export const FRESH_MS = 60 * 60000; // зелёный итог в шапке — час после конца прохода, дальше его место занимает время зеркала
 
 // «8 мин», «1 ч 36 мин», «45 с» — длительность прохода из lastRun.seconds

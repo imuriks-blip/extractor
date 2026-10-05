@@ -5,7 +5,7 @@
 // каждый запуск, флаг pult.enabled читается при старте), кнопка до перезапуска витрины не показывается.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { dm, hm } from './format.js';
-import { phaseWord, readMirror, runResult } from './mirrorData.js';
+import { isRefusal, phaseWord, readMirror, runResult } from './mirrorData.js';
 import { clear403, postAct, reloadOn403, setPuller, store, take403, token, tokenMark as mark } from './act.js';
 
 const POLL_MS = 4000;
@@ -26,6 +26,8 @@ export default function MirrorButton({ label }) {
   const intent = useRef(null); // ключ намерения без ответа (сбой сети) — повтор нажатием с тем же ключом
   const resent = useRef(false);
   const fullBtn = useRef(null);
+  const cfRef = useRef(null); // окно подтверждения «как было»: при сбое сети второго щелчка оно возвращается (повтор тем же ключом)
+  cfRef.current = cf;
 
   const check = useCallback(async () => {
     try {
@@ -58,12 +60,14 @@ export default function MirrorButton({ label }) {
     const first = payload.kind === 'full' && !payload.confirm;
     setPhase(first ? 'asking' : 'pending');
     setNote(null);
+    const keepCf = payload.confirm ? cfRef.current : null;
     if (payload.confirm) setCf(null); // второй щелчок ушёл — окно подтверждения снято
     let r;
     try {
       r = await postAct(payload);
     } catch {
       setPhase('idle');
+      if (keepCf) setCf(keepCf);
       setNote({ text: 'нет связи', title: 'витрина не ответила — нажми ещё раз, повтор того же нажатия' });
       return;
     }
@@ -90,7 +94,7 @@ export default function MirrorButton({ label }) {
       return;
     }
     setCf(null);
-    if (body?.outcome === 'refused' && body.refusal !== 'mirror-running') {
+    if (body?.outcome === 'refused' && !isRefusal(body, 'mirror-running')) {
       // подтверждение чужое, потраченное или просроченное — просто нажать «полный» заново
       setPhase('idle');
       setNote({ text: 'нажми «полный» ещё раз', title: body.message || 'подтверждение не годится' });
