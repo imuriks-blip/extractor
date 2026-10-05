@@ -75,8 +75,10 @@ const board = { hasCard: () => false, card: () => null, hasCode: (c) => c === 'E
 async function workers(t, { procs = [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], thresholds = {}, collisions = null, shortRoots = [], reader = null } = {}) {
   const r = reader ?? mkReader(t.root);
   await r.refresh();
-  return buildWorkers({ procs, sessions: r.sessions(), board, now: NOW, thresholds, collisions, shortRoots });
+  return buildWorkers({ exists: ALL_EXIST,  procs, sessions: r.sessions(), board, now: NOW, thresholds, collisions, shortRoots });
 }
+// EXT-74: пути тестов выдуманы — подстановка «всё существует» (отсев «файла нет» проверяет ext74-family.test.mjs)
+const ALL_EXIST = () => true;
 const marksOf = (w, sid) => w.threads.find((x) => x.sessionId === sid)?.marks ?? [];
 const collisions = (w, sid) => marksOf(w, sid).filter((m) => m.kind === 'collision');
 
@@ -224,7 +226,7 @@ test('окно: правка старше collisionWindowH — пометки н
   const t = mk(2 * H, H);
   const r = mkReader(t.root);
   await r.refresh();
-  const later = (hours) => buildWorkers({ procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r.sessions(), board, now: NOW + hours * H });
+  const later = (hours) => buildWorkers({ exists: ALL_EXIST,  procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r.sessions(), board, now: NOW + hours * H });
   assert.equal(collisions(later(0), A).length, 1);
   assert.equal(collisions(later(10), A).length, 1, 'через 10 ч правке A ровно 12 ч — граница, ещё считается');
   assert.equal(collisions(later(11), A).length, 0, 'через 11 ч правке A 13 ч — старше окна, пометка снялась сама');
@@ -302,7 +304,7 @@ test('прежняя сессия живого десктопного треда
   const t = tree({ [A]: edit(A, 1, 'Edit', FILE, at(3 * H)), [C]: edit(C, 1, 'Edit', FILE, at(H)) });
   const r = mkReader(t.root);
   await r.refresh();
-  const w = buildWorkers({ procs: [{ ...proc(A, 'EXT · первый'), hostSessionId: 'local_a' }], desktop: (h) => (h === 'local_a' ? { title: 'EXT · рабочий', priorCliSessionIds: [C] } : null), sessions: r.sessions(), board, now: NOW });
+  const w = buildWorkers({ exists: ALL_EXIST,  procs: [{ ...proc(A, 'EXT · первый'), hostSessionId: 'local_a' }], desktop: (h) => (h === 'local_a' ? { title: 'EXT · рабочий', priorCliSessionIds: [C] } : null), sessions: r.sessions(), board, now: NOW });
   assert.deepEqual(marksOf(w, A), [], 'C — прежняя сессия треда A: один тред');
 });
 
@@ -310,7 +312,7 @@ test('название живого другого треда — десктоп
   const t = tree({ [A]: edit(A, 1, 'Edit', FILE, at(2 * H)), [B]: edit(B, 1, 'Edit', FILE, at(H)) });
   const r = mkReader(t.root);
   await r.refresh();
-  const w = buildWorkers({ procs: [proc(A, 'EXT · первый'), { ...proc(B, 'имя процесса'), hostSessionId: 'local_b' }], desktop: (h) => (h === 'local_b' ? { title: 'EXT · десктоп Б' } : null), sessions: r.sessions(), board, now: NOW });
+  const w = buildWorkers({ exists: ALL_EXIST,  procs: [proc(A, 'EXT · первый'), { ...proc(B, 'имя процесса'), hostSessionId: 'local_b' }], desktop: (h) => (h === 'local_b' ? { title: 'EXT · десктоп Б' } : null), sessions: r.sessions(), board, now: NOW });
   assert.equal(collisions(w, A)[0].other.title, 'EXT · десктоп Б');
 });
 
@@ -377,7 +379,7 @@ test('дописанный хвост журнала — пересчёт без
   const t = tree({ [A]: edit(A, 1, 'Edit', FILE, at(3 * H)), [B]: edit(B, 1, 'Edit', 'C:\\projects\\app\\other.js', at(2 * H)) });
   const r = mkReader(t.root);
   await r.refresh();
-  assert.deepEqual(marksOf(buildWorkers({ procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r.sessions(), board, now: NOW }), A), []);
+  assert.deepEqual(marksOf(buildWorkers({ exists: ALL_EXIST,  procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r.sessions(), board, now: NOW }), A), []);
   const before = r.state().lines;
   const tail = edit(B, 2, 'Write', FILE, at(H));
   // половина строки вызова — не читается; дописана целиком — читается один раз
@@ -387,7 +389,7 @@ test('дописанный хвост журнала — пересчёт без
   fs.appendFileSync(t.file(B), tail[0].slice(30) + '\n' + tail[1] + '\n');
   await r.refresh();
   assert.equal(r.state().lines - before, 2, 'дочитан только хвост: вызов и результат');
-  const w = buildWorkers({ procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r.sessions(), board, now: NOW });
+  const w = buildWorkers({ exists: ALL_EXIST,  procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r.sessions(), board, now: NOW });
   assert.equal(collisions(w, A).length, 1, 'после хвоста — столкновение');
   const whole = mkReader(t.root);
   await whole.refresh();
@@ -404,7 +406,7 @@ test('индекс переживает рестарт: правки в нём, 
   const r2 = createJournalReader({ root: t.root, indexDir });
   await r2.refresh();
   assert.equal(r2.state().lastPassLines, 0, 'после рестарта ничего не перечитано');
-  const w = buildWorkers({ procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r2.sessions(), board, now: NOW });
+  const w = buildWorkers({ exists: ALL_EXIST,  procs: [proc(A, 'EXT · первый'), proc(B, 'EXT · второй')], sessions: r2.sessions(), board, now: NOW });
   assert.equal(collisions(w, A).length, 1, 'пометка из индекса');
   fs.appendFileSync(t.file(A), edit(A, 2, 'Write', 'C:\\projects\\app\\new.js', at(H)).map((l) => l + '\n').join(''));
   await r2.refresh();
@@ -447,7 +449,7 @@ test('маска: строки пометки (название другого �
   const r = mkReader(t.root);
   await r.refresh();
   const threads = {
-    list: () => buildWorkers({ procs: [proc(A, 'EXT · первый'), proc(B, `EXT · ключ ${SECRET}`)], sessions: r.sessions(), board: bd, now: NOW }),
+    list: () => buildWorkers({ exists: ALL_EXIST,  procs: [proc(A, 'EXT · первый'), proc(B, `EXT · ключ ${SECRET}`)], sessions: r.sessions(), board: bd, now: NOW }),
     state: () => ({ processes: null, desktop: null }),
   };
   const app = await buildApp({ port: 4317, board: bd, registry: createRegistryReader(regFile), threads, scan });
@@ -470,7 +472,7 @@ test('маска пометки — строгой сетью: id флоу по 
   const r = mkReader(t.root);
   await r.refresh();
   const procs = [proc(A, `EXT · первый flow id ${FLOW_ID}`), proc(B, `EXT · второй flow id ${FLOW_ID}`)];
-  const { json } = await cehOf((bd) => buildWorkers({ procs, sessions: r.sessions(), board: bd, now: NOW }));
+  const { json } = await cehOf((bd) => buildWorkers({ exists: ALL_EXIST,  procs, sessions: r.sessions(), board: bd, now: NOW }));
   const a = json.workers.threads.find((x) => x.sessionId === A);
   // исправный случай рядом: свой текст треда EXT — сетью проекта, признак виден (сеть треда действительно мягче)
   assert.equal(a.project, 'EXT');
