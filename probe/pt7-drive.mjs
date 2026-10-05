@@ -52,11 +52,12 @@ function makeEnv() {
     { id: 'EXT-70', status: 'in-progress', title: 'ПТ7: кнопки пульта в вёрстке' },
     { id: 'EXT-58', status: 'in-progress', title: 'Проба Н-П1: цена продолжения' },
     { id: 'EXT-61', status: 'review', title: 'Витрина: кнопка «Словарь» рядом с «?»' },
+    { id: 'EXT-62', status: 'review', title: 'Окно проекта: счётчик отложенных в маячке' },
     { id: 'LEDGER-168', status: 'review', title: 'Одна кнопка съёмки — родная камера' },
     { id: 'INFRA-80', status: 'in-progress', title: 'Перенос бэкапов на второй диск', markB: true },
     { id: 'BW-41', status: 'in-progress', title: 'Фото сметы: один снимок или по листам' },
   ] })
-  const logs = { 'EXT-70': ['Трурль: вёрстка готова, смотришь?', 30], 'EXT-58': ['Нужна цена продолжения — принимаем план пробы?', 40], 'EXT-61': ['Ветка готова, проверь экран.', 25],
+  const logs = { 'EXT-70': ['Трурль: вёрстка готова, смотришь?', 30], 'EXT-58': ['Нужна цена продолжения — принимаем план пробы?', 40], 'EXT-61': ['Ветка готова, проверь экран.', 25], 'EXT-62': ['Ветка готова, проверь счётчик.', 50],
     'LEDGER-168': ['Ветка готова. Сливай в main после твоего «да»? Тесты 396/396.', 20], 'INFRA-80': ['Нужно решение по второму диску.', 90], 'BW-41': ['Развилка: один снимок или по листам?', 180] }
   for (const [id, [body, ago]] of Object.entries(logs)) fs.writeFileSync(path.join(boardDir, id.split('-')[0], `${id}.log.md`), `### ${head(min(ago))} · plane · коммент\n\n${body}\n`)
   gitInitCommit(boardDir)
@@ -185,6 +186,15 @@ async function scenario(w, theme, full) {
     // раскрыть группы, свёрнутые по умолчанию
     await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
     await P.shot('01-ceh-pokoj')
+    // панель карточки в Review до нажатия: одна строка кнопок
+    await P.goto('#/project/EXT/EXT-62')
+    await P.waitFor('document.querySelector(".panel .pult .pbtns")', 15000)
+    await sleep(700)
+    check(`${w}/${theme} панель Review до нажатия: кнопки`, await b.ev(`[...document.querySelectorAll('.panel .pult button')].map(x=>x.textContent.trim())`))
+    await P.shot('00-panel-review-do-najatiya')
+    await P.goto('#/')
+    await P.waitFor('document.querySelector(".wrow")')
+    await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
     if (!full) { check(`${w}/${theme} горизонтальная прокрутка страницы, px`, await P.overflowX()); return }
 
     // 1. «сливай» LEDGER-168: второй щелчок и выбор треда
@@ -240,16 +250,19 @@ async function scenario(w, theme, full) {
     inst.setPlane({ fail: {} })
 
     // 6. панель карточки: Review, меню «ещё»; «да» из панели
-    await P.goto('#/project/LEDGER/LEDGER-168')
-    await P.waitFor('document.querySelector(".panel .pult")')
+    await P.goto('#/project/EXT/EXT-62')
+    await P.waitFor('document.querySelector(".panel .pult .pbtns")')
     await sleep(600)
-    await P.shot('10-panel-review')
-    await P.goto('#/project/EXT/EXT-58')
+    await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
+    await P.shot('10-panel-review-menu-eshche')
+    await P.goto('#/project/EXT/EXT-70')
     await P.waitFor('document.querySelector(".panel .pult")')
     await sleep(600)
     await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
     await P.shot('11-panel-v-rabote-menu-eshche')
-    await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
+    await P.goto('#/project/EXT/EXT-58')
+    await P.waitFor('document.querySelector(".panel .pult .pbtns")')
+    await sleep(500)
     check('«да» нажата в панели', await P.btn('да', 'document.querySelector(".panel")'))
     await P.waitFor('document.querySelector(".panel .cfm")')
     await P.shot('12-panel-da-vybor-treda')

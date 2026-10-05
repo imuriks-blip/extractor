@@ -155,9 +155,8 @@ export function MarkLine({ card, q, mark, now }) {
 function Confirm({ st, onGo, onCancel }) {
   const { resp, payload } = st;
   const c = resp.confirm;
-  // Б-дело или только выбор треда: тело need-confirm флага не несёт (сервер пока отдаёт его лишь в actions.log) — различаем по
-  // bdeal, если он придёт, иначе по началу message («Б-дело (…): нужен второй щелчок…»); в запрос confirm уходит в обоих случаях
-  const b = !!(resp.bdeal || c.bdeal) || /^Б-дело/.test(resp.message ?? '');
+  // Б-дело или только выбор треда — по полю bdeal тела ответа; в запрос confirm уходит в обоих случаях
+  const b = !!resp.bdeal;
   const cands = c.candidates?.length > 0 ? c.candidates : null;
   const [pick, setPick] = useState(null);
   const w = payload.action === 'reply' ? 'ответ' : WORD[payload.action];

@@ -207,7 +207,7 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
         {/* «Принять»/«Вернуть» — у карточки в Review (§1.4); кнопки-слова — по статусу; q null (битая шапка) — кнопок нет;
             отметка §3.2 — при любом статусе. Флаги pult.words / pult.bell — из данных, не по 503 после нажатия */}
         {pf && (h?.status === 'review' || words || pf.mark) && (
-          <Pult card={id} q={pf.q ?? null} accept={pf.accept} mark={pf.mark} ar={h?.status === 'review'} words={words} />
+          <Pult card={id} q={pf.q ?? null} accept={pf.accept} mark={pf.mark} ar={h?.status === 'review' && pf.enabled === true} words={words} />
         )}
         {h?.status === 'review' && pf && <TraceBlock t={pf.trace} />}
         {stale && <div className="note">{stale}</div>}

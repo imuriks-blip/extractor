@@ -406,7 +406,7 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
       </div>
       <div className="col">
         <Workers w={data.workers} now={now} stale={staleText(f.journals, failing, now)} />
-        {data.pult?.enabled === true && <MyWords words={data.pult.words === true} now={now} />}
+        {data.pult?.enabled === true && <MyWords now={now} />}
         {data.pult?.enabled === true && <Worktrees />}
       </div>
     </div>

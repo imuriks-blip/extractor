@@ -149,8 +149,8 @@ details.grp>summary .cnt{color:var(--fg)}
   .more{padding-left:12px}
   .ptable th,.ptable td{padding-inline:3px}
   .ptable th{white-space:normal;vertical-align:bottom}
-  .ptable th.n,.ptable td.n{width:40px}
-  .ptable .go{width:12px}
+  .ptable th.n,.ptable td.n{width:38px}
+  .ptable .go{width:10px;padding-inline:0}
   .sub{grid-template-columns:64px minmax(0,1fr) 50px;margin-left:4px}
   .sub .gauge{display:none}
 }
