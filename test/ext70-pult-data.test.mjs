@@ -14,6 +14,7 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { waitingThreads } from '../lib/waiting.mjs';
+import { rowMarks } from '../lib/pult/row-marks.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -269,12 +270,16 @@ ${new Date(Date.parse('2026-10-04T12:00:20Z')).toISOString()} · конец · c
     const held = await cardMark(s, 'EXT-20');
     assert.equal(held.id, first.id, 'красная первого держится, хотя последнее действие — второе');
     assert.equal(held.action, 'yes');
-    assert.deepEqual(Object.keys(held).sort(), MARK_KEYS, 'у слов в форме нет missing и text');
+    assert.deepEqual(Object.keys(held).sort(), [...MARK_KEYS, 'missing', 'text'].sort(), 'красная у слова несёт missing и text');
+    assert.equal(held.missing, true);
+    assert.equal(held.text, `зеркало не видит запись ${first.id}`);
     // отрицательный контроль: без красной у первого (проход до обоих действий) — побеждает последнее
     fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T11:00:00Z')).toISOString()} · начало · changed · pid 1
 ${new Date(Date.parse('2026-10-04T11:00:05Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
 `);
-    assert.equal((await cardMark(s, 'EXT-20')).id, second.id);
+    const clean = await cardMark(s, 'EXT-20');
+    assert.equal(clean.id, second.id);
+    assert.deepEqual(Object.keys(clean).sort(), MARK_KEYS, 'не красная — у слова missing и text нет');
     fs.writeFileSync(runs, `${new Date(Date.parse('2026-10-04T12:00:10Z')).toISOString()} · начало · changed · pid 1
 ${new Date(Date.parse('2026-10-04T12:00:20Z')).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3
 `);
@@ -385,4 +390,24 @@ test('контракт «го <ID>»: reply с текстом «го <ID>», ses
   const html = t2.pl().comments.at(-1).html;
   assert.ok(html.includes('<p>го EXT-21</p>'), html);
   assert.equal(t2.lines().find((l) => l.id === ok.id && l.step === 'asked').card, 'EXT-20');
+});
+
+test('bdeal — в теле ответа need-confirm (Б-дело отличается флагом, не началом message); у выбора треда без Б-дела поля нет', async () => {
+  const bd = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-22' })] });
+  const b = (await bd.press({ action: 'merge', card: 'EXT-22', q: Q })).json();
+  assert.equal(b.outcome, 'need-confirm');
+  assert.equal(b.bdeal, 'слово «сливай»');
+  assert.equal(bd.lines().find((l) => l.id === b.id && l.step === 'need-confirm').bdeal, b.bdeal, 'как в actions.log');
+  const pick = await setup({}, { threads: [thread(SID), thread(SID2)] });
+  const p = (await pick.press({ action: 'yes', card: 'EXT-20', q: Q })).json();
+  assert.equal(p.outcome, 'need-confirm');
+  assert.ok(!('bdeal' in p), 'выбор треда — не Б-дело');
+});
+
+test('rowMarks: отметка при ok и partial, не при refused/error (юнит по строкам журнала)', () => {
+  const line = (id, step, outcome, extra = {}) => ({ id, step, at: '2026-10-05T10:00:00+03:00', action: 'reply', result: { outcome, record: id }, ...extra });
+  const ask = (id, u) => ({ id, step: 'asked', at: '2026-10-05T10:00:00+03:00', action: 'reply', session: SID, q: { uuid: u, at: QT_AT } });
+  const lines = [ask('W-1', 'u1'), line('W-1', 'partial', 'partial'), ask('W-2', 'u2'), line('W-2', 'done', 'ok'), ask('W-3', 'u3'), line('W-3', 'error', 'error'), ask('W-4', 'u4'), { id: 'W-4', step: 'refused' }];
+  const m = rowMarks({ lines });
+  assert.deepEqual([...m.keys()].sort(), [`${SID}|u1`, `${SID}|u2`]);
 });

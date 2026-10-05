@@ -47,6 +47,7 @@
     "id": "W-261002-195500-9e41",
     "step": "asked",
     "outcome": "need-confirm",
+    "bdeal": "слово «сливай»",
     "message": "подтверди",
     "confirm": {
       "what": "«сливай» по EXT-39",
