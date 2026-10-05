@@ -267,7 +267,7 @@ test('хроника: последняя строка «· правила обн
     { name: '2026-09.md', text: '24.09 · портал · пост; правила обновлены: x · INFRA-71 · adaee7f\n25.09 · цех · правила обновлены: список · INFRA-74 · 2dad5d9\n' },
     { name: '2026-10.md', text: '01.10 · цех · правила обновлены: реестр · EXT-6 · ed2012b (~/.claude), 6731704\n02.10 · витрина · В3 слита\n' },
   ]);
-  assert.deepEqual(r, { year: 2026, month: 10, day: 1, hashes: ['ed2012b', '6731704'], file: '2026-10.md', line: '01.10 · цех · правила обновлены: реестр · EXT-6 · ed2012b (~/.claude), 6731704' });
+  assert.deepEqual(r, { year: 2026, month: 10, day: 1, hashes: ['ed2012b', '6731704'], file: '2026-10.md', line: '01.10 · цех · правила обновлены: реестр · EXT-6 · ed2012b (~/.claude), 6731704', note: 'реестр · EXT-6 · ed2012b (~/.claude), 6731704' });
   assert.equal(parseChronicle([{ name: '2026-09.md', text: '24.09 · портал · пост; правила обновлены: x · INFRA-71 · adaee7f\n' }]), null);
 });
 

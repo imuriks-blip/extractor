@@ -373,8 +373,8 @@ test('config.default.json: pult.enabled, pult.words и pult.bell — false; па
 
 // «Принять» и «Вернуть» подключены в ПТ3 — их проверки в test/pult-accept.test.mjs; слова (да, го, сливай, выкатывай, нет, ответ) — в ПТ6,
 // проверки в test/pult-words.test.mjs: здесь 501 только у ещё не подключённых
-test('словарь §1.3: пятнадцать действий таблицы (с defer и undefer, EXT-47) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
-  assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'return', 'take', 'undefer', 'yes'].sort());
+test('словарь §1.3: шестнадцать действий таблицы (с defer и undefer, EXT-47, и reread, EXT-65) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
+  assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'reread', 'return', 'take', 'undefer', 'yes'].sort());
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай'].sort());
   const { app, lines } = await setup();
   const token = await pageToken(app);
