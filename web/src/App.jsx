@@ -57,28 +57,28 @@ function Header({ route, freshness, name }) {
         : <><a href="#/">Цех</a><span className="sep">/</span><span><b className="mono pcode">{route.code}</b>{name && <> · {name}</>}</span></>}
       {freshness && (
         <span className="fresh muted mono">
+          {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
+              неудачна, журнал стал короче или пропал, хранимая копия не читается; причина — /api/health → backup.lastError.
+              EXT-73: исправная копия в шапке не показывается (Иван читал её «05.10 00:00» как время обновления), видна только
+              сбойная — слева, чтобы «Обновить» стояла сразу за временем зеркала */}
+          {route.name === 'ceh' && freshness.backup?.stale && (
+            <><span className="fresh-bad"
+                title="Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна, журнал стал короче или пропал, либо хранимая копия не читается или повреждена — причина в /api/health">
+                копия журнала нажатий · {freshness.backup.lastOkAt ? dm(freshness.backup.lastOkAt) : 'нет'} — проверь
+              </span><span className="sep">·</span></>
+          )}
+          {/* битые строки самого журнала — жёлтым отдельно от сбоя копии (вердикт Голема, Важно 3) */}
+          {route.name === 'ceh' && freshness.backup?.journalBad && (
+            <><span className="fresh-warn" title="Строки журнала нажатий, которые не читаются как запись (обрыв записи при сбое питания). Копии при этом верные; журнал — первичный факт и не правится">
+                в журнале {badLines(freshness.backup.journalBad.count)} (первая — строка {freshness.backup.journalBad.first})
+              </span><span className="sep">·</span></>
+          )}
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
           {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
-          {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
-              неудачна, журнал стал короче или пропал, хранимая копия не читается; причина — /api/health → backup.lastError */}
-          {route.name === 'ceh' && freshness.backup && (
-            <><span className="sep">·</span>
-              <span className={freshness.backup.stale ? 'fresh-bad' : undefined}
-                title={freshness.backup.stale ? 'Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна, журнал стал короче или пропал, либо хранимая копия не читается или повреждена — причина в /api/health' : 'Суточная копия журнала нажатий пульта'}>
-                копия журнала нажатий · {freshness.backup.lastOkAt ? dm(freshness.backup.lastOkAt) : 'нет'}{freshness.backup.stale ? ' — проверь' : ''}
-              </span>
-              {/* битые строки самого журнала — жёлтым отдельно от сбоя копии (вердикт Голема, Важно 3) */}
-              {freshness.backup.journalBad && (
-                <><span className="sep">·</span>
-                  <span className="fresh-warn" title="Строки журнала нажатий, которые не читаются как запись (обрыв записи при сбое питания). Копии при этом верные; журнал — первичный факт и не правится">
-                    в журнале {badLines(freshness.backup.journalBad.count)} (первая — строка {freshness.backup.journalBad.first})
-                  </span></>
-              )}
-            </>
-          )}
         </span>
       )}
-      {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42 */}
+      {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42; стоит сразу за
+          временем зеркала, которое обновляет (EXT-73) */}
       {freshness && mirror && <MirrorButton label={mirror} />}
       <ThemeSwitch />
       {/* «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64) */}
