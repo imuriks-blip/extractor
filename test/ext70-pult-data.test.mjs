@@ -73,9 +73,9 @@ const thread = (sid, o = {}) => ({ sessionId: sid, title: `тред ${sid.slice(
 const waitingThread = (sid, o = {}) => thread(sid, { state: 'waiting', waitingKind: 'question', statusUpdatedAt: QT_AT, ...o });
 const sessionOf = (sid, text, uuidQ = QU, extra = {}) => ({ sessionId: sid, lines: 10, thread: { q: text === null ? null : { text, uuid: uuidQ, at: QT_AT } }, ...extra });
 
-// opts: threads, sessions (массив или функция), words/bell, bellDir (false — папка звонка не задана), clock {t}
-async function setup(plane = {}, { threads = [], sessions = [], words = true, bell = true, bellDir = true, enabled = true, clock = null } = {}) {
-  const data = tmpDir('ext70-data-');
+// opts: threads, sessions (массив или функция), words/bell, bellDir (false — папка звонка не задана), clock {t}, data (рестарт)
+async function setup(plane = {}, { threads = [], sessions = [], words = true, bell = true, bellDir = true, enabled = true, clock = null, data: dataIn = null } = {}) {
+  const data = dataIn ?? tmpDir('ext70-data-'); // data — папка прежнего экземпляра: рестарт на том же actions.log
   const pdir = tmpDir('ext70-plane-');
   fs.copyFileSync(path.join(HERE, 'fake-plane.mjs'), path.join(pdir, 'fake-plane.mjs'));
   const stateFile = path.join(pdir, 'state.json');
@@ -102,7 +102,7 @@ async function setup(plane = {}, { threads = [], sessions = [], words = true, be
   const lines = () => (fs.existsSync(actionsLog) ? fs.readFileSync(actionsLog, 'utf8') : '').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const pl = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const rowOf = async (sid) => (await get('/api/ceh')).waiting.threads.find((x) => x.sessionId === sid);
-  return { app, press, get, lines, pl, live, rowOf, actionsLog };
+  return { app, press, get, lines, pl, live, rowOf, actionsLog, data };
 }
 
 const Q = { at: Q_AT, head: Q_MD };
@@ -323,6 +323,69 @@ test('4: проход зеркала без записи слова — шаг m
   } finally { fs.unlinkSync(runs); editLog(path.join(boardDir, 'EXT', 'EXT-21.log.md'), () => logWith(Q_MD)); }
 });
 
+// Кнопки под красной (слово Ивана 05.10, §1.7 «Местная отметка»): обычная отметка — строка в «Отвечено, ждёт зеркала»,
+// вне счётчика; красная «зеркало не видит запись» — строка в своей группе «Ждёт меня» и в счётчике, отметка при ней в данных
+test('4: под красной строка (б)/(в) не «отвечено» — в своей группе и в счётчике, отметка красная в данных; обычная — в «Отвечено»; запись пришла — отметки нет', async () => {
+  const clock = { t: Date.parse('2026-10-04T12:00:00Z') };
+  const s = await setup({ status: 'Review' }, { clock, threads: [thread(SID, { card: 'EXT-27' })] });
+  const runs = path.join(boardDir, '.mirror', 'runs.log');
+  const cardLog = path.join(boardDir, 'EXT', 'EXT-27.log.md');
+  const pass = (from, to) => fs.writeFileSync(runs, `${new Date(from).toISOString()} · начало · changed · pid 1\n${new Date(to).toISOString()} · конец · changed · pid 1 · код 0 · 1 с · запросов 3\n`);
+  const view = async () => {
+    const c = await s.get('/api/ceh');
+    const rowIn = (g) => c.waiting[g].find((x) => x.id === 'EXT-27') ?? null;
+    const p = await s.get('/api/project/EXT');
+    return { c, group: ['yes', 'review'].find((g) => rowIn(g)) ?? null, row: rowIn('yes') ?? rowIn('review'), count: c.waiting.count + c.waiting.more,
+      projCount: p.waitingCount.count + p.waitingCount.more, projRow: p.waiting.find((x) => x.id === 'EXT-27' && x.group !== 'thread') ?? null };
+  };
+  try {
+    // исходное: отметки нет — строка в своей группе, в счётчике
+    const before = await view();
+    assert.ok(before.row, 'у EXT-27 есть строка (б)/(в)');
+    assert.equal(before.row.pultMark, null);
+    assert.equal(before.row.answered, false);
+    const w = (await s.press({ action: 'yes', card: 'EXT-27', q: Q })).json();
+    assert.equal(w.outcome, 'ok', w.message);
+    // обычная отметка: строка «отвечено», из счётчика уходит
+    const plain = await view();
+    assert.equal(plain.row.pultMark.id, w.id);
+    assert.ok(!('missing' in plain.row.pultMark), 'обычная отметка слова — не красная');
+    assert.equal(plain.row.answered, true, 'обычная отметка — «Отвечено, ждёт зеркала»');
+    assert.equal(plain.count, before.count - 1, 'обычная — вне счётчика');
+    assert.equal(plain.projRow.answered, true);
+    assert.equal(plain.projCount, before.projCount - 1, 'окно проекта: обычная — вне счётчика');
+    // проход зеркала после действия кончился, записи нет — красная
+    pass(clock.t + 1000, clock.t + 2000);
+    const red = await view();
+    assert.equal(red.group, before.group, 'красная — в своей группе');
+    assert.equal(red.row.pultMark.id, w.id);
+    assert.equal(red.row.pultMark.missing, true, 'отметка красная — в данных');
+    assert.equal(red.row.pultMark.text, `зеркало не видит запись ${w.id}`);
+    assert.equal(red.row.answered, false, 'под красной строка не «отвечено»');
+    assert.equal(red.count, before.count, 'красная — в счётчике');
+    assert.equal(red.projRow.answered, false, 'окно проекта: под красной не «отвечено»');
+    assert.equal(red.projRow.pultMark.missing, true);
+    assert.equal(red.projCount, before.projCount, 'окно проекта: красная — в счётчике');
+    // панель карточки: красная отметка вместе с данными для кнопок слов (флаги и q — те же, что без отметки)
+    const card = (await s.get('/api/card/EXT-27')).pult;
+    assert.equal(card.mark.missing, true);
+    assert.equal(card.mark.text, `зеркало не видит запись ${w.id}`);
+    assert.equal(card.enabled, true);
+    assert.equal(card.words, true, 'кнопки слов под красной — по флагу words');
+    assert.ok(card.q && typeof card.q.at === 'string', 'q для POST слов есть под красной');
+    // запись пришла — отметки нет, строка в своей группе и в счётчике
+    editLog(cardLog, (t) => t + `\n### 2026-10-04 15:10 +03:00 · plane · коммент\n\n**Слово Ивана · кнопка витрины · ${w.id}**: «да»\n`);
+    const seen = await view();
+    assert.equal(seen.row.pultMark, null, 'запись пришла — отметки нет');
+    assert.equal(seen.row.answered, false);
+    assert.equal(seen.count, before.count);
+    assert.equal((await s.get('/api/card/EXT-27')).pult.mark, null);
+  } finally {
+    if (fs.existsSync(runs)) fs.unlinkSync(runs);
+    editLog(cardLog, () => logWith(Q_MD));
+  }
+});
+
 // ---------------- 5. отметка строки (а) ----------------
 
 test('5: после «Ответить» строка (а) несёт pultMark той же формы (ключ — session и q.uuid), ring «положено»; чужая строка и новый вопрос — без отметки', async () => {
@@ -402,6 +465,55 @@ test('bdeal — в теле ответа need-confirm (Б-дело отлича�
   const p = (await pick.press({ action: 'yes', card: 'EXT-20', q: Q })).json();
   assert.equal(p.outcome, 'need-confirm');
   assert.ok(!('bdeal' in p), 'выбор треда — не Б-дело');
+});
+
+// повтор того же intentId (§1.1 п.3): в том же процессе — прежний исход; после рестарта — исход по actions.log
+// (restoreIntents, routes.mjs) — bdeal в теле тот же, что у первого щелчка; у выбора треда без Б-дела поля нет и в повторе
+test('bdeal — повтор того же intentId (в том же процессе и после рестарта по actions.log) отдаёт тот же bdeal; без Б-дела — поля нет', async () => {
+  const bodyB = { action: 'merge', card: 'EXT-22', q: Q };
+  const bd = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-22' })] });
+  const iB = nextIntent();
+  const b = (await bd.press(bodyB, iB)).json();
+  assert.deepEqual([b.outcome, b.bdeal], ['need-confirm', 'слово «сливай»']);
+  const same = (await bd.press(bodyB, iB)).json();
+  assert.deepEqual([same.id, same.outcome, same.bdeal], [b.id, 'need-confirm', 'слово «сливай»'], 'повтор в том же процессе');
+  const re = await setup({ status: 'Review' }, { threads: [thread(SID, { card: 'EXT-22' })], data: bd.data });
+  const r = (await re.press(bodyB, iB)).json();
+  assert.equal(r.id, b.id, 'после рестарта — тот же id, не новое действие');
+  assert.equal(r.outcome, 'need-confirm');
+  assert.match(r.message, /\(по журналу\)/, 'исход восстановлен по actions.log');
+  assert.equal(r.bdeal, 'слово «сливай»', 'bdeal в повторе после рестарта');
+  assert.deepEqual(r.confirm, b.confirm);
+  assert.equal(re.lines().filter((l) => l.step === 'asked').length, 1, 'повтор не завёл второго действия');
+  // отрицательный контроль: выбор треда без Б-дела — в повторе после рестарта поля bdeal нет
+  const bodyP = { action: 'yes', card: 'EXT-20', q: Q };
+  const pick = await setup({}, { threads: [thread(SID), thread(SID2)] });
+  const iP = nextIntent();
+  const p = (await pick.press(bodyP, iP)).json();
+  assert.equal(p.outcome, 'need-confirm');
+  const reP = await setup({}, { threads: [thread(SID), thread(SID2)], data: pick.data });
+  const rp = (await reP.press(bodyP, iP)).json();
+  assert.deepEqual([rp.id, rp.outcome], [p.id, 'need-confirm']);
+  assert.match(rp.message, /\(по журналу\)/);
+  assert.ok(!('bdeal' in rp), 'выбор треда без Б-дела — поля нет и в повторе');
+});
+
+// Б-дело при нескольких живых тредах без pick (words.mjs): одно подтверждение несёт и bdeal, и candidates; без Б — только candidates
+test('bdeal — Б-дело при нескольких тредах без pick: флаг в теле и в actions.log, кандидаты есть; без Б-дела у того же выбора флага нет', async () => {
+  const s = await setup({ status: 'Review' }, { threads: [thread(SID), thread(SID2)] });
+  const b = (await s.press({ action: 'merge', card: 'EXT-22', q: Q })).json();
+  assert.equal(b.outcome, 'need-confirm');
+  assert.equal(b.bdeal, 'слово «сливай»', 'Б-дело с выбором треда — флаг есть');
+  assert.deepEqual(b.confirm.candidates.map((c) => c.sessionId).sort(), [SID, SID2].sort(), 'кандидаты — оба треда');
+  assert.equal(s.lines().find((l) => l.id === b.id && l.step === 'need-confirm').bdeal, 'слово «сливай»', 'как в actions.log');
+  const d = (await s.press({ action: 'deploy', card: 'EXT-22', q: Q })).json();
+  assert.deepEqual([d.outcome, d.bdeal], ['need-confirm', 'слово «выкатывай»']);
+  // отрицательный контроль: те же два треда, слово без Б-дела — кандидаты есть, флага нет
+  const p = (await s.press({ action: 'yes', card: 'EXT-22', q: Q })).json();
+  assert.equal(p.outcome, 'need-confirm');
+  assert.equal(p.confirm.candidates.length, 2);
+  assert.ok(!('bdeal' in p), 'без Б-дела — флага нет');
+  assert.ok(!('bdeal' in s.lines().find((l) => l.id === p.id && l.step === 'need-confirm')));
 });
 
 test('rowMarks: отметка при ok и partial, не при refused/error (юнит по строкам журнала)', () => {
