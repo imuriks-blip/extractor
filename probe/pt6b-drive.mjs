@@ -12,11 +12,13 @@ import http from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { makeBoard, gitInitCommit } from '../test/helpers.mjs'
+import { guardLive } from './guard-live.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(HERE, '..')
 const BIN = process.argv[2]
 const PORT = 4382
+guardLive(REPO, PORT) // отказ из папки живой витрины и на порту 4317 — до любой записи
 const DATA = path.join(REPO, 'data', 'vitrina')
 const BELL = path.join(DATA, 'bell-pt6b')
 const SESS_DIR = path.join(os.homedir(), '.claude', 'sessions')
