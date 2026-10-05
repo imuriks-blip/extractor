@@ -219,11 +219,15 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   const retBtn = useRef(null);
   const backFocus = useRef(false);
   const menuBox = useRef(null);
+  const moreBtn = useRef(null);
+  const menuRef = useRef(null);
   useEffect(() => { resume403(key); }, [key]);
   useEffect(() => { if (!form && backFocus.current) { backFocus.current = false; retBtn.current?.focus(); } }, [form]);
   // меню «ещё ▾» закрывается щелчком мимо (второй щелчок по кнопке — onClick ниже)
   useEffect(() => {
     if (!menu) return undefined;
+    // фокус — на первый пункт (как «Отложить»): иначе Esc уходит выше и в панели закрывает всю карточку
+    menuRef.current?.querySelector('[role="menuitem"]')?.focus();
     const away = (e) => { if (!menuBox.current?.contains(e.target)) setMenu(false); };
     document.addEventListener('pointerdown', away);
     return () => document.removeEventListener('pointerdown', away);
@@ -254,6 +258,18 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
     send(fresh({ ...base(action), ...(text != null ? { text } : {}) }), key);
   };
   const close = () => { backFocus.current = true; setForm(null); };
+  // клавиши меню «ещё ▾» — как у «Отложить» (Defer.jsx): стрелки, Home/End, Esc — закрыть и вернуть фокус на кнопку
+  const onMenuKey = (e) => {
+    const items = [...menuRef.current.querySelectorAll('[role="menuitem"]')];
+    const i = items.indexOf(document.activeElement);
+    const go = (j) => { e.preventDefault(); items[(j + items.length) % items.length]?.focus(); };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(items.length - 1);
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setMenu(false); moreBtn.current?.focus(); }
+    else if (e.key === 'Tab') setMenu(false);
+  };
   const onWord = (w) => {
     setMenu(false);
     if (w.action === 'reply' && !w.text) setForm((f) => (f === 'reply' ? null : 'reply'));
@@ -331,10 +347,10 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
           {wordsShown && moreWords.length > 0 && (
             // меню — поверх содержимого под кнопками, по правому краю ряда кнопок (как «Отложить до …»): строку «След» не двигает
             <span className="pmw" ref={menuBox}>
-              <button type="button" className="pbtn" disabled={off} aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu((v) => !v)}>ещё ▾</button>
+              <button ref={moreBtn} type="button" className="pbtn" disabled={off} aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu((v) => !v)}>ещё ▾</button>
               {menu && (
-                <span className="menu pmenu" role="menu" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setMenu(false); } }}>
-                  {moreWords.map((w) => <button key={w.action} type="button" role="menuitem" onClick={() => onWord(w)}>{labelOf(w)}{w.action === 'reply' ? '…' : ''}</button>)}
+                <span className="menu pmenu" role="menu" ref={menuRef} onKeyDown={onMenuKey}>
+                  {moreWords.map((w) => <button key={w.action} type="button" role="menuitem" tabIndex={-1} onClick={() => onWord(w)}>{labelOf(w)}{w.action === 'reply' ? '…' : ''}</button>)}
                 </span>
               )}
             </span>

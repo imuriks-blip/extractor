@@ -4,7 +4,9 @@
 // Браузер — headless Chrome со своим --user-data-dir во временной папке, управление по протоколу CDP (без видимых окон).
 // Нажатия вживую: «да» (панель), «сливай» (второй щелчок и выбор треда), «Ответить» и «го <ID>» из строки (а), «Принять»
 // с частичным исходом; красная у слова — проход зеркала без записи (кнопки под красной, под обычной — нет); меню «ещё ▾»
-// поверх; снимки 1280 и 400, светлая и тёмная (тема — кнопкой приложения); words=false, bell=false, enabled=false — по DOM.
+// поверх и Esc в нём (фокус на «ещё ▾», панель открыта); нажатие под красной — обычная отметка нового слова, после его записи
+// снова красная старшего; отметки — после перезагрузки (из данных, не свежий исход); проверки с ожиданием (must) — код 1;
+// снимки 1280 и 400, светлая и тёмная (тема — кнопкой приложения); words=false, bell=false, enabled=false — по DOM.
 //   node probe/pt7-drive.mjs <папка-для-снимков> [chrome.exe]
 // Охранник: из папки живой витрины и на порту 4317 — отказ до любой записи.
 import { spawn, execFileSync } from 'node:child_process'
@@ -33,6 +35,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const log = (s) => console.log(`${new Date().toISOString().slice(11, 19)} ${s}`)
 const S = { checks: {}, shots: [] }
 const check = (k, v) => { S.checks[k] = v; log(`ПРОВЕРКА ${k}: ${JSON.stringify(v)}`) }
+// проверка с ожиданием: не так — в S.fails, проба кончается кодом 1
+S.fails = []
+const must = (k, ok, v) => { check(k, v); if (!ok) { S.fails.push(k); log(`НЕ ТАК: ${k}`) } }
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href)
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href)
@@ -114,7 +119,15 @@ async function startInstance({ words = true, bell = true, enabled = true } = {})
   const actions = () => (fs.existsSync(path.join(data, 'actions.log')) ? fs.readFileSync(path.join(data, 'actions.log'), 'utf8') : '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
   // проход зеркала (changed, код 0), начавшийся после действий: записей в файлах доски нет → отметки красные (§3.2)
   const mirrorPass = () => { const t = Date.now(); fs.appendFileSync(path.join(boardDir, '.mirror', 'runs.log'), `${iso(new Date(t))} · начало · changed · pid 77\n${iso(new Date(t + 1000))} · конец · changed · pid 77 · код 0 · 1 с · запросов 3\n`) }
-  return { app, data, planeSt, setPlane, actions, mirrorPass, close: () => app.close() }
+  // запись слова в файле журнала карточки на доске — как её принесло бы зеркало (снимает отметку с этим <id>, §1.7)
+  const addRecord = (card, record, word) => {
+    const f = path.join(boardDir, card.split('-')[0], `${card}.log.md`)
+    fs.appendFileSync(f, `\n### ${head(new Date())} · plane · коммент\n\n**Слово Ивана · кнопка витрины · ${record}**: «${word}»\n`)
+    const t = Date.now() / 1000 + 5; fs.utimesSync(f, t, t)
+  }
+  // номер записи последнего удачного действия по карточке (actions.log, шаг done)
+  const recordOf = (action, card) => actions().filter((l) => l.action === action && l.card === card && l.step === 'done' && l.result?.record).at(-1)?.result.record ?? null
+  return { app, data, planeSt, setPlane, actions, mirrorPass, addRecord, recordOf, close: () => app.close() }
 }
 
 // ---------- браузер по CDP ----------
@@ -170,6 +183,8 @@ function pageApi(b, w, theme) {
     S.shots.push(f); log(`снимок ${f}`)
     await P.size(900)
   }
+  // настоящая клавиша (CDP) — в элемент с фокусом, как с клавиатуры
+  P.key = async (key, vk) => { for (const type of ['keyDown', 'keyUp']) await b.call('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk }) }
   P.overflowX = () => b.ev('document.documentElement.scrollWidth - window.innerWidth')
   return P
 }
@@ -270,6 +285,16 @@ async function scenario(w, theme, full) {
     await b.ev(`document.querySelector('.panel .pb').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`)
     await sleep(150)
     check(`${w}/${theme} «ещё ▾»: щелчок мимо закрывает`, await b.ev('!document.querySelector(".panel .pmenu")'))
+    // Esc у открытого «ещё ▾» в панели (Мелочь 1 Голема): фокус при открытии — на первом пункте; Esc — меню закрыто,
+    // панель открыта, фокус на «ещё ▾» (как «Отложить»). Клавиша — настоящая, через CDP, в элемент с фокусом
+    await b.ev(`[...document.querySelectorAll('.panel .pult button')].find(x=>x.textContent.trim()==='ещё ▾')?.click()`)
+    await sleep(200)
+    const focusIn = await b.ev(`document.activeElement?.getAttribute('role')==='menuitem' && document.activeElement===document.querySelector('.panel .pmenu [role="menuitem"]')`)
+    await P.key('Escape', 27)
+    await sleep(200)
+    const esc = { фокусНаПервомПунктеПриОткрытии: focusIn, менюЗакрыто: await b.ev('!document.querySelector(".panel .pmenu")'), панельОткрыта: await b.ev('!!document.querySelector(".panel .pult")'),
+      фокусНаЕщё: await b.ev(`document.activeElement?.textContent.trim()==='ещё ▾' && !!document.activeElement.closest('.panel .pult')`) }
+    must(`${w}/${theme} «ещё ▾»: Esc в панели — меню закрыто, панель открыта, фокус на «ещё ▾»`, Object.values(esc).every((x) => x === true), esc)
     await P.goto('#/project/EXT/EXT-70')
     await P.waitFor('document.querySelector(".panel .pult")')
     await sleep(600)
@@ -291,10 +316,17 @@ async function scenario(w, theme, full) {
 
     // 6б. Красная у слова (слово Ивана 05.10, §1.7). Отрицательный контроль: под обычной отметкой кнопок слов нет —
     // в панели EXT-58 («да» выше) и в строке LEDGER-168 («сливай» выше, строка в «Отвечено, ждёт зеркала»)
+    // перезагрузка (Мелочь 2 Голема): свежий исход нажатия («записано в Plane…») живёт в памяти страницы — без неё проверялась бы
+    // ветка свежего исхода, а не отметка из данных. Отметка из данных — PultMark без role=status: «да» · записано HH:MM
     await P.goto('#/project/EXT/EXT-58')
+    await b.call('Page.reload', { ignoreCache: true })
+    await sleep(900)
     await P.waitFor('document.querySelector(".panel .pult .pmark")', 12000)
     await sleep(500)
-    check(`${w}/${theme} обычная отметка: панель EXT-58 — отметка, кнопок нет`, { отметка: await P.text('.panel .pult .pmark'), кнопки: await b.ev(`[...document.querySelectorAll('.panel .pult button')].map(x=>x.textContent.trim())`) })
+    const markPanel = async () => ({ отметка: await P.text('.panel .pult .pmark'), изДанных: await b.ev(`!!document.querySelector('.panel .pult .pmark') && !document.querySelector('.panel .pult .pmark[role="status"]')`),
+      красная: await b.ev(`!!document.querySelector('.panel .pult .pbad')`), кнопки: await b.ev(`[...document.querySelectorAll('.panel .pult button')].map(x=>x.textContent.trim())`) })
+    const plain = await markPanel()
+    must(`${w}/${theme} обычная отметка (после перезагрузки): панель EXT-58 — отметка из данных, кнопок нет`, plain.изДанных && !plain.красная && /^«да» · записано/.test(plain.отметка) && plain.кнопки.length === 0, plain)
     await P.goto('#/')
     await P.waitFor('document.querySelector(".wrow")')
     await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
@@ -323,6 +355,59 @@ async function scenario(w, theme, full) {
     await b.ev(`document.querySelector('.panel .pult button[aria-haspopup]')?.click()`)
     await sleep(200)
     await P.shot('15-panel-krasnaya-menu-eshche')
+    await b.ev(`[...document.querySelectorAll('.panel .pult button')].find(x=>x.textContent.trim()==='ещё ▾')?.click()`)
+    await sleep(150)
+
+    // 6в. Нажатие под красной (решение дирижёра по находке Голема на 227bb2d, §1.7) — LEDGER-168: у неё есть и строка (б) на «Цехе»,
+    // и панель. «сливай» под красной из строки → после перезагрузки обычная отметка нового слова, кнопок нет, строка в «Отвечено,
+    // ждёт зеркала»; затем проход зеркала с записью нового слова (старого — нет) → после перезагрузки снова красная старшего,
+    // кнопки, строка в «Ждёт меня»
+    const oldRec = inst.recordOf('merge', 'LEDGER-168')
+    const noDefer = (r) => (r ? { ...r, кнопки: r.кнопки.filter((t) => t !== 'Отложить') } : r)
+    const PANEL = '#/project/LEDGER/LEDGER-168'
+    await P.goto('#/')
+    await P.waitFor(`${rowOf('LEDGER-168')}?.querySelector('.pbad')`, 12000)
+    await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
+    check('под красной: «сливай» нажата в строке LEDGER-168', await P.rowBtn('LEDGER-168', 'сливай'))
+    await P.waitFor('document.querySelector(".wrow .cfm")')
+    await b.ev(`document.querySelector('.wrow .cfm .pick input')?.click()`)
+    await sleep(200)
+    check('под красной: «сливай — подтверждаю»', await P.btnLike('/подтверждаю/', 'document.querySelector(".wrow .cfm")'))
+    await P.waitFor(`${rowOf('LEDGER-168')}?.textContent.includes('записано')`, 12000)
+    const newRec = inst.recordOf('merge', 'LEDGER-168')
+    must('под красной: новое слово записано (новый номер записи)', !!oldRec && !!newRec && newRec !== oldRec, { старое: oldRec, новое: newRec })
+    await b.call('Page.reload', { ignoreCache: true })
+    await sleep(900)
+    await P.waitFor(`${rowOf('LEDGER-168')}?.closest('details.grp.ans')`, 12000)
+    await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
+    await sleep(300)
+    const rowU = noDefer(await rowInfo('LEDGER-168'))
+    must(`${w}/${theme} под красной, после перезагрузки: строка LEDGER-168 — «Отвечено, ждёт зеркала», отметка нового слова, кнопок нет`, !!rowU && rowU.отвечено && !rowU.красная && rowU.кнопки.length === 0 && /«сливай» · записано/.test(rowU.текст), rowU)
+    await P.shot('18-ceh-pod-krasnoj-otvecheno')
+    await P.goto(PANEL)
+    await P.waitFor('document.querySelector(".panel .pult .pmark")', 12000)
+    await sleep(500)
+    const under = await markPanel()
+    must(`${w}/${theme} под красной, после перезагрузки: панель LEDGER-168 — обычная отметка нового слова, кнопок нет`, under.изДанных && !under.красная && /^«сливай» · записано/.test(under.отметка) && under.кнопки.length === 0, under)
+    await P.shot('18-panel-pod-krasnoj-novoe-slovo')
+    // проход зеркала принёс запись нового слова, старого — нет
+    inst.addRecord('LEDGER-168', newRec, 'сливай')
+    inst.mirrorPass()
+    await P.goto('#/')
+    await b.call('Page.reload', { ignoreCache: true })
+    await sleep(900)
+    await P.waitFor(`${rowOf('LEDGER-168')}?.querySelector('.pbad')`, 12000)
+    await b.ev(`document.querySelectorAll('details.grp').forEach(d=>d.open=true)`)
+    await sleep(300)
+    const rowB = noDefer(await rowInfo('LEDGER-168'))
+    must(`${w}/${theme} запись нового пришла: строка LEDGER-168 — в «Ждёт меня», красная старшего, кнопки`, !!rowB && !rowB.отвечено && rowB.красная && rowB.текст.includes(oldRec) && rowB.кнопки.includes('сливай'), rowB)
+    await P.shot('19-ceh-krasnaya-starshego-snova')
+    await P.goto(PANEL)
+    await P.waitFor('document.querySelector(".panel .pult .pbad")', 12000)
+    await sleep(500)
+    const back = { отметка: await P.text('.panel .pult .pbad'), кнопки: await b.ev(`[...document.querySelectorAll('.panel .pult .pbtns button')].filter(x=>!x.disabled).map(x=>x.textContent.trim())`) }
+    must(`${w}/${theme} запись нового пришла: панель LEDGER-168 — снова красная старшего и кнопки`, back.отметка.includes(oldRec) && back.кнопки.includes('сливай'), back)
+    await P.shot('19-panel-krasnaya-starshego-snova')
 
     // 7. «Мои слова» и «Рабочие копии» на «Цехе»
     await P.goto('#/')
@@ -387,5 +472,5 @@ try {
   log(`СБОЙ: ${S.error}`)
 }
 fs.writeFileSync(path.join(SHOTS, 'summary.json'), JSON.stringify(S, null, 2))
-log('итог — summary.json')
-process.exit(S.error ? 1 : 0)
+log(`итог — summary.json; проверок с ожиданием не так: ${S.fails.length}${S.fails.length ? ` (${S.fails.join('; ')})` : ''}`)
+process.exit(S.error || S.fails.length ? 1 : 0)
