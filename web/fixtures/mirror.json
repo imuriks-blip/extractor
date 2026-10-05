@@ -10,5 +10,7 @@
   "at": "2026-10-02T16:52:46.030Z",
   "lastOk": "2026-10-02T16:12:46.030Z",
   "lastFullOk": "2026-10-01T18:38:24.185Z",
-  "lastError": null
+  "lastError": null,
+  "lastRun": {"kind": "changed", "startedAt": "2026-10-02T16:44:28.870Z", "endedAt": "2026-10-02T16:52:46.031Z", "code": 0, "seconds": 497, "requests": 196},
+  "reindex": {"running": false, "startedAt": null, "done": null, "total": null, "lastAt": "2026-10-05T12:00:00.000Z", "lastMs": 90000, "lastFiles": 1560, "lastError": null}
 }
