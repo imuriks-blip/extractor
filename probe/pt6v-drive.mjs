@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { makeBoard, gitInitCommit } from '../test/helpers.mjs'
 import { guardLive } from './guard-live.mjs'
-import { newSessionState, feedSession } from '../lib/journal-parse.mjs'
+import { parseRing } from './pt6v-ring.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(HERE, '..')
@@ -149,13 +149,6 @@ const ringIndex = (lines, id) => lines.findIndex((l) => JSON.stringify(l.message
 // Разбор настоящего журнала тем же разбором, что у витрины (lib/journal-parse.mjs): «прочитано» — по форме звонка (st.rings[id]),
 // а звонок «перечитать» — не сообщение Ивана. Вопрос к Ивану в конце хода ставится синтетической строкой ассистента (как в test/ext65-reread.test.mjs).
 // Тот же приём на форме звонка без живых сессий — test/probe-pt6v-ring.test.mjs.
-const parseRing = (lines, ringI, id, mutate = (raw) => raw) => {
-  const st = newSessionState()
-  feedSession(st, { type: 'assistant', uuid: '00000000-0000-4000-8000-000000000070', timestamp: '2026-10-05T08:59:00.000Z', message: { id: 'm1', stop_reason: 'end_turn', content: [{ type: 'text', text: 'Готово. Сливать?' }] } })
-  const q0 = st.thread.endTurnQ
-  feedSession(st, JSON.parse(mutate(JSON.stringify(lines[ringI]))))
-  return { read: !!st.rings?.[id], readAt: st.rings?.[id] ?? null, ivanCount: st.ivan.count, questionBefore: q0, questionAfter: st.thread.endTurnQ }
-}
 const ringText = (lines, id) => { const i = ringIndex(lines, id); return i < 0 ? null : JSON.stringify(lines[i].message?.content ?? lines[i].attachment) }
 
 ;(async () => {
@@ -245,7 +238,7 @@ const ringText = (lines, id) => { const i = ringIndex(lines, id); return i < 0 ?
       const real = parseRing(jA, ringI, r1.id)
       const mixed = parseRing(jA, ringI, r1.id, (raw) => { const n = '«перечитай правила»'; if (!raw.includes(n)) throw new Error('в строке журнала нет строки слова'); return raw.replace(n, `${n}\\n${OTHER}`) })
       const wordCard = parseRing(jA, ringI, r1.id, (raw) => raw.replace('без карточки · «перечитай правила»', 'EXT-65 · «перечитай правила»'))
-      check('«прочитано» по форме звонка в журнале A (st.rings из разбора витрины): id слова есть, время не раньше нажатия', { ...real, ringId: r1.id, ok: real.read })
+      check('«прочитано» по форме звонка в журнале A (st.rings из разбора витрины): id слова есть в st.rings (время — в readAt, не сверяется)', { ...real, ringId: r1.id, ok: real.read })
       check('(б) «перечитать» не сообщение Ивана: вопрос треда (строка (а)) остался, счётчик 0', { ...real, ok: real.ivanCount === 0 && real.questionBefore === true && real.questionAfter === true })
       check('(б) отрицательный контроль: тот же звонок + обычное слово «да» — сообщение Ивана, вопрос снят; с карточкой — тоже', { mixed, wordCard, ok: mixed.ivanCount === 1 && mixed.questionAfter == null && mixed.read && wordCard.ivanCount === 1 && wordCard.questionAfter == null })
     }

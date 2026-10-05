@@ -19,7 +19,13 @@ async function poll() {
 }
 
 // сразу после нажатия — не ждать таймера; параллельные вызовы сливаются в один запрос
-export function refreshNow() {
+// fresh — после нажатия: опрос, начатый ДО ответа POST, строки просьбы ещё не видел — ждём его и делаем свежий
+export function refreshNow(fresh = false) {
+  if (inflight && fresh) {
+    const p = inflight.then(() => poll()).finally(() => { if (inflight === p) inflight = null; });
+    inflight = p;
+    return p;
+  }
   inflight ??= poll().finally(() => { inflight = null; });
   return inflight;
 }
@@ -41,4 +47,11 @@ export const FRESH_MS = 10 * 60_000;
 export const inFlight = (row, now) => !!row && (row.ring === 'положено'
   || ((row.ring === 'доставлено' || row.ring === 'прочитано') && now - (Date.parse(row.ringAt) || Date.parse(row.at)) < FRESH_MS));
 
-export const lastFor = (rows, session) => rows.find((x) => x.session === session) ?? null;
+// «Последняя просьба» — то же правило, что на сервере (lib/pult/reread-last.mjs): новее по времени просьбы (at), при равенстве — по номеру
+const newestReread = (items) => items.reduce((best, x) => {
+  if (!best) return x;
+  const dt = (Date.parse(x.at) || 0) - (Date.parse(best.at) || 0);
+  return dt > 0 || (dt === 0 && String(x.id) > String(best.id)) ? x : best;
+}, null);
+export const lastFor = (rows, session) => newestReread(rows.filter((x) => x.session === session));
+export { newestReread };

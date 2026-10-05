@@ -34,8 +34,14 @@ function useReread(session, now) {
     const b = r.body || {};
     const outcome = r.status === 200 ? b.outcome : r.status === 409 || r.status === 429 || r.status === 503 ? 'refused' : 'error';
     const msg = b.message || `ошибка: HTTP ${r.status}`;
-    if (outcome === 'ok') setAct(null); // дальше — статус из журнала действий
-    else setAct({ phase: outcome === 'refused' ? 'refused' : 'error', msg });
+    if (outcome === 'ok') {
+      // кнопка неактивна до ответа первого опроса после нажатия (не ждать 5 с таймера); дальше — статус из журнала действий
+      setAct({ phase: 'sent' });
+      await refreshNow(true);
+      setAct((a) => (a?.phase === 'sent' ? null : a));
+      return;
+    }
+    setAct({ phase: outcome === 'refused' ? 'refused' : 'error', msg });
     refreshNow();
   }, []);
 
@@ -53,6 +59,7 @@ function useReread(session, now) {
 export default function Reread({ session, missing, now }) {
   const { on, row, act, press, retry, blocked } = useReread(session, now);
   const busy = act?.phase === 'busy';
+  const locked = busy || act?.phase === 'sent'; // «отправляю» — до ответа POST и до первого опроса после него
   return (
     <div className="rr">
       <span>не перечитаны:{' '}
@@ -62,7 +69,7 @@ export default function Reread({ session, missing, now }) {
       </span>
       {on && (
         <span className="rr-a">
-          <button type="button" className="pbtn" disabled={busy || blocked} onClick={press}>Перечитать правила</button>
+          <button type="button" className="pbtn" disabled={locked || blocked} onClick={press}>Перечитать правила</button>
           {row && <span className={sad(row.ring) ? 'pamb' : 'muted'} role="status">просьба {hm(row.at, now)} · {row.ring}</span>}
           {busy && <span className="muted" role="status">прошу…</span>}
           {act?.phase === 'refused' && <span className="pnote" role="status"><span className="pamb">отказ:</span> {act.msg}</span>}

@@ -503,10 +503,12 @@ test('кнопка: окно считается от доставки (ringAt), 
   assert.equal(inFlight(null, t0), false);
 });
 
-test('опрос страницы: на любое число блоков — по одному запросу /api/health и /api/actions (без session) за период; пульт выключен — on false; отписка останавливает', async () => {
+test('опрос страницы: на любое число блоков — по одному запросу /api/health и /api/actions (без session) за период; пульт выключен — on false; отписка останавливает', async (t) => {
   const calls = [];
   let enabled = true;
   const sidA = sid(901), sidB = sid(902);
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
   globalThis.fetch = async (url) => {
     calls.push(String(url));
     const body = String(url).startsWith('/api/health') ? { pult: { enabled }, bell: { on: true } }
@@ -531,4 +533,42 @@ test('опрос страницы: на любое число блоков — �
   const n = calls.length;
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(calls.length, n);
+});
+
+test('«последняя просьба»: сервер (lib/pult/reread-last.mjs) и страница (lastFor) выбирают одно и то же на одних данных — по времени просьбы, при равенстве по номеру', async () => {
+  const { newestReread } = await import('../lib/pult/reread-last.mjs');
+  const S = sid(950);
+  const rows = [
+    { id: 'W-261005-120000-aaaa', at: '2026-10-05T12:00:00Z', session: S },
+    { id: 'W-261005-110000-zzzz', at: '2026-10-05T13:00:00Z', session: S }, // новее по времени, старше по порядку строк
+    { id: 'W-261005-130000-bbbb', at: '2026-10-05T13:00:00Z', session: S }, // то же время — старший номер
+    { id: 'W-261005-140000-cccc', at: '2026-10-05T14:00:00Z', session: sid(951) },
+  ];
+  for (const order of [rows, [...rows].reverse(), [rows[2], rows[0], rows[1], rows[3]]]) {
+    assert.equal(feedMod.lastFor(order, S).id, 'W-261005-130000-bbbb');
+    assert.equal(newestReread(order.filter((r) => r.session === S)).id, 'W-261005-130000-bbbb');
+  }
+  assert.equal(feedMod.lastFor(rows, sid(999)), null);
+  assert.equal(newestReread([]), null);
+});
+
+test('кнопка: refreshNow(true) после нажатия ждёт опрос, начатый до ответа POST, и делает ещё один — строка просьбы не теряется', async (t) => {
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  let actionsCalls = 0; let release;
+  const gate = new Promise((r) => { release = r; });
+  globalThis.fetch = async (url) => {
+    if (String(url).startsWith('/api/actions')) { actionsCalls++; if (actionsCalls === 1) await gate; return { ok: true, json: async () => (actionsCalls >= 2 ? [{ id: 'W-1', action: 'reread', ring: 'положено', session: sid(960), at: '2026-10-05T12:00:00Z' }] : []) }; }
+    return { ok: true, json: async () => ({ pult: { enabled: true }, bell: { on: true } }) };
+  };
+  const first = feedMod.refreshNow();            // «старый» опрос, начат до POST
+  const fresh = feedMod.refreshNow(true);        // после ответа POST
+  release();
+  await first; await fresh;
+  assert.equal(actionsCalls, 2, 'второй, свежий опрос был');
+  const seen = [];
+  const off = feedMod.subscribe((st) => seen.push(st));
+  await feedMod.refreshNow();
+  off();
+  assert.equal(feedMod.lastFor(seen.at(-1).rows, sid(960))?.ring, 'положено');
 });

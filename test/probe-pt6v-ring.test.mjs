@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ringText } from '../lib/pult/bell.mjs';
-import { newSessionState, feedSession } from '../lib/journal-parse.mjs';
+import { parseRing as parseRingLines } from '../probe/pt6v-ring.mjs';
+const parseRing = (line, id, mutate) => parseRingLines([line], 0, id, mutate);
 
 const ID = 'W-261005-120000-a1b2';
 const reread = { id: ID, at: '2026-10-05T09:00:00.000Z', action: 'reread', card: null, word: 'перечитай правила', paths: ['C:/v/CLAUDE.md', 'C:/v/Субагенты.md'], note: 'проба' };
@@ -11,14 +12,6 @@ const ringLine = { parentUuid: null, isSidechain: false, type: 'user', uuid: '00
   message: { role: 'user', content: `<task-notification>\n<summary>Stop hook feedback</summary>\n</task-notification>\n<system-reminder>\nStop hook blocking error from command "Stop": ${ringText([reread])}\n</system-reminder>` },
   origin: { kind: 'task-notification', producer: 'session-task' }, promptSource: 'system', userType: 'external', sessionId: '00000000-0000-4000-8000-000000000001' };
 
-// копия parseRing из probe/pt6v-drive.mjs
-const parseRing = (line, id, mutate = (raw) => raw) => {
-  const st = newSessionState();
-  feedSession(st, { type: 'assistant', uuid: '00000000-0000-4000-8000-000000000070', timestamp: '2026-10-05T08:59:00.000Z', message: { id: 'm1', stop_reason: 'end_turn', content: [{ type: 'text', text: 'Готово. Сливать?' }] } });
-  const q0 = st.thread.endTurnQ;
-  feedSession(st, JSON.parse(mutate(JSON.stringify(line))));
-  return { read: !!st.rings?.[id], ivanCount: st.ivan.count, questionBefore: q0, questionAfter: st.thread.endTurnQ };
-};
 const OTHER = 'W-261005-115900-c3d4 · 11:59 · без карточки · «да»';
 const addWord = (raw) => { const n = '«перечитай правила»'; assert.ok(raw.includes(n)); return raw.replace(n, `${n}\\n${OTHER}`); };
 

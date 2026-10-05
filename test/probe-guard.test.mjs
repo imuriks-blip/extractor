@@ -3,9 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { liveRefusal } from '../probe/guard-live.mjs';
+import { LIVE_ROOT, liveRefusal } from '../probe/guard-live.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,4 +48,25 @@ test('охранник: guardLive завершает процесс кодом 1
   assert.equal(port.status, 1); assert.match(port.stderr, /порт живой витрины/);
   const ok = run('C:/projects/extractor-ext65', 4383);
   assert.equal(ok.status, 0); assert.match(ok.stdout, /прошёл/);
+});
+
+test('охранник: реальный путь — junction на живую папку и короткое 8.3-имя — отказ; несуществующий путь не роняет, соседняя копия — пропуск', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-'));
+  const link = path.join(tmp, 'lnk');
+  try {
+    fs.symlinkSync(LIVE_ROOT, link, 'junction');
+    assert.match(liveRefusal(link, 4383) ?? '', /живой витрины/, 'junction на C:/projects/extractor');
+    assert.match(liveRefusal(path.join(link, 'probe', '..'), 4383) ?? '', /живой витрины/, 'junction с ..');
+    // контроль: junction на соседнюю копию — не отказ
+    const link2 = path.join(tmp, 'lnk2');
+    fs.symlinkSync(path.resolve(HERE, '..'), link2, 'junction');
+    assert.equal(liveRefusal(link2, 4383), null, 'junction на рабочую копию');
+    fs.rmdirSync(link2);
+    // короткое 8.3-имя (если том их создаёт)
+    const short = ['C:/PROJEC~1/EXTRAC~1'].find((p) => fs.existsSync(p));
+    if (short) assert.match(liveRefusal(short, 4383) ?? '', /живой витрины/, short);
+    else t.diagnostic('8.3-имён на этом томе нет — часть про короткое имя пропущена');
+  } finally { try { fs.rmdirSync(link) } catch {} try { fs.rmdirSync(tmp) } catch {} }
+  assert.equal(liveRefusal('Z:/нет/такого/пути', 4383), null, 'несуществующий путь: без падения, пропуск');
+  assert.equal(liveRefusal('C:/projects/extractor-ext65/нет', 4383), null);
 });
