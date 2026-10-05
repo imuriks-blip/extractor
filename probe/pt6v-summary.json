@@ -1,0 +1,387 @@
+{
+  "checks": {
+    "подготовка: A прочитал один файл из трёх — missing ровно два": {
+      "missing": [
+        {
+          "path": "C:\\Users\\imuri\\AppData\\Local\\Temp\\pt6v-IfYoNy\\vault\\unorbis\\_meta\\Субагенты.md",
+          "short": "unorbis/_meta/Субагенты.md"
+        },
+        {
+          "path": "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md",
+          "short": "~/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+        }
+      ],
+      "expect": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+      ],
+      "actual": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+      ]
+    },
+    "подготовка: E (не читала) — missing три; D без проекта и F свежая — пометки нет": {
+      "E": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/CLAUDE.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+      ],
+      "D": {
+        "project": null,
+        "mark": null
+      },
+      "F": {
+        "project": "EXT",
+        "mark": null
+      }
+    },
+    "(а) до звонка: у A есть строка «Ждёт меня»": {
+      "row": {
+        "kind": "question",
+        "text": "Трурль: Брать вариант 1 или вариант 2?",
+        "key": "6854fbcc-7c42-4814-8a4c-d16220e89430|ec0cfc4f-4ba7-428f-9f5d-21b944b0568e"
+      }
+    },
+    "основной путь": {
+      "http": 200,
+      "outcome": "ok",
+      "id": "W-261005-113757-b701",
+      "steps": [
+        "asked",
+        "ring-queued",
+        "done",
+        "ring-delivered"
+      ],
+      "woke": true,
+      "ringInJournal": true,
+      "ringHasBothPaths": true,
+      "ringNamesFile1": false,
+      "ringFirstLine": "\"<task-notification>\\n<summary>Stop hook feedback</summary>\\n</task-notification>\\n<system-reminder>\\nStop hook blocking error from command \\\"Stop\\\": Слово Иван",
+      "readsAfterRing": [
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/vault/unorbis/_meta/Субагенты.md",
+        "C:/Users/imuri/AppData/Local/Temp/pt6v-IfYoNy/home-claude.md"
+      ],
+      "readsMatchTwo": true,
+      "toolsAfterRing": [
+        "Read"
+      ],
+      "noWriteEditBash": true,
+      "markAfter": null,
+      "rulesRereadAfter": "2026-10-05T08:38:01.354Z",
+      "missingBefore": 2,
+      "statusProchitano": true
+    },
+    "(а) после звонка: у A строка «Ждёт меня» есть": {
+      "before": {
+        "key": "6854fbcc-7c42-4814-8a4c-d16220e89430|ec0cfc4f-4ba7-428f-9f5d-21b944b0568e",
+        "text": "Трурль: Брать вариант 1 или вариант 2?"
+      },
+      "after": {
+        "kind": "question",
+        "key": "6854fbcc-7c42-4814-8a4c-d16220e89430|3472d18d-e827-4b34-a036-39c861c3123d",
+        "text": "Трурль: Брать вариант 1 или вариант 2?"
+      },
+      "answerEndsWithQuestion": true
+    },
+    "контроли: already-read / no-mark (D без проекта, F свежая) / thread-closed — 200, звонка нет": {
+      "A_after_read": {
+        "http": 200,
+        "refusal": "already-read",
+        "outcome": "refused"
+      },
+      "D_noProject": {
+        "http": 200,
+        "refusal": "no-mark",
+        "outcome": "refused"
+      },
+      "F_fresh": {
+        "http": 200,
+        "refusal": "no-mark",
+        "outcome": "refused"
+      },
+      "ghost": {
+        "http": 200,
+        "refusal": "thread-closed",
+        "outcome": "refused"
+      },
+      "signalsBefore": [],
+      "signalsAfter": [],
+      "newBellLogLines": [],
+      "actionsLogged": [
+        [
+          "asked",
+          "refused:already-read"
+        ],
+        [
+          "asked",
+          "refused:no-mark"
+        ],
+        [
+          "asked",
+          "refused:no-mark"
+        ],
+        [
+          "asked",
+          "refused:thread-closed"
+        ]
+      ]
+    },
+    "контроль: POST с полем missing/путями/q/confirm/text/card — 400, звонка нет": {
+      "results": {
+        "missing": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "paths": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "q": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "confirm": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "text": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        },
+        "card": {
+          "http": 400,
+          "outcome": "refused",
+          "logged": []
+        }
+      },
+      "signalsUnchanged": true
+    },
+    "words=false, bell=true: reread проходит (положено), второе нажатие — queued, один звонок, «да» — 503": {
+      "first": {
+        "http": 200,
+        "outcome": "ok",
+        "id": "W-261005-113821-cf21",
+        "steps": [
+          "asked",
+          "ring-queued",
+          "done"
+        ]
+      },
+      "second": {
+        "http": 200,
+        "outcome": "refused",
+        "refusal": "queued",
+        "prev": {
+          "id": "W-261005-113821-cf21",
+          "status": "положено"
+        },
+        "steps": [
+          "asked",
+          "refused:queued"
+        ]
+      },
+      "signals": [
+        "81fd479f/W-261005-113821-cf21.ring"
+      ],
+      "yesWords503": {
+        "http": 503,
+        "outcome": "refused",
+        "message": "слова с витрины включатся после правки правил"
+      }
+    },
+    "bell=false: reread → bell-off, 200": {
+      "http": 200,
+      "outcome": "refused",
+      "refusal": "bell-off",
+      "id": "W-261005-113828-923d",
+      "signals": [
+        "81fd479f/W-261005-113821-cf21.ring"
+      ]
+    },
+    "набор выключен: reread-off, 200, сигналов в bell/ нет": {
+      "markA": {
+        "kind": "oldRules",
+        "rulesUpdatedAt": "2026-10-05T08:37:34.000Z"
+      },
+      "A": {
+        "http": 200,
+        "refusal": "reread-off",
+        "outcome": "refused"
+      },
+      "E": {
+        "http": 200,
+        "refusal": "reread-off"
+      },
+      "signals": [],
+      "rereadOffHealth": "EMPTY"
+    }
+  },
+  "pids": {
+    "sessions": {
+      "A": 37176,
+      "D": 16992,
+      "E": 50732,
+      "F": 14592
+    },
+    "server": 63780
+  },
+  "moment": {
+    "hash": "eb565ed2eb",
+    "at": "2026-10-05T11:37:34+03:00",
+    "note": "в CLAUDE.md добавлено правило 1б (проба ПТ6в)"
+  },
+  "actions": [
+    {
+      "id": "W-261005-113757-b701",
+      "step": "asked",
+      "action": "reread",
+      "session": "6854fbcc"
+    },
+    {
+      "id": "W-261005-113757-b701",
+      "step": "ring-queued",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-113757-b701",
+      "step": "done",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-113757-b701",
+      "step": "ring-delivered",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-113807-0fb7",
+      "step": "asked",
+      "action": "reread",
+      "session": "6854fbcc"
+    },
+    {
+      "id": "W-261005-113807-0fb7",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "already-read"
+    },
+    {
+      "id": "W-261005-113807-55d7",
+      "step": "asked",
+      "action": "reread",
+      "session": "df524291"
+    },
+    {
+      "id": "W-261005-113807-55d7",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "no-mark"
+    },
+    {
+      "id": "W-261005-113808-5653",
+      "step": "asked",
+      "action": "reread",
+      "session": "3861d96e"
+    },
+    {
+      "id": "W-261005-113808-5653",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "no-mark"
+    },
+    {
+      "id": "W-261005-113808-3f2e",
+      "step": "asked",
+      "action": "reread",
+      "session": "744d70b7"
+    },
+    {
+      "id": "W-261005-113808-3f2e",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "thread-closed"
+    },
+    {
+      "id": "W-261005-113821-cf21",
+      "step": "asked",
+      "action": "reread",
+      "session": "81fd479f"
+    },
+    {
+      "id": "W-261005-113821-cf21",
+      "step": "ring-queued",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-113821-cf21",
+      "step": "done",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-113821-3e3c",
+      "step": "asked",
+      "action": "reread",
+      "session": "81fd479f"
+    },
+    {
+      "id": "W-261005-113821-3e3c",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "queued"
+    },
+    {
+      "id": "W-261005-113828-923d",
+      "step": "asked",
+      "action": "reread",
+      "session": "81fd479f"
+    },
+    {
+      "id": "W-261005-113828-923d",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "bell-off"
+    },
+    {
+      "id": "W-261005-113821-cf21",
+      "step": "withdrawn",
+      "action": "reread"
+    },
+    {
+      "id": "W-261005-113834-9ee4",
+      "step": "asked",
+      "action": "reread",
+      "session": "6854fbcc"
+    },
+    {
+      "id": "W-261005-113834-9ee4",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "reread-off"
+    },
+    {
+      "id": "W-261005-113834-dced",
+      "step": "asked",
+      "action": "reread",
+      "session": "81fd479f"
+    },
+    {
+      "id": "W-261005-113834-dced",
+      "step": "refused",
+      "action": "reread",
+      "refusal": "reread-off"
+    }
+  ],
+  "killed": {
+    "sessions": {
+      "A": 37176,
+      "D": 16992,
+      "E": 50732,
+      "F": 14592
+    },
+    "server": 63780
+  }
+}
