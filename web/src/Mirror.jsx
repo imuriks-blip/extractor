@@ -12,7 +12,7 @@
 // каждый запуск, флаг pult.enabled читается при старте), кнопки до перезапуска витрины не показываются.
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { dm, hm } from './format.js';
-import { isRefusal, phaseWord, readMirror, refusalNote, runResult } from './mirrorData.js';
+import { isRefusal, phaseWord, pressPlace, pullAnswer, readMirror, refusalNote, runResult } from './mirrorData.js';
 import { clear403, postAct, reloadOn403, setPuller, store, take403, token, tokenMark as mark } from './act.js';
 
 const POLL_MS = 4000;
@@ -25,12 +25,13 @@ const CONFIRM_MS = 5 * 60000; // подтверждение живёт 5 мин 
 // phase: idle | asking (первый щелчок «полный») | pending | running | off; kind — вид последнего нажатия (changed | full);
 // st — последний ответ /api/mirror; note — пометка нажатия {text, title, kind}: видна у той кнопки, чьё нажатие, — в
 // «Служебном»; cf — подтверждение полного {id, c, until}; here — ход в шапке смонтирован (он держит опрос);
-// svc — строка «Обновить» видна (блок «Служебное» раскрыт). Не видна (окно проекта, блок свёрнут, а нажатие пришло из
-// «дотянуть») — «запускаю…», пометку обычного и «пульт выключен» показывает шапка, чтобы итог нажатия не пропал
+// svc — блок «Служебное» раскрыт; src — откуда последнее нажатие ('button' | 'pull' — «дотянуть»). Где виден исход
+// нажатия («запускаю…», пометка, «пульт выключен») — у строки или в шапке — решает pressPlace (mirrorData.js): «дотянуть» —
+// всегда в шапке, кнопка «Обновить» — у строки, пока блок раскрыт; показ всегда в одном месте
 let S = null;
 const subs = new Set();
 const get = () => (S ??= {
-  phase: 'idle', kind: null, st: null, note: null, cf: null, here: false, svc: false,
+  phase: 'idle', kind: null, src: 'button', st: null, note: null, cf: null, here: false, svc: false,
   off: (() => { const t = token(); return !!t && store.get(localStorage, OFF_KEY) === mark(t); })(),
 });
 const set = (p) => { S = { ...get(), ...(typeof p === 'function' ? p(get()) : p) }; subs.forEach((f) => f()); };
@@ -55,13 +56,14 @@ async function check() {
   } catch { return null; }
 }
 
-// payload: {action:'mirror', intentId, kind[, confirm]}; повтор прерванного намерения — тем же payload
-async function send(payload) {
+// payload: {action:'mirror', intentId, kind[, confirm]}; повтор прерванного намерения — тем же payload.
+// src — откуда нажатие ('button' | 'pull'); в payload не идёт — серверу оно не нужно
+async function send(payload, src = 'button') {
   intent = payload;
   const kind = payload.kind;
   const first = kind === 'full' && !payload.confirm;
   const keepCf = payload.confirm ? get().cf : null; // окно «как было»: при сбое сети второго щелчка оно возвращается
-  set({ phase: first ? 'asking' : 'pending', kind, note: null });
+  set({ phase: first ? 'asking' : 'pending', kind, src, note: null });
   if (payload.confirm) setCf(null); // второй щелчок ушёл — подтверждение снято
   const fail = (text, title) => set({ phase: 'idle', note: { text, title, kind } });
   let r;
@@ -110,10 +112,10 @@ async function send(payload) {
 }
 
 // kind: 'changed' | 'full'; confirm — id первого щелчка «полный». Прерванное сбоем сети нажатие повторяется тем же ключом
-function press(kind = 'changed', confirm) {
+function press(kind = 'changed', confirm, src = 'button') {
   const prev = intent;
   const same = prev && prev.kind === kind && prev.confirm === confirm;
-  return send(same ? prev : { action: 'mirror', intentId: crypto.randomUUID(), kind, ...(confirm ? { confirm } : {}) });
+  return send(same ? prev : { action: 'mirror', intentId: crypto.randomUUID(), kind, ...(confirm ? { confirm } : {}) }, src);
 }
 
 // ---------- ход и итог в шапке ----------
@@ -141,14 +143,16 @@ export default function MirrorStatus({ label }) {
   }, [s.off]);
 
   // «дотянуть» у «Принять»/«Вернуть» (таблица 1.3) — то же нажатие, что «Обновить»; пока пульт не выключен и проход свободен
+  // исход такого нажатия — всегда в шапке (src 'pull', pressPlace)
   useEffect(() => (s.off ? undefined : setPuller(() => {
-    const ph = get().phase;
-    if (ph === 'idle') { press(); return 'started'; }
-    return ph === 'off' ? 'off' : 'busy';
+    const r = pullAnswer(get().phase);
+    if (r === 'started') press('changed', undefined, 'pull');
+    return r;
   })), [s.off]);
 
   if (s.off) return null;
-  if (s.phase === 'off') return s.svc ? null : <span className="mbtn-off faint" role="status">пульт выключен</span>;
+  const inHeader = pressPlace(s) === 'header';
+  if (s.phase === 'off') return inHeader ? <span className="mbtn-off faint" role="status">пульт выключен</span> : null;
 
   const { phase, st } = s;
   const running = phase === 'running';
@@ -164,9 +168,9 @@ export default function MirrorStatus({ label }) {
     ? ['зеркало идёт', st?.kind, st?.phase && `фаза ${st.phase}`, Number.isFinite(st?.requests) && `запросов ${st.requests}`, Number.isFinite(st?.rpm) && `${st.rpm}/мин`].filter(Boolean).join(' · ')
     : HINT;
   const res = !running && phase === 'idle' ? runResult(st) : null;
-  // пометку нажатия «полного» показывает «Служебное»; обычного — тоже, а шапка — только когда строки «Обновить» не видно
-  const note = s.note?.kind === 'full' || s.svc ? null : s.note;
-  const starting = phase === 'pending' && s.kind !== 'full' && !s.svc;
+  // исход нажатия — здесь или у строки в «Служебном», не в обоих местах (pressPlace)
+  const note = inHeader && s.note?.kind !== 'full' ? s.note : null;
+  const starting = phase === 'pending' && s.kind !== 'full' && inHeader;
   const err = note ?? (!running && phase !== 'pending' && res?.red ? res
     : !running && phase !== 'pending' && st?.lastError ? { text: 'ошибка', title: `последний проход зеркала: ${st.lastError}` } : null);
   const quiet = !running && !err && res && !res.red ? res : null; // зелёный итог — серым, не красным
@@ -190,9 +194,10 @@ export function RefreshMirror({ shown }) {
   if (!s.here || s.off) return null;
   const { phase, st } = s;
   const running = phase === 'running';
-  const note = s.note && s.note.kind !== 'full' ? s.note : null;
+  const inRow = pressPlace(s) === 'row' && s.kind !== 'full'; // исход нажатия «Обновить» — здесь, а не в шапке
+  const note = inRow && s.note && s.note.kind !== 'full' ? s.note : null;
   const text = phase === 'pending' && s.kind !== 'full' ? 'запускаю…' : running ? 'идёт…' : 'Обновить';
-  const line = phase === 'off' ? { cls: 'faint', text: 'пульт выключен' }
+  const line = phase === 'off' ? (inRow ? { cls: 'faint', text: 'пульт выключен' } : null)
     : running && st?.kind !== 'full' ? { cls: 'going', text: 'зеркало идёт — ход вверху' }
     : note ? { cls: 'pbad', text: note.text, title: note.title }
     : !running && phase !== 'pending' ? { cls: 'faint', text: 'свежее из Plane, несколько минут' } : null;

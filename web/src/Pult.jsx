@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { canPull, clear403, postAct, pull, reloadOn403, take403 } from './act.js';
 import { useNow } from './data.js';
 import { dm, hm } from './format.js';
+import { pullNote } from './mirrorData.js';
 
 const TEXT_MAX = 500;
 const CONFIRM_MS = 5 * 60_000; // второй щелчок — не дольше 5 мин после первого (1.1 п.7)
@@ -302,8 +303,9 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
         {st.pull && canPull() && !st.pullNote && <> <button type="button" className="pbtn" onClick={() => {
           const r = pull();
           if (r === 'started') setAct(key, null);
-          // «Обновить» занята — отказ не стираем, говорим почему ничего не случилось (п.13 ревью Голема)
-          else setAct(key, { ...st, pullNote: r === 'off' ? 'пульт выключен — дотянуть нечем' : 'обновление уже идёт — ход вверху' });
+          // зеркало занято — отказ не стираем, говорим почему ничего не случилось (п.13 ревью Голема); «ход вверху» — только
+          // когда проход правда идёт (EXT-77: у asking/pending хода ещё нет — «зеркало занято»)
+          else setAct(key, { ...st, pullNote: pullNote(r) });
         }}>дотянуть</button></>}
         {st.pullNote && <span> · {st.pullNote}</span>}
       </span>

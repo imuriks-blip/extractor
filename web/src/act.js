@@ -60,5 +60,6 @@ export function take403(mine) {
 let puller = null;
 export const setPuller = (fn) => { puller = fn; return () => { if (puller === fn) puller = null; }; };
 export const canPull = () => puller !== null;
-// → 'started' | 'busy' (проход уже идёт или запускается) | 'off' (пульт выключен) | null (кнопки нет)
+// → 'started' | 'running' (проход идёт, ход в шапке) | 'busy' (спрашивает цену полного или запускается) | 'off' (пульт
+// выключен) | null (некому) — mirrorData.js pullAnswer
 export const pull = () => (puller ? puller() : null);
