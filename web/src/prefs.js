@@ -17,6 +17,13 @@ export function useTheme() {
   return [theme, setTheme];
 }
 
+// Выбор зрителя, который помнится между заходами (фильтр «Готово, посмотри», EXT-79); чужое значение в хранилище — dflt.
+export function useStored(key, dflt, valid) {
+  const [v, setState] = useState(() => { const s = read(key); return s !== null && valid(s) ? s : dflt; });
+  const set = useCallback((x) => { write(key, x); setState(x); }, [key]);
+  return [v, set];
+}
+
 // Открыт ли блок <details>; по умолчанию — как в макете (открыт).
 export function useOpen(key, dflt = true) {
   const [open, setState] = useState(() => { const v = read(`ceh-open:${key}`); return v === null ? dflt : v === '1'; });
