@@ -1,10 +1,13 @@
-// Зеркало доски (EXT-42, EXT-75; спека пульта, таблица 1.3 «Прогони зеркало», §1.1 п.3, п.7, §1.7, §4.2):
-// • «Обновить» в шапке (MirrorButton) — POST /api/act {action: "mirror", kind: "changed"}, обычный проход; в шапке же — ход
-//   любого прохода (GET /api/mirror раз в 4 с, только пока идёт), итог и красная пометка;
-// • «Полный проход зеркала» (FullMirror) — на «Цехе» в блоке «Служебное», рядом с «Пересобрать индекс» (решение Ивана 05.10):
-//   первый щелчок — цена, подтверждение раскрывается в потоке под строкой; запуск — вторым щелчком {kind: "full", confirm}.
-// Состояние у двух кнопок общее (один проход зеркала на витрину): хранится здесь, вне React; опрос, повтор после 403 и
-// «дотянуть» держит MirrorButton — она смонтирована в шапке на всех экранах, пока есть подпись зеркала.
+// Зеркало доски (EXT-42, EXT-75, EXT-77; спека пульта, таблица 1.3 «Прогони зеркало», §1.1 п.3, п.7, §1.7, §4.2):
+// • ход и итог в шапке (MirrorStatus) — кнопки в шапке нет (EXT-77, слово Ивана 06.10 «перенеси кнопку обновить в
+//   служебное»): ход любого прохода (GET /api/mirror раз в 4 с, только пока идёт), итог и красная пометка;
+// • «Обновить» (RefreshMirror) — на «Цехе» первой строкой блока «Служебное»: POST /api/act {action: "mirror", kind:
+//   "changed"}, обычный проход, без второго щелчка;
+// • «Полный проход зеркала» (FullMirror) — там же второй строкой (решение Ивана 05.10): первый щелчок — цена,
+//   подтверждение раскрывается в потоке под строкой; запуск — вторым щелчком {kind: "full", confirm}.
+// Состояние общее (один проход зеркала на витрину): хранится здесь, вне React; опрос, повтор после 403 и «дотянуть» держит
+// MirrorStatus — он смонтирован в шапке на всех экранах, пока есть подпись зеркала (на окне проекта «Служебного» нет, а
+// «дотянуть» у «Принять»/«Вернуть» работает и там).
 // Пульт выключен: флага в данных нет — узнаётся по первому 503 и запоминается на запуск сервера (токен страницы новый на
 // каждый запуск, флаг pult.enabled читается при старте), кнопки до перезапуска витрины не показываются.
 import { useEffect, useRef, useSyncExternalStore } from 'react';
@@ -20,12 +23,14 @@ const CONFIRM_MS = 5 * 60000; // подтверждение живёт 5 мин 
 
 // ---------- общее состояние ----------
 // phase: idle | asking (первый щелчок «полный») | pending | running | off; kind — вид последнего нажатия (changed | full);
-// st — последний ответ /api/mirror; note — пометка нажатия {text, title, kind}: видна у той кнопки, чьё нажатие
-// (changed — шапка, full — «Служебное»); cf — подтверждение полного {id, c, until}; here — кнопка в шапке смонтирована
+// st — последний ответ /api/mirror; note — пометка нажатия {text, title, kind}: видна у той кнопки, чьё нажатие, — в
+// «Служебном»; cf — подтверждение полного {id, c, until}; here — ход в шапке смонтирован (он держит опрос);
+// svc — строка «Обновить» видна (блок «Служебное» раскрыт). Не видна (окно проекта, блок свёрнут, а нажатие пришло из
+// «дотянуть») — «запускаю…», пометку обычного и «пульт выключен» показывает шапка, чтобы итог нажатия не пропал
 let S = null;
 const subs = new Set();
 const get = () => (S ??= {
-  phase: 'idle', kind: null, st: null, note: null, cf: null, here: false,
+  phase: 'idle', kind: null, st: null, note: null, cf: null, here: false, svc: false,
   off: (() => { const t = token(); return !!t && store.get(localStorage, OFF_KEY) === mark(t); })(),
 });
 const set = (p) => { S = { ...get(), ...(typeof p === 'function' ? p(get()) : p) }; subs.forEach((f) => f()); };
@@ -111,9 +116,9 @@ function press(kind = 'changed', confirm) {
   return send(same ? prev : { action: 'mirror', intentId: crypto.randomUUID(), kind, ...(confirm ? { confirm } : {}) });
 }
 
-// ---------- «Обновить» в шапке ----------
+// ---------- ход и итог в шапке ----------
 // label — подпись зеркала из /api/ceh: сменилась (проход закончился или начат Планировщиком) — ход перечитывается
-export default function MirrorButton({ label }) {
+export default function MirrorStatus({ label }) {
   const s = useMirror();
   const resent = useRef(false);
 
@@ -135,7 +140,7 @@ export default function MirrorButton({ label }) {
     if (prev) send(prev);
   }, [s.off]);
 
-  // «дотянуть» у «Принять»/«Вернуть» (таблица 1.3) — эта же кнопка; пока она видна и свободна
+  // «дотянуть» у «Принять»/«Вернуть» (таблица 1.3) — то же нажатие, что «Обновить»; пока пульт не выключен и проход свободен
   useEffect(() => (s.off ? undefined : setPuller(() => {
     const ph = get().phase;
     if (ph === 'idle') { press(); return 'started'; }
@@ -143,12 +148,11 @@ export default function MirrorButton({ label }) {
   })), [s.off]);
 
   if (s.off) return null;
-  if (s.phase === 'off') return <span className="mbtn-off faint" role="status">пульт выключен</span>;
+  if (s.phase === 'off') return s.svc ? null : <span className="mbtn-off faint" role="status">пульт выключен</span>;
 
   const { phase, st } = s;
   const running = phase === 'running';
   const nums = running && Number.isFinite(st?.cardsDone) && Number.isFinite(st?.cardsTotal);
-  const text = phase === 'pending' && s.kind !== 'full' ? 'запускаю…' : running ? 'идёт…' : 'Обновить';
   // ход зеркала (таблица 1.3): фаза, N из M, запросов, темп, с какого времени — из GET /api/mirror
   const prog = running ? [
     st?.phase && (nums ? `${phaseWord(st.phase)} ${st.cardsDone} из ${st.cardsTotal}` : phaseWord(st.phase)),
@@ -160,17 +164,43 @@ export default function MirrorButton({ label }) {
     ? ['зеркало идёт', st?.kind, st?.phase && `фаза ${st.phase}`, Number.isFinite(st?.requests) && `запросов ${st.requests}`, Number.isFinite(st?.rpm) && `${st.rpm}/мин`].filter(Boolean).join(' · ')
     : HINT;
   const res = !running && phase === 'idle' ? runResult(st) : null;
-  const note = s.note?.kind === 'full' ? null : s.note; // пометку нажатия «полного» показывает «Служебное»
+  // пометку нажатия «полного» показывает «Служебное»; обычного — тоже, а шапка — только когда строки «Обновить» не видно
+  const note = s.note?.kind === 'full' || s.svc ? null : s.note;
+  const starting = phase === 'pending' && s.kind !== 'full' && !s.svc;
   const err = note ?? (!running && phase !== 'pending' && res?.red ? res
     : !running && phase !== 'pending' && st?.lastError ? { text: 'ошибка', title: `последний проход зеркала: ${st.lastError}` } : null);
   const quiet = !running && !err && res && !res.red ? res : null; // зелёный итог — серым, не красным
+  if (!running && !starting && !quiet && !err) return null;
   return (
-    <span className="mbtn">
-      <button type="button" className={running ? 'num' : undefined} disabled={phase !== 'idle'} title={runTitle} onClick={() => press()}>{text}</button>
-      {running && <span className="mrun" role="status">{st?.kind === 'full' ? 'полный проход идёт' : 'зеркало идёт'}{prog.length > 0 && <> · <span className="num">{prog.join(' · ')}</span></>}</span>}
+    <span className="mst">
+      {starting && <span className="mrun" role="status">зеркало: запускаю…</span>}
+      {running && <span className="mrun" role="status" title={runTitle}>{st?.kind === 'full' ? 'полный проход идёт' : 'зеркало идёт'}{prog.length > 0 && <> · <span className="num">{prog.join(' · ')}</span></>}</span>}
       {quiet && <span className="mrun mres num" role="status" title={quiet.title}>{quiet.text}</span>}
-      <span className="mbtn-note" role="status" title={err?.title}>{err?.text}</span>
+      {err && <span className="mbtn-note" role="status" title={err.title}>{err.text}</span>}
     </span>
+  );
+}
+
+// ---------- «Обновить» в «Служебном» ----------
+// первая строка блока: кнопка обычного прохода и рядом — что с ним; ход — в шапке, здесь только «идёт — ход вверху».
+// shown — блок «Служебное» раскрыт: пока строка видна, пометки нажатия — здесь, а не в шапке
+export function RefreshMirror({ shown }) {
+  const s = useMirror();
+  useEffect(() => { set({ svc: shown }); return () => set({ svc: false }); }, [shown]);
+  if (!s.here || s.off) return null;
+  const { phase, st } = s;
+  const running = phase === 'running';
+  const note = s.note && s.note.kind !== 'full' ? s.note : null;
+  const text = phase === 'pending' && s.kind !== 'full' ? 'запускаю…' : running ? 'идёт…' : 'Обновить';
+  const line = phase === 'off' ? { cls: 'faint', text: 'пульт выключен' }
+    : running && st?.kind !== 'full' ? { cls: 'going', text: 'зеркало идёт — ход вверху' }
+    : note ? { cls: 'pbad', text: note.text, title: note.title }
+    : !running && phase !== 'pending' ? { cls: 'faint', text: 'свежее из Plane, несколько минут' } : null;
+  return (
+    <div className="wtb">
+      <button type="button" className="pbtn" disabled={phase !== 'idle'} title={running ? 'зеркало уже идёт — ход в шапке' : HINT} onClick={() => press()}>{text}</button>
+      {line && <span className={line.cls} role="status" title={line.title}>{line.text}</span>}
+    </div>
   );
 }
 
@@ -185,7 +215,8 @@ export function FullMirror() {
   const running = phase === 'running';
   const note = s.note?.kind === 'full' ? s.note : null;
   const closeCf = () => { setCf(null); btn.current?.focus(); };
-  const line = running ? { cls: 'going', text: `${st?.kind === 'full' ? 'полный проход' : 'зеркало'} идёт — ход вверху` }
+  // идёт обычный — строка «идёт» у «Обновить», здесь только недоступная кнопка
+  const line = running ? (st?.kind === 'full' ? { cls: 'going', text: 'полный проход идёт — ход вверху' } : null)
     : phase === 'pending' && s.kind === 'full' ? { cls: 'going', text: 'запускаю…' }
     : note ? { cls: 'pbad', text: note.text, title: note.title }
     : st?.lastFullOk ? { cls: 'muted', text: `последний полный — ${dm(st.lastFullOk)}` }

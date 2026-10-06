@@ -303,7 +303,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
           const r = pull();
           if (r === 'started') setAct(key, null);
           // «Обновить» занята — отказ не стираем, говорим почему ничего не случилось (п.13 ревью Голема)
-          else setAct(key, { ...st, pullNote: r === 'off' ? 'пульт выключен — дотянуть нечем' : 'обновление уже идёт — смотри «Обновить» вверху' });
+          else setAct(key, { ...st, pullNote: r === 'off' ? 'пульт выключен — дотянуть нечем' : 'обновление уже идёт — ход вверху' });
         }}>дотянуть</button></>}
         {st.pullNote && <span> · {st.pullNote}</span>}
       </span>
