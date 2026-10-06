@@ -2,7 +2,7 @@
 // «Ждёт меня по <КОД>» и «Кто работает по <КОД>» справа; карточка — панелью (CardPanel.jsx).
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
-import { ageShort, hm, minutes, plural } from './format.js';
+import { ageShort, hm, minutes, plural, DESKTOP_HINT, waitsInDesktop } from './format.js';
 import { Mark, Stale, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
 import { Summary } from './Summary.jsx';
 import CardPanel from './CardPanel.jsx';
@@ -165,6 +165,7 @@ function WRowBody({ r, now, sel, onOpen, noAge = false }) {
         <span>
           {r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
           {r.projectBy === 'cards' && <span className="faint"> · по карточкам</span>}
+          {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}
         </span>
         {age}
       </div>

@@ -73,3 +73,9 @@ export function oldest(...isos) {
   if (!v.length) return null;
   return v.sort((a, b) => a[0] - b[0])[0][1];
 }
+
+// строка (а) «Тред ждёт ответа», которой ответить можно только в окне десктопа (EXT-77; спека пульта §2.4: при waiting Иван
+// видит «тред ждёт тебя в десктопе: ответь там»): вид ожидания из waitingFor десктопа — askUserQuestion, permission или
+// незнакомый «?». «Ответить» у таких строк нет; у вопроса в чате (question) подсказки нет
+export const DESKTOP_HINT = 'ждёт тебя в десктопе — ответь там';
+export const waitsInDesktop = (r) => typeof r?.kind === 'string' && r.kind !== 'question';

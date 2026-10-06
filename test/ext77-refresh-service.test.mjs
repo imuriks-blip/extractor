@@ -31,6 +31,16 @@ test('«Служебное»: «Обновить» первой строкой, 
   assert.match(refresh, /'Обновить'/);
 });
 
+// дозапрос EXT-77 (слово Ивана 06.10 «го, сливай EXT-77 с подсказкой»; спека пульта §2.4)
+test('строка (а): подсказка «ждёт тебя в десктопе — ответь там» — у askUserQuestion, permission и незнакомого «?», не у question; на «Цехе» и в окне проекта', async () => {
+  const { waitsInDesktop, DESKTOP_HINT } = await import('../web/src/format.js');
+  assert.equal(DESKTOP_HINT, 'ждёт тебя в десктопе — ответь там');
+  for (const kind of ['askUserQuestion', 'permission', '?']) assert.equal(waitsInDesktop({ kind }), true, kind);
+  assert.equal(waitsInDesktop({ kind: 'question' }), false);
+  assert.equal(waitsInDesktop({}), false, 'строка без вида — не подсказываем');
+  for (const f of ['Ceh.jsx', 'Project.jsx']) assert.match(src(f), /waitsInDesktop\(r\) && <span className="mline muted">\{DESKTOP_HINT\}<\/span>/, f);
+});
+
 test('справка: «Обновить» — в «Служебном» на «Цехе», в шапке — ход и итог', () => {
   const h = src('help.js');
   assert.match(h, /\*\*Обновить\*\* — на «Цехе», в блоке «Служебное»/);
