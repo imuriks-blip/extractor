@@ -2,7 +2,7 @@
 // Свежесть, свёртка блока, тред и пометки отсюда же берёт окно проекта (Project.jsx) — одни компоненты на два экрана.
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
-import { ageShort, dur, hm, dm, minutes, plural } from './format.js';
+import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
@@ -143,7 +143,8 @@ function Waiting({ w, now, stale, pult, threads }) {
               <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                 {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
               </span>
-              <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
+              <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+                {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
               {defer}
             </div>

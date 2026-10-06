@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Ceh from './Ceh.jsx';
 import Glossary from './Glossary.jsx';
 import Help from './Help.jsx';
-import MirrorButton from './Mirror.jsx';
+import MirrorStatus from './Mirror.jsx';
 import Project from './Project.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
 import { dm, hms, oldest } from './format.js';
@@ -60,7 +60,7 @@ function Header({ route, freshness, name }) {
           {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
               неудачна, журнал стал короче или пропал, хранимая копия не читается; причина — /api/health → backup.lastError.
               EXT-73: исправная копия в шапке не показывается (Иван читал её «05.10 00:00» как время обновления), видна только
-              сбойная — слева, чтобы «Обновить» стояла сразу за временем зеркала */}
+              сбойная — слева, чтобы ход и итог прохода стояли сразу за временем зеркала */}
           {route.name === 'ceh' && freshness.backup?.stale && (
             <><span className="fresh-bad"
                 title="Копия журнала нажатий: нет удачной копии больше 48 ч, попытка неудачна, журнал стал короче или пропал, либо хранимая копия не читается или повреждена — причина в /api/health">
@@ -74,12 +74,12 @@ function Header({ route, freshness, name }) {
               </span><span className="sep">·</span></>
           )}
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
-          {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
+          {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» (на «Цехе», блок «Служебное») или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
         </span>
       )}
-      {/* кнопка — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42; стоит сразу за
-          временем зеркала, которое обновляет (EXT-73) */}
-      {freshness && mirror && <MirrorButton label={mirror} />}
+      {/* ход и итог прохода зеркала — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42;
+          сразу за временем зеркала (EXT-73). Кнопки в шапке нет: «Обновить» — в «Служебном» на «Цехе» (EXT-77) */}
+      {freshness && mirror && <MirrorStatus label={mirror} />}
       <ThemeSwitch />
       {/* «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64) */}
       <span className="tbtns">

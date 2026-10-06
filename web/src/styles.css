@@ -39,13 +39,12 @@ button{font:inherit;color:inherit}
 .top .tbtns{display:inline-flex;gap:12px;align-items:center}
 .fresh .sep{margin-inline:6px}
 .fresh .fresh-bad{color:var(--red)} .fresh .fresh-warn{color:var(--amber)}
-.mbtn{display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap}
-.mbtn button,.hbtn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap}
-.mbtn button:hover:not(:disabled),.hbtn:hover{background:var(--hover);color:var(--fg)}
-.mbtn button:disabled{cursor:default;background:transparent}
+/* ход и итог прохода зеркала в шапке — без кнопки («Обновить» в «Служебном» на «Цехе», EXT-77) */
+.mst{display:inline-flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.hbtn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:2px 8px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.hbtn:hover{background:var(--hover);color:var(--fg)}
 .mrun{color:var(--muted);font-size:12px}
 .mbtn-note{color:var(--red);font-size:12px}
-.mbtn-note:empty{display:none}
 .mbtn-off{font-size:12px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .seg button{background:var(--surface);border:0;padding:2px 8px;cursor:pointer;color:var(--muted)}
@@ -277,7 +276,7 @@ button.prow:hover,.prow[aria-current="true"]{background:var(--hover)}
   .ev{grid-template-columns:78px minmax(0,1fr)}.ev .ty{grid-column:2;grid-row:1}.ev .bd{grid-column:1/-1}
 }
 
-/* ===== Пульт: «Принять» / «Вернуть» (EXT-43). Кнопки — как «Обновить» в шапке; состояние — словами, не только цветом ===== */
+/* ===== Пульт: «Принять» / «Вернуть» (EXT-43). Кнопки — как «Словарь» в шапке; состояние — словами, не только цветом ===== */
 .pult{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;margin-top:3px;font-size:12px}
 .ph .pult{margin-top:6px;font-size:13px}
 .pbtns{display:inline-flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
@@ -367,7 +366,7 @@ details.grp.dfd>summary{color:var(--faint)}
 .trl .tr-bad{color:var(--red)} .trl .tr-warn{color:var(--amber)} .trl .tr-info{color:var(--muted)}
 .trs,.tlt{color:var(--muted)}
 
-/* ===== Памятка «?» (EXT-52, §2.9): кнопка — как «Обновить»; окно — шапка как у панели карточки, разделы-свёртки ===== */
+/* ===== Памятка «?» (EXT-52, §2.9): кнопка — как «Словарь»; окно — шапка как у панели карточки, разделы-свёртки ===== */
 .hlp{padding:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);color:var(--fg);box-shadow:0 4px 12px var(--shade);width:min(560px,calc(100% - 32px));max-height:min(720px,calc(100% - 32px));overflow:hidden}
 .hlp[open]{display:flex;flex-direction:column}
 .hlp::backdrop{background:var(--shade)}
