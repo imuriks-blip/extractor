@@ -1,7 +1,8 @@
 // Экран «Цех» — по макету AdbsFQdeExwwUBEEXPbwsf (версия 3), поля — спека §3.1.
 // Свежесть, свёртка блока, тред и пометки отсюда же берёт окно проекта (Project.jsx) — одни компоненты на два экрана.
 import { useState } from 'react';
-import { useOpen } from './prefs.js';
+import { useOpen, useStored } from './prefs.js';
+import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
 import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
@@ -96,7 +97,32 @@ function Answered({ rows, now, can }) {
 // слова строк: метка строки (б) → главное слово; «нет» — рядом (§1.4 (б), решение Ивана 05.10)
 const MAIN_WORD = { сливай: 'merge', выкатывай: 'deploy', Б: 'yes', развилка: 'reply' };
 
-function Waiting({ w, now, stale, pult, threads }) {
+// подгруппа проекта в «Готово, посмотри» (EXT-79): раскрыта по умолчанию, свёртка помнится (ceh-open:grp-review-<КОД>);
+// в заголовке — код, сколько под фильтром («из M» — когда фильтр убрал часть), сводка следа ✕ / ! / ✓ и давность самой свежей;
+// больше 10 — «Показать ещё» внутри подгруппы
+const SUB_SIGNS = [['bad', '✕', 'нет следа'], ['warn', '!', 'проверь'], ['ok', '✓', 'проверен']];
+function ReviewSub({ g, now, row }) {
+  const o = useOpen(`grp-review-${g.code}`);
+  const [shown, more] = useShowMore(g.rows);
+  return (
+    <details className="sg" open={o.open} onToggle={o.onToggle}>
+      <Summary>
+        <span className="code">{g.code}</span><span className="cnt num">{g.rows.length}</span>
+        {g.rows.length !== g.total && <span className="of num">из {g.total}</span>}
+        <span className="sgt num">
+          {SUB_SIGNS.filter(([k]) => g.counts[k] > 0).map(([k, sign, word]) => (
+            <span key={k} className={`s-${k}`}><span aria-hidden="true">{sign}</span><span className="sr">{word}:</span>{' '}{g.counts[k]}</span>
+          ))}
+        </span>
+        <span className="age num">{ageShort(g.at, now)}</span>
+      </Summary>
+      {shown.map(row)}
+      {more}
+    </details>
+  );
+}
+
+function Waiting({ w, now, stale, pult, threads, order }) {
   const o = useOpen('waiting');
   const pultOn = pult?.enabled === true; // «Принять»/«Вернуть» строк (в) — по pult.enabled, как в панели (иначе 503)
   const wordsOn = pultOn && pult?.words === true;
@@ -107,6 +133,17 @@ function Waiting({ w, now, stale, pult, threads }) {
   const open = w.review.filter((r) => !r.answered);
   const answered = [...w.yes, ...w.review].filter((r) => r.answered);
   const [review, moreReview] = useShowMore(open);
+  const [filter, setFilter] = useStored(REVIEW_FILTER_KEY, 'all', isReviewFilter);
+  const rv = reviewView(open, order, filter);
+  const reviewRow = (r) => (
+    <div className="wrow pr" key={r.id}>
+      <span className="src mono">{r.id}</span>
+      <span className="tt">{r.title}<TraceBadge t={r.trace} /></span>
+      <span className="age num">{ageShort(r.at, now)}</span>
+      <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} ar={pultOn} />
+      {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
+    </div>
+  );
   const empty = !w.threads.length && !yes.length && !open.length;
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
@@ -175,17 +212,23 @@ function Waiting({ w, now, stale, pult, threads }) {
       )}
 
       {open.length > 0 && (
-        <Group id="review" title="Готово, посмотри" count={open.length} hint="Review">
-          {review.map((r) => (
-            <div className="wrow pr" key={r.id}>
-              <span className="src mono">{r.id}</span>
-              <span className="tt">{r.title}<TraceBadge t={r.trace} /></span>
-              <span className="age num">{ageShort(r.at, now)}</span>
-              <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} ar={pultOn} />
-              {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
+        <Group id="review" title="Готово, посмотри" count={rv.head} hint="Review">
+          {rv.grouped && (
+            <div className="rf">
+              <div className="filt" role="group" aria-label="Фильтр по следу">
+                <button type="button" aria-pressed={rv.filter === 'all'} onClick={() => setFilter('all')}>все</button>
+                {rv.chips.map((c) => (
+                  <button type="button" key={c.val} aria-pressed={c.on} onClick={() => setFilter(nextFilter(filter, c.val))}>
+                    <span className={`s-${c.val}`} aria-hidden="true">{c.sign}</span> {c.word}<span className="n num">{c.n}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          ))}
-          {moreReview}
+          )}
+          {rv.grouped
+            ? rv.groups.map((g) => <ReviewSub key={g.code} g={g} now={now} row={reviewRow} />)
+            : <>{review.map(reviewRow)}{moreReview}</>}
+          {rv.empty && <div className="foot">Под выбранный след карточек нет.</div>}
         </Group>
       )}
 
@@ -408,7 +451,7 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
   return (
     <div className="grid">
       <div className="col">
-        <Waiting w={data.waiting} now={now} pult={data.pult} threads={data.workers?.threads} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
+        <Waiting w={data.waiting} now={now} pult={data.pult} threads={data.workers?.threads} order={(data.projects ?? []).map((p) => p.code)} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
         <Projects projects={data.projects} now={now} stale={staleText(f.board, failing, now)} onOpen={onOpenProject} />
       </div>
       <div className="col">

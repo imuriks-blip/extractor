@@ -457,6 +457,27 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
 /* подтверждение «под строкой» (полный проход зеркала в «Служебном», EXT-75): своей строкой, в потоке */
 .wtb>.cfm{flex-basis:100%}
 
+/* ===== «Готово, посмотри» с 11 карточек (EXT-79, макет VKxJw5DGv6VvqiY6iFreph, вариант В): подгруппы проекта и чипы следа.
+   Только существующие значения: 12px, отступы 4/10/28px, --line, .code, .filt ===== */
+/* подгруппа: уголок — в той же «канаве», что у группы; код проекта — на вертикали номеров карточек */
+details.sg>summary{display:flex;align-items:baseline;gap:4px;padding:4px 10px 2px 14px;cursor:pointer;list-style:none;font-size:12px;color:var(--muted)}
+details.sg>summary:hover{background:var(--hover)}
+details.sg>summary .cnt{color:var(--fg);font-weight:500;margin-left:4px}
+details.sg>summary .sgt{margin-left:auto;display:inline-flex;gap:8px}
+details.sg>summary .age{min-width:64px}
+details.sg .of{color:var(--faint)}
+.s-ok{color:var(--green)} .s-warn{color:var(--amber)} .s-bad{color:var(--red)}
+/* чипы — .filt из панели карточки; строка под заголовком группы */
+.rf{display:flex;flex-wrap:wrap;gap:4px 12px;padding:1px 10px 5px 28px}
+.rf .filt{margin:0}
+.rf .filt .n{margin-left:4px}
+.rf .filt [aria-pressed="true"] .n{color:var(--fg)}
+@media (max-width:560px){
+  details.sg>summary{padding-left:10px}
+  .rf{padding-left:12px}
+  .rf .filt button{padding:2px 8px} /* как .pbtn: цель пальцу не меньше 24px */
+}
+
 /* строка с двумя кнопками слов на узком экране: кнопки — своей строкой под текстом, название треда не обрезается */
 @media (max-width:560px){
   .wrow.pr.stack .pbtns{grid-area:3/1/4/-1}
