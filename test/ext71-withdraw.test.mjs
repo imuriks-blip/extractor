@@ -542,6 +542,7 @@ test('(14) рестарт во время записи, а запись легл
   s3.press(WD(w3.id)).catch(() => {});
   await until(() => s3.pl().comments.length === 3);
   s3.env.hook.hang = null;
+  await new Promise((r) => setTimeout(r, 500)); // подменный plane.py дописывает state.json в конце — не перебить его правку
   s3.setPlane({ comments: [...s3.pl().comments, { id: 'c9', created_at: '2026-10-07T12:00:00.000Z', html: '<p>тред написал</p>' }] });
   const s4 = await boot(s3.env);
   assert.equal((await s4.press(WD(w3.id))).json().outcome, 'ok');

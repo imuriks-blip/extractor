@@ -106,7 +106,12 @@ export async function boot(env, { words = true, bell = true, mirror = false, thr
     headers: { host: `127.0.0.1:${PORT}`, origin: SELF, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', 'x-vitrina-token': token } });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${PORT}` } })).json();
   const lines = () => (fs.existsSync(env.actionsLog) ? fs.readFileSync(env.actionsLog, 'utf8') : '').split('\n').filter(Boolean).map((l) => JSON.parse(l));
-  const pl = () => JSON.parse(fs.readFileSync(env.stateFile, 'utf8'));
+  // state.json пишет подменный plane.py: чтение в момент записи — повтор
+  const pl = () => {
+    for (let i = 0; ; i++) {
+      try { return JSON.parse(fs.readFileSync(env.stateFile, 'utf8')); } catch (e) { if (i > 40) throw e; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); }
+    }
+  };
   const setPlane = (patch) => fs.writeFileSync(env.stateFile, JSON.stringify({ ...pl(), ...patch }));
   const bellGet = (sid) => app.inject({ method: 'GET', url: `/api/bell/${sid}`, headers: { host: `127.0.0.1:${PORT}` } }).then((x) => x.json());
   const bellLog = (o) => { fs.mkdirSync(env.bellDir, { recursive: true }); fs.appendFileSync(path.join(env.bellDir, 'bell.log'), JSON.stringify({ at: new Date().toISOString(), ...o }) + '\n'); };
