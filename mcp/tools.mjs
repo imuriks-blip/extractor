@@ -2,6 +2,8 @@
 // (127.0.0.1:4317 с Host). Тексты витрина маскирует сама (6.2: preSerialization и maskRow) до того, как они дойдут сюда;
 // сервер MCP сырых текстов не получает и ничего не пишет — ни в витрину, ни на доску.
 // Ответы MCP висят в контексте (замер 25.09: в ~6 раз тяжелее скрипта) — пределы ниже, тест держит каждый.
+// подпись исхода — та же, что на странице «Мои слова» (чистый модуль web/src/pultData.js): Иван и тред читают одни слова
+import { outcomeText } from '../web/src/pultData.js';
 
 export const LIMITS = {
   waitingChars: 600, waitingRows: 5, waitingRowChars: 70,
@@ -54,9 +56,12 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
     try { return await r.json(); } catch { throw new Http('витрина ответила не JSON'); }
   }
 
-  const badProject = (p) => (p !== undefined && (typeof p !== 'string' || !CODE_RE.test(p)) ? 'project: код проекта заглавными (CAR, EXT…)' : null);
+  // пусто и null — «все»; строчный код — в заглавные
+  const normProject = (p) => (p === undefined || p === null || p === '' ? undefined : typeof p === 'string' ? p.trim().toUpperCase() : p);
+  const badProject = (p) => (p !== undefined && p !== null && p !== '' && (typeof p !== 'string' || !CODE_RE.test(p)) ? 'project: код проекта заглавными (CAR, EXT…)' : null);
 
   async function waiting({ project } = {}) {
+    project = normProject(project);
     const bad = badProject(project);
     if (bad) return bad;
     const j = await get('/api/ceh');
@@ -67,7 +72,7 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
       ...t.map((x) => `а · ${[x.project, x.text ?? x.title].filter(Boolean).join(' · ')}`),
       ...y.map((x) => `б · ${x.id} · ${x.mark} · ${x.title}`),
       ...v.map((x) => `в · ${x.id} · ${x.title}`),
-    ].slice(0, LIMITS.waitingRows).map((l) => '- ' + cut(l, LIMITS.waitingRowChars));
+    ].slice(0, LIMITS.waitingRows).map((l) => '- ' + cut(l, LIMITS.waitingRowChars - 2));
     const head = `Ждёт Ивана${project ? ' по ' + project : ''}: (а) тред ждёт ответа ${t.length}, (б) нужно «да» ${y.length}, (в) Review ${v.length}.`;
     return clip([head, ...rows], LIMITS.waitingChars);
   }
@@ -78,8 +83,7 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
     const d = new Date(s);
     return Number.isFinite(d.getTime()) ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '--:--';
   };
-  const STEP_STATUS = { done: 'записано', partial: 'частично', refused: 'отказано', error: 'не исполнено', 'need-confirm': 'ждёт второго щелчка' };
-  const statusOf = (r) => r.ring ?? (r.withdrawnBy ? 'отозвано' : STEP_STATUS[r.status] ?? 'в пути');
+    const statusOf = (r) => r.ring ?? (r.withdrawnBy ? 'отозвано' : outcomeText(r));
 
   function sinceOf(v) {
     if (v === undefined || v === null || v === '') return { iso: new Date(now() - LIMITS.defaultSinceMs).toISOString() };
@@ -100,6 +104,7 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
   }
 
   async function words({ project, since } = {}) {
+    project = normProject(project);
     const bad = badProject(project);
     if (bad) return bad;
     const s = sinceOf(since);
@@ -107,8 +112,9 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
     // явный project из входа сильнее умолчания (проекта треда); нет ни того, ни другого — все проекты
     const scope = project ?? (await threadProject());
     const qs = new URLSearchParams({ since: s.iso, ...(scope ? { project: scope } : {}) });
-    const rows = (await get('/api/actions?' + qs)).filter?.((r) => r && Object.hasOwn(WORD_LABELS, r.action));
-    if (!rows) throw new Http('витрина ответила не списком');
+    const all = await get('/api/actions?' + qs);
+    if (!Array.isArray(all)) throw new Http('витрина ответила не списком');
+    const rows = all.filter((r) => r && Object.hasOwn(WORD_LABELS, r.action));
     rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
     if (!rows.length) return `слов Ивана нет${scope ? ' по ' + scope : ''} за период`;
     const lines = rows.slice(0, LIMITS.wordsRows).map((r) => {
@@ -118,6 +124,7 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
     return clip(lines, LIMITS.wordsChars);
   }
 
+  const firstLine = (v) => String(v).split(String.fromCharCode(10))[0];
   const age = (iso) => {
     const t = Date.parse(iso);
     if (!Number.isFinite(t)) return 'нет';
@@ -129,15 +136,15 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
     const [h, m] = await Promise.all([get('/api/health'), get('/api/mirror').catch((e) => { if (e instanceof Down) throw e; return null; })]);
     const rd = Object.entries(h?.readers ?? {}).filter(([, v]) => v && typeof v === 'object' && 'lastOkAt' in v);
     const errRows = rd.filter(([, v]) => v.errors > 0 && typeof v.lastError === 'string').slice(0, LIMITS.healthErrRows)
-      .map(([k, v]) => `  ${k}: ${cut(v.lastError, LIMITS.healthErrChars)}`);
+      .map(([k, v]) => `  ${k}: ${cut(firstLine(v.lastError), LIMITS.healthErrChars)}`);
     const readers = `Читатели: ${rd.map(([k, v]) => `${k} ${age(v.lastOkAt)}${v.errors > 0 ? ` ош${v.errors}` : ''}`).join(', ') || 'нет данных'}`;
     const mirror = m
-      ? `Зеркало: ${age(m.lastOk)} назад, полное ${age(m.lastFullOk)} назад, идёт ${m.running ? 'да' : 'нет'}${m.lastError ? `, ошибка: ${cut(m.lastError, LIMITS.healthErrChars)}` : ''}`
+      ? `Зеркало: ${age(m.lastOk)} назад, полное ${age(m.lastFullOk)} назад, идёт ${m.running ? 'да' : 'нет'}${m.lastError ? `, ошибка: ${cut(firstLine(m.lastError), LIMITS.healthErrChars)}` : ''}`
       : 'Зеркало: нет данных';
     const b = h?.bell;
     const bell = b ? `Звонок: ${b.on ? 'вкл' : 'выкл'}, ждущих ${b.waiters ?? '?'}, слов в очереди ${b.queued ?? '?'}` : 'Звонок: нет данных';
     const q = h?.planeQueue;
-    const plane = q ? `Очередь Plane: идёт ${q.running}, ждёт ${q.queued}` : 'Очередь Plane: нет данных';
+    const plane = q && Number.isFinite(q.running) && Number.isFinite(q.queued) ? `Очередь Plane: идёт ${q.running}, ждёт ${q.queued}` : 'Очередь Plane: нет данных';
     return clip([readers, ...errRows, mirror, bell, plane], LIMITS.healthChars);
   }
 

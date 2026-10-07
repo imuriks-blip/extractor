@@ -25,7 +25,6 @@ const log = (o) => {
 const send = (o) => process.stdout.write(JSON.stringify(o) + '\n');
 const sessionEnv = Boolean(String(process.env.CLAUDE_CODE_SESSION_ID ?? '').trim());
 const tools = createTools({ base });
-const pending = new Set();
 
 async function handle(m) {
   if (m.method === 'initialize') {
@@ -36,7 +35,7 @@ async function handle(m) {
   if (m.method === 'tools/list') return send({ jsonrpc: '2.0', id: m.id, result: { tools: tools.tools } });
   if (m.method === 'tools/call') {
     const { name, arguments: a } = m.params || {};
-    log({ ev: 'call', name, args: { project: a?.project, since: a?.since }, sessionEnv });
+    log({ ev: 'call', name, args: { project: typeof a?.project === 'string' ? a.project.slice(0, 20) : undefined, since: typeof a?.since === 'string' ? a.since.slice(0, 40) : undefined }, sessionEnv });
     const r = await tools.call(name, a);
     log({ ev: r.isError ? 'err' : 'ok', name, chars: r.text.length });
     return send({ jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text: r.text }], ...(r.isError ? { isError: true } : {}) } });
@@ -48,7 +47,5 @@ readline.createInterface({ input: process.stdin }).on('line', (l) => {
   let m;
   try { m = JSON.parse(l); } catch { return; }
   if (!m || typeof m !== 'object') return;
-  const p = handle(m).catch(() => { if (m.id !== undefined) send({ jsonrpc: '2.0', id: m.id, error: { code: -32603, message: 'internal error' } }); });
-  pending.add(p);
-  p.finally(() => pending.delete(p));
+  handle(m).catch(() => { if (m.id !== undefined) send({ jsonrpc: '2.0', id: m.id, error: { code: -32603, message: 'internal error' } }); });
 });

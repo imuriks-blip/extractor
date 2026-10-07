@@ -89,7 +89,7 @@ test('waiting: длинные данные режутся — ≤5 строк п
   assert.equal(r.isError, undefined);
   assert.ok(r.content[0].text.length <= LIMITS.waitingChars);
   assert.equal(lines.length - 1, LIMITS.waitingRows);
-  for (const l of lines.slice(1)) assert.ok(Array.from(l).length <= LIMITS.waitingRowChars + 2, l);
+  for (const l of lines.slice(1)) assert.ok(Array.from(l).length <= LIMITS.waitingRowChars, l);
   assert.match(lines[0], /\(а\).* 8, \(б\).* 6, \(в\).* 9/);
   // отрицательный контроль: короткие данные не режутся и не дописываются
   const f2 = await fakeVitrina(() => ceh({ yes: [{ id: 'EXT-1', project: 'EXT', mark: 'развилка', title: 'коротко' }] }));
@@ -126,6 +126,15 @@ test('words: ≤10 строк, ≤900 знаков; формат «<id> · ЧЧ:
   // самые новые первыми (id с большим номером минут); длинный текст «нет» урезан
   assert.ok(lines.some((l) => l.includes('«нет: ')));
   assert.ok(lines.every((l) => Array.from(l).length < 120));
+  // предел 900 держится на длинных строках: «ответ» с текстом и длинный статус — 10 строк не влезают, лишние не режутся посреди
+  const fl = await fakeVitrina(() => Array.from({ length: 10 }, (_, i) => actionRow(i + 10, { action: 'reply', text: long(300), ring: 'отозвано поздно: прочитано' })));
+  const sl = startServer({ url: fl.url });
+  const tl = (await sl.callTool('words')).content[0].text;
+  assert.ok(tl.length <= LIMITS.wordsChars && tl.split('\n').length < LIMITS.wordsRows, tl.length);
+  assert.ok(tl.split('\n').every((l) => l.endsWith('отозвано поздно: прочитано')));
+  // порядок: самые новые первыми, ЧЧ:ММ из времени записи
+  assert.deepEqual(lines.slice(0, 3).map((l) => l.split(' · ')[1]), ['12:29', '12:28', '12:27']);
+  await sl.stop(); await fl.close();
   // отрицательный контроль: мало данных — ровно столько строк
   const f2 = await fakeVitrina(() => [actionRow(1), actionRow(2, { action: 'ping' }), actionRow(3, { action: 'mirror' })]);
   const s2 = startServer({ url: f2.url });
@@ -133,18 +142,22 @@ test('words: ≤10 строк, ≤900 знаков; формат «<id> · ЧЧ:
   await Promise.all([s.stop(), s2.stop()]); await f.close(); await f2.close();
 });
 
-test('words: подписи слов — как WORD_LABEL витрины; статусы без звонка — по шагу', async () => {
-  for (const [k, v] of Object.entries(WORD_LABEL)) if (k !== 'reply') assert.equal(WORD_LABELS[k], v, k);
+test('words: подписи слов — как WORD_LABEL витрины; статусы без звонка — те же слова, что на странице «Мои слова» (outcomeText)', async () => {
+  for (const [k, v] of Object.entries(WORD_LABEL)) assert.equal(WORD_LABELS[k], v, k);
   const f = await fakeVitrina(() => [
     actionRow(1, { ring: null, status: 'done', action: 'accept' }),
     actionRow(2, { ring: null, status: 'refused', action: 'go' }),
-    actionRow(3, { ring: null, status: 'need-confirm', action: 'merge' }),
+    actionRow(3, { ring: null, status: 'need-confirm', bdeal: 'слово «сливай»', action: 'merge' }),
+    actionRow(6, { ring: null, status: 'need-confirm', bdeal: null, action: 'take' }),
+    actionRow(7, { ring: null, status: 'error', action: 'return' }),
+    actionRow(8, { ring: null, status: 'asked', action: 'no' }),
+    actionRow(9, { ring: null, status: 'partial', action: 'yes' }),
     actionRow(4, { ring: 'положено', action: 'deploy' }),
     actionRow(5, { ring: null, status: 'done', withdrawnBy: 'W-x', action: 'yes' }),
   ]);
   const s = startServer({ url: f.url });
   const t = (await s.callTool('words')).content[0].text;
-  for (const part of ['«принято» · записано', '«го» · отказано', '«сливай» · ждёт второго щелчка', '«выкатывай» · положено', '«да» · отозвано']) assert.ok(t.includes(part), part);
+  for (const part of ['«принято» · записано', '«го» · отказ', '«сливай» · ждёт второго щелчка', '«в работу» · ждёт выбора треда', '«вернуть» · не записано', '«нет» · идёт или оборвано', '«да» · частично: запись есть, статус не сменился', '«выкатывай» · положено', '«да» · отозвано']) assert.ok(t.includes(part), part);
   await s.stop(); await f.close();
 });
 
@@ -223,7 +236,7 @@ test('витрина не запущена — одна строка на каж
   // по умолчанию — адрес из спеки
   const t = createTools({ fetchImpl: async () => { throw new Error('ECONNREFUSED'); } });
   assert.equal((await t.call('health')).text, 'витрина не запущена (127.0.0.1:4317)');
-  // отрицательный контроль: витрина жива, но ответила 503 — это не «не запущена»
+  // отрицательный контроль: витрина жива, но ответила не 200 (здесь 404) — это не «не запущена»
   const f2 = await fakeVitrina(() => undefined);
   const s2 = startServer({ url: f2.url });
   const r2 = await s2.callTool('health');
@@ -271,6 +284,26 @@ test('протокол: initialize, tools/list (три инструмента, �
   assert.ok(evs.some((e) => e.ev === 'call' && e.name === 'health') && evs.some((e) => e.ev === 'ok' && e.name === 'health' && e.chars > 0));
   assert.ok(!log.includes(SID));
   await f.close();
+});
+
+test('project: пусто и null — все, строчный код — заглавный; тело не список и нечисловая очередь — строка, не падение', async () => {
+  const f = await fakeVitrina((p) => (p === '/api/actions' ? null : p === '/api/health' ? { readers: {}, planeQueue: {}, bell: { on: true } } : p === '/api/ceh' ? ceh({ yes: [{ id: 'EXT-1', project: 'EXT', mark: 'да', title: 'a' }] }) : undefined));
+  const s = startServer({ url: f.url });
+  for (const project of ['', null]) assert.match((await s.callTool('waiting', { project })).content[0].text, /^Ждёт Ивана: /);
+  assert.match((await s.callTool('waiting', { project: 'ext' })).content[0].text, /по EXT: .*\(б\).* 1/);
+  const w = await s.callTool('words');
+  assert.equal(w.isError, true);
+  assert.equal(w.content[0].text, 'витрина ответила не списком');
+  assert.match((await s.callTool('health')).content[0].text, /Очередь Plane: нет данных/);
+  await s.stop(); await f.close();
+});
+
+test('health: ошибка читателя — только первая строка', async () => {
+  const f = await fakeVitrina((p) => (p === '/api/health' ? { readers: { git: { lastOkAt: null, errors: 1, lastError: 'первая\nвторая-строка' } }, bell: {} } : undefined));
+  const s = startServer({ url: f.url });
+  const t = (await s.callTool('health')).content[0].text;
+  assert.ok(t.includes('git: первая') && !t.includes('вторая-строка'));
+  await s.stop(); await f.close();
 });
 
 test('адрес не локальный — сервер не стартует (код 2), наружу не ходит', async () => {
