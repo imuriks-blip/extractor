@@ -249,7 +249,7 @@ test('(6) пока слово по той же карточке идёт — 409
   const slow = s.press({ action: 'yes', card: 'EXT-20', q: { at: '2026-10-03T09:00:00.000Z', head: Q_MD } });
   await until(() => s.lines().filter((l) => l.step === 'asked' && l.action === 'yes').length === 2);
   const calls0 = JSON.stringify(s.pl().calls);
-  const r = await s.press(WD(a.id));
+  const r = await Promise.race([s.press(WD(a.id)), new Promise((res) => setTimeout(() => res({ statusCode: 'завис', json: () => ({}) }), 2500))]);
   assert.equal(r.statusCode, 409);
   assert.equal(r.json().refusal, 'card-busy');
   assert.equal(s.lines().some((l) => l.step === 'withdrawn'), false, 'ничего не снято');
