@@ -1,17 +1,17 @@
 // Блоки «Цеха» вокруг кнопок-слов (EXT-70; спека пульта §1.4 «Цех», §1.5, §1.7, §2.8, §4.3):
 // «Мои слова за 24 ч» — GET /api/actions, это и аудит, красная пометка «не из браузера» (source.ok);
-// «Рабочие копии» — GET /api/worktrees и «Прибери отслужившие» (ручки исполнения ещё нет — ответ 501 словами «ещё нет»).
-import { useState } from 'react';
+// «Рабочие копии» — GET /api/worktrees и «Прибери отслужившие» (EXT-83: второй щелчок сервера).
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { clear403, postAct, reloadOn403 } from './act.js';
 import { streamSource, useSource } from './data.js';
-import { hm, plural } from './format.js';
+import { dm, hm } from './format.js';
 import { useOpen } from './prefs.js';
 import { Ring, WORD } from './Pult.jsx';
 import { RETURN_HINT, canWithdraw, outcomeText, withdrawResult, withdrawRowView, wordRingView } from './pultData.js';
 import { Summary } from './Summary.jsx';
+import { WT_CONFIRM_MS, WT_URL, finalAnswer, firstAnswer, wtCounts, wtRows } from './worktreesData.js';
 
 const actionsSource = streamSource('/api/actions');
-const worktreesSource = streamSource('/api/worktrees');
 
 const SERVICE = new Set(['mirror', 'defer', 'undefer', 'reindex', 'ping', 'cleanup']); // не слова: Обновить, Отложить и прочее служебное
 const LABEL = { ...WORD, accept: 'принять', return: 'вернуть', reread: 'перечитать правила', 'new-card': 'новая карточка', withdraw: 'отозвать' };
@@ -104,57 +104,102 @@ export function MyWords({ now, pult }) {
   );
 }
 
-// «Прибери отслужившие рабочие копии» (таблица 1.3, §1.5): список кандидатов с причиной годности, всегда второй щелчок.
-// Выбор копий в запрос пока не входит («выбор копий для cleanup добавит ПТ8б») — кнопка просит убрать все годные.
-export function Worktrees() {
+// «Прибери отслужившие рабочие копии» (таблица 1.3, §1.5, §1.7; EXT-83): список кандидатов с причиной годности и второй щелчок
+// сервера. Первый POST cleanup (без confirm) ничего не убирает: возвращает окно подтверждения со списком; убирает только второй
+// POST с confirm = id первого, и только то, что было в списке первого. Окно живёт 5 мин, как у «Полного прохода зеркала».
+// project — код проекта (окно проекта: свои репозитории) или не задан («Цех»: все).
+const wtSources = new Map();
+const wtSource = (project) => { const k = project || '*'; if (!wtSources.has(k)) wtSources.set(k, streamSource(WT_URL(project))); return wtSources.get(k); };
+
+export function Worktrees({ project }) {
   const o = useOpen('worktrees', false);
-  const { data } = useSource(worktreesSource);
-  const [ph, setPh] = useState('idle'); // idle | confirm | busy | done
-  const [msg, setMsg] = useState(null);
-  const list = Array.isArray(data) ? data : [];
-  const ok = list.filter((x) => x.eligible);
-  const name = (p) => String(p).split(/[\\/]/).filter(Boolean).pop();
-  const go = async () => {
-    setPh('busy');
-    const payload = { action: 'cleanup', intentId: crypto.randomUUID() };
+  const source = wtSource(project);
+  const { data } = useSource(source);
+  const [ph, setPh] = useState('idle'); // idle | asking | confirm | busy
+  const [cf, setCf] = useState(null); // {id, what, follows, mirrorAt, candidates, until}
+  const [msg, setMsg] = useState(null); // {cls, text}
+  const intent = useRef(null); // намерение без ответа (сбой сети) — повтор нажатием с тем же ключом
+  const btn = useRef(null);
+  const again = useRef(null);
+  useEffect(() => () => clearTimeout(again.current), []);
+  const rows = wtRows(data);
+  const { total, ok } = wtCounts(data);
+  // просроченное подтверждение закрывается само
+  useEffect(() => {
+    if (!cf) return undefined;
+    const t = setTimeout(() => { setCf(null); setPh('idle'); setMsg({ cls: 'pamb', text: 'подтверждение просрочено — нажми заново' }); }, Math.max(0, cf.until - Date.now()));
+    return () => clearTimeout(t);
+  }, [cf]);
+  const closeCf = () => { setCf(null); setPh('idle'); btn.current?.focus(); };
+
+  const send = async (confirm) => {
+    const prev = intent.current;
+    const payload = prev && prev.confirm === confirm ? prev : { action: 'cleanup', intentId: crypto.randomUUID(), ...(confirm ? { confirm } : {}), ...(project ? { project } : {}) };
+    intent.current = payload;
+    setMsg(null);
+    setPh(confirm ? 'busy' : 'asking');
+    const keep = cf;
+    if (confirm) setCf(null); // второй щелчок ушёл — окно снято
     let r;
-    try { r = await postAct(payload); } catch { setMsg({ cls: 'pbad', text: 'нет связи с витриной' }); setPh('done'); return; }
+    try { r = await postAct(payload); } catch {
+      if (confirm) { setCf(keep); setPh('confirm'); } else setPh('idle');
+      setMsg({ cls: 'pbad', text: 'нет связи с витриной — нажми ещё раз (повтор того же нажатия)' });
+      return;
+    }
     if (r.status === 403) {
       if (reloadOn403(payload)) return;
+      intent.current = null; setPh('idle');
       setMsg({ cls: 'pbad', text: 'пульт отказал, перезапусти витрину (ответ 403 дважды подряд)' });
-    } else {
-      clear403(payload.intentId);
-      const b = r.body || {};
-      setMsg(r.status === 501
-        ? { cls: 'muted', text: <><span className="faint">ещё нет:</span> {b.message || 'уборка ещё не подключена'}</> }
-        : { cls: b.outcome === 'ok' ? 'pmark' : 'pamb', text: b.message || `ошибка: HTTP ${r.status}` });
+      return;
     }
-    setPh('done');
+    clear403(payload.intentId);
+    intent.current = null;
+    if (!confirm) {
+      const a = firstAnswer(r.status, r.body);
+      if (a.kind === 'confirm') { setCf({ ...a, until: Date.now() + WT_CONFIRM_MS }); setPh('confirm'); return; }
+      setPh('idle'); setMsg({ cls: a.cls, text: a.text });
+      return;
+    }
+    const a = finalAnswer(r.status, r.body);
+    setPh('idle'); setMsg({ cls: a.cls, text: a.text });
+    // убранные строки пропадают: перечитать сейчас и ещё раз через 3 с — git-наблюдатель сервера шлёт «changed» посреди уборки, и ручка
+    // может ответить снимком до удаления (общее идущее вычисление на ключ); второе чтение снимает этот хвост
+    source.reload();
+    clearTimeout(again.current);
+    again.current = setTimeout(() => source.reload(), 3000);
   };
+
   return (
-    <details className="blk" open={o.open} onToggle={o.onToggle}>
-      <Summary>Рабочие копии <span className="cnt num">{list.length}</span>{list.length > 0 && <span className="hint">годны к уборке: {ok.length}</span>}</Summary>
-      {list.map((x) => (
-        <div className={x.eligible ? 'wt' : 'wt no'} key={x.path}>
-          <span className="p" title={x.path}>{name(x.path)} · {x.branch}</span>
-          <span className="r">{x.reason}{x.ignored?.length > 0 && ` · ${x.ignored.join(', ')}`}</span>
+    <details className="blk" open={o.open} onToggle={o.onToggle} aria-label="Рабочие копии">
+      <Summary>Рабочие копии <span className="cnt num">{total}</span>{total > 0 && <span className="hint">годны к уборке: {ok}</span>}</Summary>
+      {rows.map((x) => (
+        <div className={`wt${x.eligible ? '' : ' no'}${x.manual ? ' man' : ''}`} key={x.key}>
+          <span className="p" title={x.path}>{x.name}{x.branch && <span className="muted"> · {x.branch}</span>}{x.card && <span className="id">{x.card}</span>}{x.badge && <span className={`tag ${x.eligible ? 'g' : 'b'}`}>{x.badge}</span>}</span>
+          <span className="r">{x.reason}{x.ignored.length > 0 && ` · ${x.ignored.join(', ')}`}</span>
         </div>
       ))}
-      {!list.length && <div className="foot">{data ? 'Рабочих копий нет.' : 'Читаю список…'}</div>}
-      {ok.length > 0 && (
+      {!rows.length && <div className="foot">{data ? 'Рабочих копий нет.' : 'Читаю список…'}</div>}
+      {ok > 0 && (
         <div className="wtb">
-          {ph === 'confirm' ? (
-            <span className="cfm"><span className="h">Убрать {plural(ok.length, ['копию', 'копии', 'копий'])}?</span>{ok.map((x) => name(x.path)).join(', ')}. Ветки не удаляются.
-              <span className="row"><button type="button" className="pbtn pmain" onClick={go}>убрать {ok.length}</button><button type="button" className="pbtn" onClick={() => setPh('idle')}>отмена</button></span>
-            </span>
-          ) : (
-            <>
-              <button type="button" className="pbtn" disabled={ph === 'busy'} onClick={() => { setMsg(null); setPh('confirm'); }}>убрать годные: {ok.length}</button>
-              {ph === 'busy' ? <span className="going" role="status">убираю…</span> : msg ? <span className={msg.cls} role="status">{msg.text}</span> : <span className="faint">ветки остаются; вернуть — git worktree add</span>}
-            </>
+          <button type="button" className="pbtn" ref={btn} disabled={ph === 'asking' || ph === 'busy'} aria-expanded={!!cf} onClick={() => (cf ? closeCf() : send())}>{ph === 'asking' ? 'спрашиваю…' : `убрать годные: ${ok}`}</button>
+          {ph === 'busy' ? <span className="going" role="status">убираю…</span> : msg ? <span className={msg.cls} role="status">{msg.text}</span> : !cf && <span className="faint">ветки остаются; вернуть — git worktree add</span>}
+          {cf && (
+            <div className="cfm" role="group" aria-label={`Подтверждение: ${cf.what}`} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeCf(); } }}>
+              <span className="h">{cf.what}</span>{cf.follows}
+              {!/остаются/.test(cf.follows) && ' Ветки остаются.'}
+              {cf.mirrorAt && <span className="faint"> Зеркало от {dm(cf.mirrorAt)}.</span>}
+              <dl>{cf.candidates.map((c) => <Fragment key={c.path}><dt className="mono" title={c.path}>{c.name}</dt><dd>{c.branch}{c.card && <span className="id">{c.card}</span>}</dd></Fragment>)}</dl>
+              <span className="row">
+                {/* фокус — на «отмена»: автоповтор Enter на «убрать годные» не нажимает уборку */}
+                <button type="button" className="pbtn pmain" onClick={() => send(cf.id)}>убрать {cf.candidates.length}</button>
+                <button type="button" className="pbtn" autoFocus onClick={closeCf}>отмена</button>
+                <span className="tmr num">действует до {hm(new Date(cf.until).toISOString())}</span>
+              </span>
+            </div>
           )}
         </div>
       )}
+      {ok === 0 && msg && <div className="wtb"><span className={msg.cls} role="status">{msg.text}</span></div>}
     </details>
   );
 }

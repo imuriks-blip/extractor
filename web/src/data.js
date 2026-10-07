@@ -34,7 +34,10 @@ function streamDown() {
 // Источник на потоке: ручка читается при подписке, при открытии потока и на каждое `changed`; пока потока нет —
 // опросом раз в fallbackMs. Ошибка ручки — onError, как у опроса (серая строка 2.7 и «Сервер витрины не отвечает»).
 export function streamSource(url, fallbackMs = 5000) {
+  const loads = new Set(); // загрузчики подписчиков — для reload()
   return {
+    // перечитать сейчас (после действия, меняющего данные ручки)
+    reload() { loads.forEach((f) => f()); },
     subscribe(onData, onError) {
       let stopped = false, ctl = null, busy = false, again = false, timer = null;
       const load = async () => {
@@ -59,10 +62,11 @@ export function streamSource(url, fallbackMs = 5000) {
       };
       const sub = { up: () => { clearTimeout(timer); timer = null; load(); }, changed: load, down: poll };
       stream.subs.add(sub);
+      loads.add(load);
       streamUp();
       load();
       poll();
-      return () => { stopped = true; clearTimeout(timer); ctl?.abort(); stream.subs.delete(sub); streamDown(); };
+      return () => { stopped = true; loads.delete(load); clearTimeout(timer); ctl?.abort(); stream.subs.delete(sub); streamDown(); };
     },
   };
 }

@@ -453,10 +453,16 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
 /* рабочие копии */
 .wt{display:grid;grid-template-columns:minmax(0,1fr);gap:0;padding:4px 10px;border-top:1px solid var(--line);align-items:baseline}
 .wt .p{font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+.wt .p .id{font-family:var(--mono);font-size:12px;color:var(--accent);margin-left:6px}
+.wt .p .tag{margin:0 0 0 6px;font-family:var(--sans)}
 .wt .r{font-size:12px;color:var(--muted)}
-.wt.no,.wt.no .r{color:var(--faint)}
+.wt.no .p{color:var(--muted)}
+.wt.man .r{color:var(--amber);font-weight:500}
+.tag.g{background:var(--green-bg);color:var(--green)}
+.cfm dt.mono{color:var(--fg)}
+.cfm dd .id{font-family:var(--mono);font-size:12px;color:var(--accent);margin-left:6px}
 .wtb{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:6px 10px;border-top:1px solid var(--line);font-size:12px}
-.wtb .cfm{margin:0;flex:1}
+.wtb .cfm{margin:0;flex:1 1 100%}
 /* подтверждение «под строкой» (полный проход зеркала в «Служебном», EXT-75): своей строкой, в потоке */
 .nc-bar{flex-direction:column;align-items:flex-start;gap:4px}
 .ncb{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
