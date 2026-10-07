@@ -65,6 +65,9 @@ if (cmd === 'show') {
   try { body = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* файла нет или не JSON */ }
   st.creates = [...(st.creates ?? []), { code, file, existed, body }];
   if (fail.create === 'refuse') { save(); err('Доска ответила 400: {"error":"bad state"}'); process.exit(1); }
+  if (fail.create === 'refuse502') { save(); err('Доска ответила 502: bad gateway'); process.exit(1); }
+  if (fail.create === 'nostatus') { save(); err('Нет статуса «Backlog» в проекте'); process.exit(1); }
+  if (fail.create === 'noenv') { save(); err('нет PLANE_API_KEY: ни в окружении, ни в конфиге'); process.exit(1); }
   const num = (st.cardSeq ?? 100) + 1;
   st.cardSeq = num;
   st.cards = [...(st.cards ?? []), { id: `${code}-${num}`, ...body }];

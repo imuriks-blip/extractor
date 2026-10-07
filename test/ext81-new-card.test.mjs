@@ -332,6 +332,19 @@ test('известный отказ Plane (код 1, «Доска ответил
   assert.equal(s.pl().calls.length, 1);
 });
 
+// классификация исхода create (вердикт Голема, Важно 2): 4xx и «не дошло до запроса» — точно не создана; 5xx — запись могла лечь
+for (const [mode, known, line] of [['refuse', true, 'Доска ответила 400'], ['nostatus', true, 'Нет статуса «Backlog»'], ['noenv', true, 'нет PLANE_API_KEY'], ['refuse502', false, 'Доска ответила 502']]) {
+  test(`create: «${line}» (код 1) — ${known ? 'не создана (NOT_CREATED)' : 'исход неясен (UNCLEAR), без повтора'}`, async () => {
+    const s = await setup({ plane: { fail: { create: mode } } });
+    const b = (await s.press({ project: 'EXT', title: 'Совсем иная затея про маршрутизацию' })).json();
+    assert.equal(b.outcome, 'error');
+    assert.equal(s.lines().find((l) => l.id === b.id && l.step === 'error').result.code, known ? 'NOT_CREATED' : 'UNCLEAR');
+    assert.equal(known ? b.message.startsWith('не создана: ') : b.message.startsWith('исход неясен'), true);
+    assert.equal(s.pl().calls.length, 1);
+    assert.deepEqual(s.tmpFiles(), []);
+  });
+}
+
 test('код 0, но создана карточка чужого проекта в выводе — исход неясен (код проекта должен совпасть)', async () => {
   const s = await setup();
   s.setPlane({ fail: {} });
