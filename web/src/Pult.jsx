@@ -8,6 +8,7 @@ import { canPull, clear403, postAct, pull, reloadOn403, take403 } from './act.js
 import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { pullNote } from './mirrorData.js';
+import { markIsRed } from './pultData.js';
 
 const TEXT_MAX = 500;
 const CONFIRM_MS = 5 * 60_000; // второй щелчок — не дольше 5 мин после первого (1.1 п.7)
@@ -240,7 +241,8 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   const confirming = phase === 'confirm';
   const markMine = mark && (!st || (phase === 'ok' && (!st.id || st.id === mark.id)));
   // красная «зеркало не видит запись <id>» (§1.7, слово Ивана 05.10): кнопки слов снова есть — отметка над ними
-  const red = !thread && mark?.missing === true;
+  // EXT-71 (§1.9): отметка отозванного слова (ring «отозвано…») для кнопок — как красная
+  const red = !thread && markIsRed(mark);
   const markPartial = isPartialMark(mark) && !st && !red;
 
   // карточка: обычная отметка из данных пришла — нажатие исполнено, кнопок нет, видна она
