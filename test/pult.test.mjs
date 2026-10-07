@@ -370,7 +370,7 @@ test('config.default.json: pult.enabled, pult.words и pult.bell — false; па
   assert.deepEqual(flags, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
   // уборка рабочих копий (EXT-83, §1.5): порог и безопасный список спеки — настройка
   assert.equal(cleanup.maxAgeDays, 14);
-  assert.deepEqual(cleanup.safeIgnored, ['node_modules/', 'dist/', 'web/dist/', '.venv/', '__pycache__/']);
+  assert.deepEqual(cleanup.safeIgnored, ['node_modules/', 'web/node_modules/', 'dist/', 'web/dist/', '.venv/', '__pycache__/']);
 });
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------

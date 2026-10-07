@@ -78,7 +78,7 @@
     "cleanup": {
       "_comment": "«Прибери отслужившие рабочие копии» (спека пульта §1.5): maxAgeDays — копия старше отслужила и без закрытой карточки; safeIgnored — игнорируемое, которое не жалко, путём от корня копии целиком (каталог — со слэшем); массив заменяет список целиком",
       "maxAgeDays": 14,
-      "safeIgnored": ["node_modules/", "dist/", "web/dist/", ".venv/", "__pycache__/"]
+      "safeIgnored": ["node_modules/", "web/node_modules/", "dist/", "web/dist/", ".venv/", "__pycache__/"]
     }
   },
   "backup": {
