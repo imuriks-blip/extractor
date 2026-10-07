@@ -106,3 +106,12 @@ test('текст для буфера: заголовок и текст чере�
   assert.equal(copyText({ title: ' З ', text: ' т ' }), 'З\n\nт');
   assert.equal(copyText({ title: 'З', text: '' }), 'З');
 });
+
+test('«Мои слова»: у new-card исход — про карточку, не про тред; у слов прежнее (отрицательный контроль)', async () => {
+  const { outcomeText } = await import('../web/src/pultData.js');
+  assert.equal(outcomeText({ action: 'new-card', status: 'done' }), 'создана');
+  assert.equal(outcomeText({ action: 'new-card', status: 'need-confirm' }), 'ждёт «всё равно создать»');
+  assert.match(outcomeText({ action: 'new-card', status: 'error' }), /проверь доску/);
+  assert.equal(outcomeText({ action: 'yes', status: 'need-confirm' }), 'ждёт выбора треда');
+  assert.equal(outcomeText({ action: 'new-card', status: 'refused' }), 'отказ');
+});
