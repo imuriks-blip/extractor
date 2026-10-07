@@ -119,7 +119,8 @@ test('«Мои слова»: у new-card исход — про карточку,
 test('«нет связи»: закрытие из net — «исход неясен», не очистка и не новый ввод; во время запроса закрыть нельзя', () => {
   assert.equal(closeAction('net'), 'unclear');
   assert.equal(closeAction('busy'), 'none');
-  for (const ph of ['form', 'confirm', 'unclear', 'ok']) assert.equal(closeAction(ph), 'close', ph);
+  assert.equal(closeAction('unclear'), 'reset', 'из «исход неясен» кнопка не возвращает прежний ввод');
+  for (const ph of ['form', 'confirm', 'ok']) assert.equal(closeAction(ph), 'close', ph);
 });
 
 test('«повторить» тем же intentId: до 9 минут от отправки; с 9 минут, без времени и из будущего — нет', () => {

@@ -15,7 +15,7 @@ export const clip = (s, max) => { const a = [...String(s ?? '')]; return a.lengt
 // «нет связи»: «повторить» тем же intentId — до 9 мин от отправки; позже (или время неизвестно) — исход неясен
 export const canRetryNet = (since, now) => Number.isFinite(since) && now - since >= 0 && now - since < NET_RETRY_MS;
 // закрытие формы (отмена, Esc, кнопка «Новая карточка»): из «нет связи» — не молча, а в «исход неясен»; во время запроса — нельзя
-export const closeAction = (phase) => (phase === 'net' ? 'unclear' : phase === 'busy' ? 'none' : 'close');
+export const closeAction = (phase) => (phase === 'net' ? 'unclear' : phase === 'busy' ? 'none' : phase === 'unclear' ? 'reset' : 'close');
 
 export const NO_NEW_CARD = ['RADAR']; // в RADAR карточка рождается с вердиктом — заводит дирижёр (сервер откажет и сам)
 

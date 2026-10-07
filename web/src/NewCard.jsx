@@ -30,6 +30,7 @@ const fresh = () => crypto.randomUUID();
 const closeForm = (key) => {
   const a = closeAction(get(key).phase);
   if (a === 'unclear') patch(key, { open: true, phase: 'unclear', note: { cls: 'pbad', text: NET_UNCLEAR_MESSAGE } });
+  else if (a === 'reset') reset(key); // из «исход неясен» — как «закрыть»: поля очищаются, иначе кнопка вернула бы форму с прежним вводом (Важно Голема, круг 2)
   else if (a === 'close') patch(key, { open: false, phase: 'form', note: null });
 };
 
