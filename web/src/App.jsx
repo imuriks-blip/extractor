@@ -6,11 +6,13 @@ import Glossary from './Glossary.jsx';
 import Help from './Help.jsx';
 import MirrorStatus from './Mirror.jsx';
 import Project from './Project.jsx';
+import Usage from './Usage.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
 import { dm, hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
 
 function parseRoute() {
+  if (window.location.hash === '#/usage') return { name: 'usage' };
   const m = /^#\/project\/([A-Z]{2,6})(?:\/([A-Z]{2,6}-\d+))?$/.exec(window.location.hash);
   return m ? { name: 'project', code: m[1], card: m[2] ?? null } : { name: 'ceh' };
 }
@@ -50,11 +52,15 @@ function Header({ route, freshness, name }) {
   const read = oldest(freshness?.board?.lastOkAt, freshness?.journals?.lastOkAt);
   const mirror = freshness?.mirror?.label;
   return (
-    <header className="top">
+    <header className={route.name === 'usage' ? 'top nofresh' : 'top'}>
       <b>Экстрактор</b><span className="sep">/</span>
       {route.name === 'ceh'
         ? <span>Цех</span>
-        : <><a href="#/">Цех</a><span className="sep">/</span><span><b className="mono pcode">{route.code}</b>{name && <> · {name}</>}</span></>}
+        : route.name === 'usage'
+          ? <span>Расход</span>
+          : <><a href="#/">Цех</a><span className="sep">/</span><span><b className="mono pcode">{route.code}</b>{name && <> · {name}</>}</span></>}
+      {/* «Расход» (EXT-84) — свой экран: рядом с крошками ссылка на соседний */}
+      <a className="navl" href={route.name === 'usage' ? '#/' : '#/usage'}>{route.name === 'usage' ? '← Цех' : 'Расход'}</a>
       {freshness && (
         <span className="fresh muted mono">
           {/* EXT-50 (§3.4а спеки пульта): суточная копия журнала действий; красным — удачной нет больше 48 ч, попытка
@@ -94,7 +100,7 @@ export default function App() {
   const route = useRoute();
   const code = route.name === 'project' ? route.code : null;
   // один источник на экран: «Цех» — /api/ceh, окно проекта — /api/project/<КОД>
-  const source = useMemo(() => (code ? streamSource(`/api/project/${code}`) : cehSource), [code]);
+  const source = useMemo(() => (route.name === 'usage' ? idleSource : code ? streamSource(`/api/project/${code}`) : cehSource), [code, route.name]);
   const { data, failingSince, error } = useSource(source);
   // счётчик (4.2): N = |а| + |б| по всем проектам — из /api/ceh и в окне проекта; Review не входит
   const ceh = useSource(code ? cehSource : idleSource);
@@ -104,7 +110,7 @@ export default function App() {
 
   // заголовок «(N) Экстрактор · Цех» / «(N) Экстрактор · <КОД>»; N = 0 или ещё не прочитано — без скобок
   useEffect(() => {
-    const base = route.name === 'ceh' ? 'Экстрактор · Цех' : `Экстрактор · ${route.code}`;
+    const base = route.name === 'ceh' ? 'Экстрактор · Цех' : route.name === 'usage' ? 'Экстрактор · Расход' : `Экстрактор · ${route.code}`;
     document.title = n > 0 ? `(${n}) ${base}` : base;
   }, [route, n]);
   // значок на иконке установленного приложения (4.2, В-8): тот же N; 0 — снят; не прочитано — не трогаем
@@ -129,7 +135,9 @@ export default function App() {
   }, []);
 
   let body;
-  if (!data) {
+  if (route.name === 'usage') {
+    body = <Usage />;
+  } else if (!data) {
     body = <div className="foot" role="status">
       {code && error === 'HTTP 404' ? `Проекта ${code} нет на доске.` : failingSince ? 'Сервер витрины не отвечает — пробую снова каждые 5 с.' : 'Читаю данные…'}
     </div>;

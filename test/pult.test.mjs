@@ -366,8 +366,12 @@ test('pult.words = false: слово («да») → 503 без записи; pin
 
 test('config.default.json: pult.enabled, pult.words и pult.bell — false; папка звонка — data/vitrina/bell/ (§4.3, ПТ4а)', () => {
   const d = JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8'));
-  const { cleanup, ...flags } = d.pult;
+  const { cleanup, usage, ...flags } = d.pult;
   assert.deepEqual(flags, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
+  // «Расход» (EXT-84, §6): порог предупреждения 1,5 × медиана, папка прогонов прораба — только чтение события лимита
+  assert.equal(usage.warnFactor, 1.5);
+  assert.equal(usage.foremanRuns, 'C:/projects/_foreman/runs');
+  assert.equal(usage.maxRuns, 10);
   // уборка рабочих копий (EXT-83, §1.5): порог и безопасный список спеки — настройка
   assert.equal(cleanup.maxAgeDays, 14);
   assert.deepEqual(cleanup.safeIgnored, ['node_modules/', 'web/node_modules/', 'dist/', 'web/dist/', '.venv/', '__pycache__/']);

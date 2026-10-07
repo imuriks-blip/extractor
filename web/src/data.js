@@ -71,6 +71,30 @@ export function streamSource(url, fallbackMs = 5000) {
   };
 }
 
+// Простой опрос ручки раз в everyMs без потока событий (экран «Расход»: данные тяжёлые, сервер кэширует их на 15 с)
+export function pollSource(url, everyMs = 30000) {
+  return {
+    subscribe(onData, onError) {
+      let stopped = false, ctl = null, timer = null;
+      const load = async () => {
+        ctl = new AbortController();
+        try {
+          const r = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const json = await r.json();
+          if (!stopped) onData(json);
+        } catch (e) {
+          if (!stopped) onError(e);
+        }
+        if (!stopped) timer = setTimeout(load, everyMs);
+      };
+      load();
+      return () => { stopped = true; clearTimeout(timer); ctl?.abort(); };
+    },
+  };
+}
+export const usageSource = pollSource('/api/usage', 30000);
+
 export const cehSource = streamSource('/api/ceh');
 // источник без данных (экран, которому нечего читать)
 export const idleSource = { subscribe: () => () => {} };
