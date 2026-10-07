@@ -11,6 +11,7 @@ import { Summary } from './Summary.jsx';
 import Reread from './Reread.jsx';
 import { Service } from './Service.jsx';
 import { MyWords, Worktrees } from './Words.jsx';
+import NewCard from './NewCard.jsx';
 
 const STALE_MS = 60_000; // данные читателя старше минуты — серая строка 2.7 (опрос доски 5 с, журналов 1–2 с)
 const REVIEW_SHOWN = 10; // «Готово, посмотри» на живой доске — десятки строк; остальное по кнопке
@@ -247,7 +248,7 @@ const phaseTip = (p) => [p.phase?.full ?? noPhase(p), p.next && `→ ${p.next.fu
 
 const n0 = (v) => <td className={v ? 'n num' : 'n num z'}>{v ?? 0}</td>;
 
-function Projects({ projects, now, stale, onOpen }) {
+function Projects({ projects, now, stale, onOpen, pult }) {
   const o = useOpen('projects');
   const key = (code) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(code); } };
   return (
@@ -280,6 +281,7 @@ function Projects({ projects, now, stale, onOpen }) {
           </tbody>
         </table>
       </div>
+      <NewCard projects={projects} pult={pult} />
       <Stale text={stale} />
     </details>
   );
@@ -452,7 +454,7 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
     <div className="grid">
       <div className="col">
         <Waiting w={data.waiting} now={now} pult={data.pult} threads={data.workers?.threads} order={(data.projects ?? []).map((p) => p.code)} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
-        <Projects projects={data.projects} now={now} stale={staleText(f.board, failing, now)} onOpen={onOpenProject} />
+        <Projects projects={data.projects} pult={data.pult} now={now} stale={staleText(f.board, failing, now)} onOpen={onOpenProject} />
       </div>
       <div className="col">
         <Workers w={data.workers} now={now} stale={staleText(f.journals, failing, now)} />

@@ -134,7 +134,7 @@ export default function App() {
       {code && error === 'HTTP 404' ? `Проекта ${code} нет на доске.` : failingSince ? 'Сервер витрины не отвечает — пробую снова каждые 5 с.' : 'Читаю данные…'}
     </div>;
   } else if (code) {
-    body = <Project code={code} data={data} failing={failingSince != null} now={now} cardId={route.card} onOpenCard={openCard} onCloseCard={closeCard} />;
+    body = <Project code={code} data={data} pult={ceh.data?.pult} failing={failingSince != null} now={now} cardId={route.card} onOpenCard={openCard} onCloseCard={closeCard} />;
   } else {
     body = <Ceh data={data} failing={failingSince != null} now={now} onOpenProject={open} />;
   }

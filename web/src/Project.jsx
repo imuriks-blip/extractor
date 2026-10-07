@@ -7,6 +7,7 @@ import { Mark, Stale, Thread, mergeFresh, staleText, useShowMore } from './Ceh.j
 import { Summary } from './Summary.jsx';
 import CardPanel from './CardPanel.jsx';
 import { PultMark } from './Pult.jsx';
+import NewCard from './NewCard.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 
@@ -112,7 +113,7 @@ function ListGroup({ id, title, items, shown, hint, sel, onOpen, now }) {
   );
 }
 
-function Board({ code, b, sel, onOpen, now, stale }) {
+function Board({ code, b, sel, onOpen, now, stale, pult }) {
   const o = useOpen('pboard');
   const cnt = b.counts || {};
   return (
@@ -121,6 +122,7 @@ function Board({ code, b, sel, onOpen, now, stale }) {
         Доска {code} <span className="cnt num">{plural(cnt.live ?? 0, ['живая', 'живые', 'живых'])} · {cnt.backlog ?? 0} в Backlog · {cnt.done ?? 0} Done</span>
         <span className="hint hsm">клик по карточке открывает её справа</span>
       </Summary>
+      <NewCard fixed={code} pult={pult} />
       <div className="cols">
         {COLS.map(([k, name]) => (
           <section key={k} aria-label={name}>
@@ -241,14 +243,14 @@ function PWorkers({ code, w, now, stale }) {
 
 /* ---------- экран ---------- */
 
-export default function Project({ code, data, failing, now, cardId, onOpenCard, onCloseCard }) {
+export default function Project({ code, data, pult, failing, now, cardId, onOpenCard, onCloseCard }) {
   const f = data.freshness || {};
   return (
     <>
       <Beacon b={data.beacon || {}} failing={failing} now={now} />
       <div className="pgrid">
         <div className="col">
-          <Board code={code} b={data.board || {}} sel={cardId} onOpen={onOpenCard} now={now} stale={staleText(f.board, failing, now)} />
+          <Board code={code} pult={pult} b={data.board || {}} sel={cardId} onOpen={onOpenCard} now={now} stale={staleText(f.board, failing, now)} />
         </div>
         <div className="col">
           <PWaiting code={code} rows={data.waiting || []} cnt={data.waitingCount} deferred={data.deferred} options={data.deferOptions} now={now} sel={cardId} onOpen={onOpenCard}
