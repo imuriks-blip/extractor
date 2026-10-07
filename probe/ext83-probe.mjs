@@ -83,6 +83,40 @@ async function main() {
     const row2 = (await finder(r).compute(null)).find((x) => fwd(x.path).toLowerCase() === fwd(wt).toLowerCase());
     say(`(а2, контроль) без ссылки: eligible=${row2.eligible}`);
   }
+  // (а3) вердикт Голема на c051867: ссылка внутри dist/, __pycache__/, .venv/ (и Lib/, Scripts/), во вложенном node_modules и в .pnpm —
+  // копия НЕ кандидат; контроль — настоящий dist/ и .venv/ без ссылок — годна. Ничего не удаляется, ссылки снимаются поштучно
+  {
+    const r = mkRepo('node_modules/\ndist/\n.venv/\n__pycache__/\n');
+    const tgt = fs.mkdtempSync(path.join(os.tmpdir(), 'ext83-probe-tgt-'));
+    roots.push(tgt);
+    fs.writeFileSync(path.join(tgt, 'marker.txt'), 'жив');
+    const cases = [['dist/x', ['dist', 'x']], ['dist/assets/img/x', ['dist', 'assets', 'img', 'x']], ['__pycache__/x', ['__pycache__', 'x']],
+      ['.venv/x', ['.venv', 'x']], ['.venv/Lib/x', ['.venv', 'Lib', 'x']], ['.venv/Scripts/x', ['.venv', 'Scripts', 'x']],
+      ['.venv/Lib/site-packages/x', ['.venv', 'Lib', 'site-packages', 'x']],
+      ['node_modules/a/node_modules/b', ['node_modules', 'a', 'node_modules', 'b']], ['node_modules/.pnpm/x@1/node_modules/y', ['node_modules', '.pnpm', 'x@1', 'node_modules', 'y']],
+      ['node_modules/@sc/p/node_modules/z', ['node_modules', '@sc', 'p', 'node_modules', 'z']]];
+    const links = [];
+    const wts = cases.map(([label, rel], i) => {
+      const wt = addCopy(r, `ext-91${i}-l${i}`);
+      fs.mkdirSync(path.join(wt, ...rel.slice(0, -1)), { recursive: true });
+      const l = path.join(wt, ...rel);
+      fs.symlinkSync(tgt, l, 'junction');
+      links.push(l);
+      return [label, wt];
+    });
+    const ctl = addCopy(r, 'ext-930-real');
+    fs.mkdirSync(path.join(ctl, 'dist', 'assets'), { recursive: true });
+    fs.writeFileSync(path.join(ctl, 'dist', 'assets', 'a.js'), '1');
+    fs.mkdirSync(path.join(ctl, '.venv', 'Lib', 'site-packages', 'pkg'), { recursive: true });
+    fs.writeFileSync(path.join(ctl, '.venv', 'pyvenv.cfg'), 'x');
+    fs.mkdirSync(path.join(ctl, 'node_modules', 'a', 'node_modules', 'b'), { recursive: true });
+    const rows = await finder(r).compute(null);
+    const f = (wt) => rows.find((x) => fwd(x.path).toLowerCase() === fwd(wt).toLowerCase());
+    for (const [label, wt] of wts) say(`(а3) junction в ${label}: eligible=${f(wt).eligible}, reason="${f(wt).reason}"`);
+    say(`(а3, контроль) настоящие dist/, .venv/, вложенный node_modules без ссылок: eligible=${f(ctl).eligible} (${f(ctl).reason})`);
+    for (const l of links) dropLink(l);
+    say(`(а3) маркер цели цел: ${fs.readFileSync(path.join(tgt, 'marker.txt'), 'utf8') === 'жив'}`);
+  }
   // (б) git worktree remove БЕЗ силы — РАЗРУШАЮЩИЙ шаг, по умолчанию ВЫКЛЮЧЕН (флаг --destructive). Факт уже снят 07.10 (б1): git remove
   // без силы прошёл по junction в .gitignore копии и стёр содержимое цели. Цель здесь всегда во временной папке os.tmpdir() временного репозитория.
   let stop = !process.argv.includes('--destructive');

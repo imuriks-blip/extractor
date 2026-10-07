@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { buildApp } from '../lib/app.mjs'
 import { createBoardReader } from '../lib/board-reader.mjs'
 import { createGitRead } from '../lib/git-read.mjs'
+import { createGitWrite } from '../lib/git-write.mjs'
 import { createRegistryReader } from '../lib/registry.mjs'
 import { createJournalReader } from '../lib/journal-reader.mjs'
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from '../test/helpers.mjs'
@@ -88,7 +89,7 @@ const journals = createJournalReader({ root: mk('ext83-journals-'), indexDir: pa
 await journals.refresh({ full: true })
 const threads = { list: () => ({ threads: [], waiting: [], subagentsCount: 0, unknownStatus: {} }), state: () => ({ processes: { lastOkAt: iso(new Date()) }, desktop: null }) }
 // cacheMs 500: кэш ручки 30 с после уборки показывает убранные копии как годные (замечание Терминусу); на снимках — короткий
-const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), scan, webDir: path.join(REPO, 'web', 'dist'), threads, journals, sessionsDir: emptySessions(),
+const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), scan, webDir: path.join(REPO, 'web', 'dist'), threads, journals, sessionsDir: emptySessions(), gitWrite: createGitWrite(), // пишущая — только временные репозитории пробы
   pult: { enabled: true, words: false, bell: false, actionsLog: path.join(data, 'actions.log'), mirrorDir: mdir, lock: lockLib, boardRoot: boardDir },
   pultSeams: { worktrees: { cacheMs: 500 } } })
 await app.listen({ host: '127.0.0.1', port: PORT })
@@ -148,16 +149,22 @@ try {
   must('первый щелчок: «убрать годные: 3» нажата', await btn('убрать годные'), null)
   must('окно подтверждения со списком', await waitFor(`document.querySelector('${BLK} .cfm dl')`, 8000), await text(`${BLK} .cfm`))
   must('первый щелчок ничего не убрал', fs.existsSync(w.done1) && fs.existsSync(w.done2) && fs.existsSync(carDone), null)
+  const boxes = `[...document.querySelectorAll('${BLK} .cfm input[type=checkbox]')]`
+  must('галочки: 3, все отмечены', await b.ev(`${boxes}.length===3 && ${boxes}.every(x=>x.checked)`), await b.ev(`${boxes}.map(x=>x.checked)`))
   for (const [wd, th] of COMBOS) await shot('1-spisok-okno', wd, th)
+  // все сняты — кнопка неактивна; затем отмечены первые две, последняя (копия CAR) снята
+  await b.ev(`${boxes}.forEach(x=>x.click())`); await sleep(250)
+  must('пустой выбор — «убрать 0» неактивна', await b.ev(`[...document.querySelectorAll('${BLK} .cfm button')].some(x=>x.textContent.trim()==='убрать 0'&&x.disabled)`), await text(`${BLK} .cfm .row`))
+  await b.ev(`${boxes}.slice(0,2).forEach(x=>x.click())`); await sleep(250)
+  for (const [wd, th] of COMBOS) await shot('1b-snyata-galochka', wd, th)
 
-  // второй щелчок → итог
+  // второй щелчок → итог: убраны две отмеченные, снятая галочкой (CAR) цела
   await size(1280); await theme('Светлая')
-  must('второй щелчок: «убрать 3» нажата', await btn('убрать 3'), null)
-  must('итог «убрано 3, пропущено 0»', await waitFor(`/убрано 3, пропущено 0/.test(document.querySelector('${BLK}').textContent)`, 20000), await text(`${BLK} .wtb`))
+  must('второй щелчок: «убрать 2» нажата', await btn('убрать 2'), null)
+  must('итог «убрано 2, пропущено 0; не выбрано 1»', await waitFor(`/убрано 2, пропущено 0; не выбрано 1/.test(document.querySelector('${BLK}').textContent)`, 20000), await text(`${BLK} .wtb`))
   await sleep(5000) // второе чтение страницы — через 3 с после итога
   const after = await rowsNow()
-  must('убранные строки пропали (остались 6 негодных), папки убраны, грязная цела', after.length === 6 && !fs.existsSync(w.done1) && !fs.existsSync(w.done2) && !fs.existsSync(carDone) && fs.existsSync(w.dirty), after)
-  must('кнопки «убрать годные» больше нет (годных 0)', !(await btn('убрать годные')), null)
+  must('убранные строки пропали (7 строк), две папки убраны, снятая галочкой копия CAR и грязная целы', after.length === 7 && !fs.existsSync(w.done1) && !fs.existsSync(w.done2) && fs.existsSync(carDone) && fs.existsSync(w.dirty), after)
   for (const [wd, th] of COMBOS) await shot('2-itog', wd, th)
 
   // окно проекта: свои репозитории (EXT) — блок есть, ?project= в запросе

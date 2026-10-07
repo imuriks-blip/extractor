@@ -34,7 +34,7 @@ function mkRepo(name = 'main') {
   const main = path.join(root, name);
   fs.mkdirSync(main);
   G(main, 'init', '-q', '-b', 'main');
-  fs.writeFileSync(path.join(main, '.gitignore'), 'node_modules/\ndist/\n.env\ndata/\n');
+  fs.writeFileSync(path.join(main, '.gitignore'), 'node_modules/\ndist/\n.venv/\n__pycache__/\n.env\ndata/\n');
   fs.writeFileSync(path.join(main, 'a.txt'), 'a\n');
   G(main, 'add', '.');
   G(main, 'commit', '-q', '-m', 'init');
@@ -88,7 +88,7 @@ const mkJunction = (target, link) => fs.symlinkSync(target, link, 'junction');
 const dropLink = (link) => { try { fs.unlinkSync(link); } catch { fs.rmdirSync(link); } }; // саму ссылку, не рекурсивно
 
 // ---------- действие: второй щелчок ----------
-async function harness({ gitRead = null, all = false, withCar = false, clock = { t: Date.now() }, gw = null, sessions = emptySessions(), isAlive = undefined } = {}) {
+async function harness({ gitRead = null, all = false, withCar = false, clock = { t: Date.now() }, gw = null, sessions = emptySessions(), isAlive = undefined, cleanup = undefined } = {}) {
   // малый набор: годная (done), свежая без коммитов (fresh), грязная (dirty); «шесть копий» — отдельный тест выше
   const r = mkRepo();
   const wts = { done: addWt(r, 'ext-501-done', { commits: 1, merge: true }) };
@@ -117,7 +117,7 @@ async function harness({ gitRead = null, all = false, withCar = false, clock = {
   const data = tmpDir('ext83-data-');
   const actionsLog = path.join(data, 'actions.log');
   const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), scan, webDir: web, git: gitRead ? gitRead(createGitRead()) : createGitRead(), gitWrite, sessionsDir: sessions,
-    pult: { enabled: true, words: true, actionsLog, boardRoot: boardDir },
+    pult: { enabled: true, words: true, actionsLog, boardRoot: boardDir, ...(cleanup ? { cleanup } : {}) },
     pultSeams: { now: () => clock.t, worktrees: { birthOf: (p) => birth.get(fwd(p)) ?? Date.now(), ...(isAlive ? { isAlive } : {}) } } });
   const r0 = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
   const token = r0.body.match(/name="vitrina-token" content="([^"]+)"/)[1];

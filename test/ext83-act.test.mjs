@@ -243,7 +243,7 @@ test('TOCTOU: ссылка появилась в копии между пере�
   // после убранной первой копии в следующей (CAR) появляется junction в node_modules
   hook = () => { hook = null; mkJunction(target, path.join(h.carWt, 'node_modules')); };
   const b2 = (await h.press({ confirm: b1.id })).json();
-  assert.match(b2.message, /^убрано 1, пропущено 1 \(почему: появилась ссылка — разбери руками\)/);
+  assert.match(b2.message, /^убрано 1, пропущено 1 \(почему: внутри ссылка — разбери руками\)/); // перед remove — judge целиком (вердикт Голема)
   assert.equal(h.removes().length, 1, 'remove — только для первой');
   assert.ok(fs.existsSync(h.carWt), 'копия со ссылкой на месте');
   assert.equal(fs.readFileSync(path.join(target, 'marker.txt'), 'utf8'), 'жив', 'цель цела');

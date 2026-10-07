@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WT_CONFIRM_MS, WT_URL, finalAnswer, firstAnswer, isManual, wtCounts, wtName, wtRows } from '../web/src/worktreesData.js';
+import { WT_CONFIRM_MS, WT_URL, cleanupBody, finalAnswer, firstAnswer, isManual, pickedPaths, wtCounts, wtName, wtRows } from '../web/src/worktreesData.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const src = (f) => fs.readFileSync(path.join(ROOT, 'web', 'src', f), 'utf8');
@@ -57,7 +57,19 @@ test('итог второго щелчка: ok — спокойный, partial �
 test('экран: второй щелчок один (серверный) — локальной панели нет; окно проекта и «Цех» смонтированы, источник по проекту', () => {
   const w = src('Words.jsx');
   assert.ok(!/ph === 'confirm' \? \(\s*<span className="cfm"/.test(w), 'локальная панель убрана');
-  assert.match(w, /\{ action: 'cleanup', intentId: crypto\.randomUUID\(\), \.\.\.\(confirm \? \{ confirm \} : \{\}\), \.\.\.\(project \? \{ project \} : \{\}\) \}/);
+  assert.match(w, /cleanupBody\(\{ intentId: crypto\.randomUUID\(\), confirm, project, picked: confirm \? pickedPaths\(cf\.candidates, sel\) : null \}\)/);
+  assert.match(w, /type="checkbox"/, 'галочки в окне подтверждения');
+  assert.match(w, /disabled=\{!sel\.size\}/, 'пустой выбор — кнопка неактивна');
   assert.match(src('Project.jsx'), /<Worktrees project=\{code\} \/>/);
   assert.match(src('Ceh.jsx'), /<Worktrees \/>/);
+});
+
+test('выбор галочками: пути — в порядке списка сервера, только отмеченные; тело второго щелчка несёт paths, первого — нет', () => {
+  const cands = [{ path: 'C:/p/a' }, { path: 'C:/p/b' }, { path: 'C:/p/c' }];
+  assert.deepEqual(pickedPaths(cands, new Set(['C:/p/c', 'C:/p/a', 'C:/x'])), ['C:/p/a', 'C:/p/c'], 'путь вне списка не уходит');
+  assert.deepEqual(pickedPaths(cands, new Set()), []);
+  const id = '00000000-0000-4000-8000-000000000001';
+  assert.deepEqual(cleanupBody({ intentId: id, confirm: null, project: 'EXT', picked: null }), { action: 'cleanup', intentId: id, project: 'EXT' });
+  assert.deepEqual(cleanupBody({ intentId: id, confirm: 'W-261007-120000-abcd', project: null, picked: ['C:/p/a'] }),
+    { action: 'cleanup', intentId: id, confirm: 'W-261007-120000-abcd', paths: ['C:/p/a'] });
 });

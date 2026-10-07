@@ -36,8 +36,8 @@ test('живой тред без cwd в файле: запасной путь �
   assert.match(hit.reason, /живой тред/);
   assert.equal((await threadCase({ sessionFile: noCwd, threads: [{ sessionId: 's', card: 'EXT-999' }] })).eligible, true);
   assert.equal((await threadCase({ sessionFile: noCwd, threads: [] })).eligible, true);
-  // запасной путь включается только файлом без cwd: с cwd снаружи и совпавшей карточкой — по cwd решает путь
-  assert.equal((await threadCase({ sessionFile: (cwd) => ({ cwd }), cwdOf: (wt) => path.dirname(wt), threads: [{ card: 'EXT-550' }] })).eligible, true);
+  // обе проверки всегда (вердикт Голема на c051867): cwd снаружи (тред в Vault, работает через git -C), карточка совпала — не годна
+  assert.equal((await threadCase({ sessionFile: (cwd) => ({ cwd }), cwdOf: (wt) => path.dirname(wt), threads: [{ card: 'EXT-550' }] })).eligible, false);
 });
 
 test('папка сессий: читаются только <число>.json (*.key — никогда); пишется ничего; папка не читается — «не проверить», не кандидат', async () => {
@@ -75,14 +75,19 @@ test('findLink: настоящий junction ловится lstat (факт Windo
   assert.equal(findLink(tree).link, path.join(tree, 'a', 'b', 'lnk'));
   dropLink(path.join(tree, 'a', 'b', 'lnk'));
   assert.equal(findLink(tree), null);
-  // сам node_modules — junction: ловится (сам каталог lstat'им); ссылка В ГЛУБИНЕ node_modules — принятое ограничение, не ловится
+  // сам node_modules — junction: ловится (сам каталог lstat'им); ссылка во вложенном node_modules пакета — ловится;
+  // ссылка в обычной подпапке пакета (node_modules/pkg/lib/x) — принятое ограничение: обход node_modules неглубокий
   mkJunction(target, path.join(tree, 'node_modules'));
   assert.equal(findLink(tree).link, path.join(tree, 'node_modules'));
   dropLink(path.join(tree, 'node_modules'));
-  fs.mkdirSync(path.join(tree, 'node_modules', 'pkg'), { recursive: true });
-  mkJunction(target, path.join(tree, 'node_modules', 'pkg', 'deep'));
-  assert.equal(findLink(tree), null, 'ограничение: ссылка внутри node_modules обходом не ловится');
-  dropLink(path.join(tree, 'node_modules', 'pkg', 'deep'));
+  fs.mkdirSync(path.join(tree, 'node_modules', 'pkg', 'node_modules'), { recursive: true });
+  mkJunction(target, path.join(tree, 'node_modules', 'pkg', 'node_modules', 'deep'));
+  assert.equal(findLink(tree)?.link, path.join(tree, 'node_modules', 'pkg', 'node_modules', 'deep'), 'вложенный node_modules — ловится');
+  dropLink(path.join(tree, 'node_modules', 'pkg', 'node_modules', 'deep'));
+  fs.mkdirSync(path.join(tree, 'node_modules', 'pkg', 'lib'), { recursive: true });
+  mkJunction(target, path.join(tree, 'node_modules', 'pkg', 'lib', 'x'));
+  assert.equal(findLink(tree), null, 'ограничение: ссылка в обычной подпапке пакета не ловится');
+  dropLink(path.join(tree, 'node_modules', 'pkg', 'lib', 'x'));
   // глубина: ссылка на глубине 6 — ловится, на глубине 7 — нет
   const deep = (n) => path.join(tree, ...Array.from({ length: n }, (_, i) => `d${i}`));
   fs.mkdirSync(deep(7), { recursive: true });
@@ -123,7 +128,7 @@ test('копия с junction node_modules на основной клон — н�
 });
 
 
-test('node_modules: junction — прямой ребёнок и ребёнок @scope — ловится, копия не кандидат, git-write не звался, ссылка и цель целы; контроль без ссылок — кандидат; глубже (внук) — принятое ограничение', async () => {
+test('node_modules: junction — прямой ребёнок и ребёнок @scope — ловится, копия не кандидат, git-write не звался, ссылка и цель целы; контроль без ссылок — кандидат; во вложенном node_modules под @scope — тоже ловится', async () => {
   const target = tmpDir('ext83-nmtgt-');
   fs.writeFileSync(path.join(target, 'marker.txt'), 'm');
   const r = mkRepo();
@@ -135,18 +140,19 @@ test('node_modules: junction — прямой ребёнок и ребёнок @
   fs.mkdirSync(path.join(clean, 'node_modules', 'plain'));
   mkJunction(target, path.join(direct, 'node_modules', 'lnk'));
   mkJunction(target, path.join(scoped, 'node_modules', '@sc', 'lnk'));
-  mkJunction(target, path.join(deep, 'node_modules', '@sc', 'real', 'inner'));
+  fs.mkdirSync(path.join(deep, 'node_modules', '@sc', 'real', 'node_modules'));
+  mkJunction(target, path.join(deep, 'node_modules', '@sc', 'real', 'node_modules', 'inner'));
   const { w, writes } = unit(r, { board: boardStub({ 'EXT-571': 'done', 'EXT-572': 'done', 'EXT-573': 'done', 'EXT-574': 'done' }) });
   const rows = await w.list();
   assert.equal(rowOf(rows, direct).reason, 'внутри ссылка — разбери руками');
   assert.equal(rowOf(rows, scoped).reason, 'внутри ссылка — разбери руками');
   assert.equal(rowOf(rows, clean).eligible, true, 'контроль: node_modules без ссылок — кандидат');
-  assert.equal(rowOf(rows, deep).eligible, true, 'ограничение: ссылка глубже детей @scope не ловится');
+  assert.equal(rowOf(rows, deep).reason, 'внутри ссылка — разбери руками', 'вложенный node_modules пакета под @scope');
   assert.equal(writes.length, 0);
   assert.ok(fs.lstatSync(path.join(direct, 'node_modules', 'lnk')).isSymbolicLink());
   assert.ok(fs.existsSync(path.join(target, 'marker.txt')));
   assert.deepEqual(findLink(path.join(scoped), { max: 1 }), { big: true }, 'потолок записей общий');
-  for (const l of [path.join(direct, 'node_modules', 'lnk'), path.join(scoped, 'node_modules', '@sc', 'lnk'), path.join(deep, 'node_modules', '@sc', 'real', 'inner')]) dropLink(l);
+  for (const l of [path.join(direct, 'node_modules', 'lnk'), path.join(scoped, 'node_modules', '@sc', 'lnk'), path.join(deep, 'node_modules', '@sc', 'real', 'node_modules', 'inner')]) dropLink(l);
 });
 
 test('копия глубже предела обхода — не кандидат «слишком глубокая»; junction на глубине >6 тоже не кандидат; мелкая копия — кандидат', async () => {

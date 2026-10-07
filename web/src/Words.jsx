@@ -9,7 +9,7 @@ import { useOpen } from './prefs.js';
 import { Ring, WORD } from './Pult.jsx';
 import { RETURN_HINT, canWithdraw, outcomeText, withdrawResult, withdrawRowView, wordRingView } from './pultData.js';
 import { Summary } from './Summary.jsx';
-import { WT_CONFIRM_MS, WT_URL, finalAnswer, firstAnswer, wtCounts, wtRows } from './worktreesData.js';
+import { WT_CONFIRM_MS, WT_URL, cleanupBody, finalAnswer, firstAnswer, pickedPaths, wtCounts, wtRows } from './worktreesData.js';
 
 const actionsSource = streamSource('/api/actions');
 
@@ -118,6 +118,8 @@ export function Worktrees({ project }) {
   const [ph, setPh] = useState('idle'); // idle | asking | confirm | busy
   const [cf, setCf] = useState(null); // {id, what, follows, mirrorAt, candidates, until}
   const [msg, setMsg] = useState(null); // {cls, text}
+  const [sel, setSel] = useState(() => new Set()); // отмеченные галочками пути окна подтверждения (по умолчанию — все)
+  const toggle = (p) => setSel((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; });
   const intent = useRef(null); // намерение без ответа (сбой сети) — повтор нажатием с тем же ключом
   const btn = useRef(null);
   const again = useRef(null);
@@ -134,7 +136,7 @@ export function Worktrees({ project }) {
 
   const send = async (confirm) => {
     const prev = intent.current;
-    const payload = prev && prev.confirm === confirm ? prev : { action: 'cleanup', intentId: crypto.randomUUID(), ...(confirm ? { confirm } : {}), ...(project ? { project } : {}) };
+    const payload = prev && prev.confirm === confirm ? prev : cleanupBody({ intentId: crypto.randomUUID(), confirm, project, picked: confirm ? pickedPaths(cf.candidates, sel) : null });
     intent.current = payload;
     setMsg(null);
     setPh(confirm ? 'busy' : 'asking');
@@ -156,7 +158,7 @@ export function Worktrees({ project }) {
     intent.current = null;
     if (!confirm) {
       const a = firstAnswer(r.status, r.body);
-      if (a.kind === 'confirm') { setCf({ ...a, until: Date.now() + WT_CONFIRM_MS }); setPh('confirm'); return; }
+      if (a.kind === 'confirm') { setCf({ ...a, until: Date.now() + WT_CONFIRM_MS }); setSel(new Set(a.candidates.map((c) => c.path))); setPh('confirm'); return; }
       setPh('idle'); setMsg({ cls: a.cls, text: a.text });
       return;
     }
@@ -188,10 +190,11 @@ export function Worktrees({ project }) {
               <span className="h">{cf.what}</span>{cf.follows}
               {!/остаются/.test(cf.follows) && ' Ветки остаются.'}
               {cf.mirrorAt && <span className="faint"> Зеркало от {dm(cf.mirrorAt)}.</span>}
-              <dl>{cf.candidates.map((c) => <Fragment key={c.path}><dt className="mono" title={c.path}>{c.name}</dt><dd>{c.branch}{c.card && <span className="id">{c.card}</span>}</dd></Fragment>)}</dl>
+              {/* галочки: снятая — копия не уходит в запрос (§1.3); по умолчанию отмечены все */}
+              <dl>{cf.candidates.map((c) => <Fragment key={c.path}><dt className="mono" title={c.path}><label><input type="checkbox" checked={sel.has(c.path)} onChange={() => toggle(c.path)} /> {c.name}</label></dt><dd>{c.branch}{c.card && <span className="id">{c.card}</span>}</dd></Fragment>)}</dl>
               <span className="row">
                 {/* фокус — на «отмена»: автоповтор Enter на «убрать годные» не нажимает уборку */}
-                <button type="button" className="pbtn pmain" onClick={() => send(cf.id)}>убрать {cf.candidates.length}</button>
+                <button type="button" className="pbtn pmain" disabled={!sel.size} onClick={() => send(cf.id)}>убрать {sel.size}</button>
                 <button type="button" className="pbtn" autoFocus onClick={closeCf}>отмена</button>
                 <span className="tmr num">действует до {hm(new Date(cf.until).toISOString())}</span>
               </span>

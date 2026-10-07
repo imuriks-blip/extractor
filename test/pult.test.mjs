@@ -366,7 +366,11 @@ test('pult.words = false: слово («да») → 503 без записи; pin
 
 test('config.default.json: pult.enabled, pult.words и pult.bell — false; папка звонка — data/vitrina/bell/ (§4.3, ПТ4а)', () => {
   const d = JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8'));
-  assert.deepEqual(d.pult, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
+  const { cleanup, ...flags } = d.pult;
+  assert.deepEqual(flags, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
+  // уборка рабочих копий (EXT-83, §1.5): порог и безопасный список спеки — настройка
+  assert.equal(cleanup.maxAgeDays, 14);
+  assert.deepEqual(cleanup.safeIgnored, ['node_modules/', 'dist/', 'web/dist/', '.venv/', '__pycache__/']);
 });
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------

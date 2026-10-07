@@ -19,6 +19,14 @@ export function wtRows(list) {
 }
 export const wtCounts = (list) => { const r = wtRows(list); return { total: r.length, ok: r.filter((x) => x.eligible).length }; };
 
+// выбор галочками (§1.3 «снятые галочки не трогаются»): отмеченные пути в порядке списка сервера; чужой путь не уходит
+export const pickedPaths = (candidates, sel) => (Array.isArray(candidates) ? candidates : []).map((c) => c?.path).filter((p) => typeof p === 'string' && !!sel?.has(p));
+
+// тело POST cleanup: первый щелчок — без confirm и paths; второй — confirm и выбранные пути (сервер берёт пересечение со списком первого)
+export function cleanupBody({ intentId, confirm = null, project = null, picked = null }) {
+  return { action: 'cleanup', intentId, ...(confirm ? { confirm } : {}), ...(project ? { project } : {}), ...(confirm && Array.isArray(picked) ? { paths: picked } : {}) };
+}
+
 // ответ на первый щелчок (без confirm): окно подтверждения или строка-итог
 export function firstAnswer(status, body) {
   const b = body ?? {};
