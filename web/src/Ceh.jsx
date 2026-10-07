@@ -452,7 +452,8 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
   const f = data.freshness || {};
   return (
     <div className="grid">
-      <div className="col">
+      {/* wcol — колонка «Ждёт меня»: строки смотрят на её ширину (EXT-80, styles.css) */}
+      <div className="col wcol">
         <Waiting w={data.waiting} now={now} pult={data.pult} threads={data.workers?.threads} order={(data.projects ?? []).map((p) => p.code)} stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
         <Projects projects={data.projects} pult={data.pult} now={now} stale={staleText(f.board, failing, now)} onOpen={onOpenProject} />
       </div>

@@ -497,6 +497,26 @@ details.sg .of{color:var(--faint)}
   .wrow.pr.stack .pbtns{grid-area:3/1/4/-1}
 }
 
+/* ===== Строки «Ждёт меня» в узкой колонке (EXT-80, макет YJQPQC7V19rrfX23tCy35z, вариант В — слово Ивана 07.10).
+   Колонка «Ждёт меня» уже 740px (окно ~900–1230 при двух колонках): кнопки — второй строкой от вертикали текста,
+   текст строки — во всю ширину; шире — строка как была. До 560 — свои правила выше, здесь не действует. ===== */
+.wcol{container-type:inline-size}
+@media (min-width:561px){
+  @container (max-width:739px){
+    .wrow.pr,.wrow.df{grid-template-columns:150px auto auto minmax(0,1fr) 64px;row-gap:3px}
+    .wrow.pr>.tt,.wrow.df>.tt{grid-area:1/2/2/5}
+    .wrow.pr>.age,.wrow.df>.age{grid-area:1/5}
+    .wrow.pr .pbtns{grid-area:2/2}
+    .wrow.pr>.dfr{grid-area:2/3}
+    .wrow.df>.dfr{grid-area:2/2}
+    /* «Отложено»: «до …» — справа, на месте давности; «вернуть сейчас» — под текстом */
+    .wrow.dl{grid-template-columns:150px auto minmax(0,1fr) auto;row-gap:3px}
+    .wrow.dl>.tt{grid-area:1/2/2/4}
+    .wrow.dl>.until{grid-area:1/4}
+    .wrow.dl>.pbtn{grid-area:2/2}
+  }
+}
+
 /* ===== «Расход» (EXT-84, ПТ12): только существующие значения — 11/12/13px, отступы 4/10/16px, --line, .blk, .ptable, .seg, .big ===== */
 .top .navl{color:var(--accent)}
 .top.nofresh .seg:first-of-type{margin-left:auto}
