@@ -152,7 +152,8 @@ test('(3) повторный отзыв — already-withdrawn: id прежнег
   const a = again.json();
   assert.equal(a.outcome, 'refused');
   assert.equal(a.refusal, 'already-withdrawn');
-  assert.equal(a.id, first.id, 'ответ — id того отзыва');
+  assert.equal(a.withdrawnBy, first.id, 'ответ — номер того отзыва полем withdrawnBy');
+  assert.notEqual(a.id, first.id, 'id ответа — номер этого действия, не прежнего отзыва');
   assert.equal(a.status, 'отозвано');
   assert.equal(s.lines().filter((l) => l.id === w.id && l.step === 'withdrawn').length, 1);
   assert.equal(pultRecords(s).filter((c) => c.html.includes('отозвать')).length, 1);

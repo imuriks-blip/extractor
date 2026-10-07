@@ -62,7 +62,7 @@ function Row({ r, now, rows, pult, local, setLocal }) {
       </span>
       <span className="sub">
         {bad ? <span className={bad}>{out}</span> : out}
-        {r.status === 'done' && !isW && lc?.phase !== 'ok' && (rv ? (rv.cls === 'ring' ? <> · тред: <Ring ring={r.ring} /></> : <> · тред: <span className={clsOf[rv.cls]}>{rv.text}</span></>) : r.action === 'reply' && !r.card ? ' · в журнале треда' : '')}
+        {r.status === 'done' && !isW && lc?.phase !== 'ok' && (rv ? (rv.cls === 'ring' ? <> · тред: <Ring ring={r.ring} /></> : <> · {rv.text.startsWith('отозвано') ? '' : 'тред: '}<span className={clsOf[rv.cls]}>{rv.text}</span></>) : r.action === 'reply' && !r.card ? ' · в журнале треда' : '')}
         {!isW && lc?.phase !== 'ok' && canWithdraw(r, pult) && <WithdrawBtn r={r} local={lc} setLocal={setLocal} />}
         {lc?.phase === 'ok' && <> · <span className={lc.late ? 'pbad' : 'pmark'} role="status">{lc.late ? lc.text : `отозвано${lc.by ? ` · ${lc.by}` : ''}${r.action === 'return' ? ` · ${RETURN_HINT}` : ''}`}</span></>}
         {lc?.phase === 'partial' && <> · <span className="pamb" role="status">{lc.text}</span></>}
