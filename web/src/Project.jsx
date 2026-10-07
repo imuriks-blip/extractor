@@ -9,6 +9,7 @@ import CardPanel from './CardPanel.jsx';
 import { PultMark } from './Pult.jsx';
 import NewCard from './NewCard.jsx';
 import { TraceBadge } from './Trace.jsx';
+import { Worktrees } from './Words.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
@@ -256,6 +257,7 @@ export default function Project({ code, data, pult, failing, now, cardId, onOpen
           <PWaiting code={code} rows={data.waiting || []} cnt={data.waitingCount} deferred={data.deferred} options={data.deferOptions} now={now} sel={cardId} onOpen={onOpenCard}
             stale={staleText(mergeFresh(f.board, f.journals), failing, now)} />
           <PWorkers code={code} w={data.workers || {}} now={now} stale={staleText(f.journals, failing, now)} />
+          {pult?.enabled === true && <Worktrees project={code} />}
         </div>
       </div>
       {cardId && <CardPanel id={cardId} now={now} onOpen={onOpenCard} onClose={onCloseCard} />}

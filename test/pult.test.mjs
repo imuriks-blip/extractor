@@ -366,7 +366,11 @@ test('pult.words = false: слово («да») → 503 без записи; pin
 
 test('config.default.json: pult.enabled, pult.words и pult.bell — false; папка звонка — data/vitrina/bell/ (§4.3, ПТ4а)', () => {
   const d = JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8'));
-  assert.deepEqual(d.pult, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
+  const { cleanup, ...flags } = d.pult;
+  assert.deepEqual(flags, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
+  // уборка рабочих копий (EXT-83, §1.5): порог и безопасный список спеки — настройка
+  assert.equal(cleanup.maxAgeDays, 14);
+  assert.deepEqual(cleanup.safeIgnored, ['node_modules/', 'web/node_modules/', 'dist/', 'web/dist/', '.venv/', '__pycache__/']);
 });
 
 // ---------------- словарь и параметры (§1.1 п.2, §1.3) ----------------
@@ -378,7 +382,7 @@ test('словарь §1.3: шестнадцать действий таблиц
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай', 'Новая карточка / мысль'].sort()); // EXT-81: new-card держится pult.words
   const { app, lines } = await setup();
   const token = await pageToken(app);
-  const body = { take: { card: 'EXT-6' }, cleanup: {}, reindex: {} }; // new-card подключён в EXT-81 (test/ext81-new-card.test.mjs)
+  const body = { take: { card: 'EXT-6' }, reindex: {} }; // new-card подключён в EXT-81 (test/ext81-new-card.test.mjs), cleanup — в EXT-83 (test/ext83-*.test.mjs)
   for (const [action, extra] of Object.entries(body)) {
     const r = await act(app, token, { body: { action, intentId: nextIntent(), ...extra } });
     assert.equal(r.statusCode, 501, action);
