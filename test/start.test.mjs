@@ -56,6 +56,8 @@ test('старт: слушает 127.0.0.1, Host проверяется, server.
   assert.match(st, / uuidKeys=\d+ /);
   assert.match(st, / rss=\d+ heapUsed=\d+ external=\d+ /, 'память по частям (Мелочь 6 ревью EXT-53)');
   assert.match(st, / runsLive=\d+ runsSilent=\d+ /);
+  // мерка Г4 кусками (07.10): номер процесса и время жизни — первыми полями строки
+  assert.match(st, new RegExp(` stats pid=${process.pid} upS=\\d+ rss=\\d+ `));
   assert.match(st, / git=\{.*\}$/);
   const statsLog = fs.readFileSync(path.join(dataDir, 'stats.log'), 'utf8').split('\n').filter(Boolean);
   assert.deepEqual(statsLog, [st]);
