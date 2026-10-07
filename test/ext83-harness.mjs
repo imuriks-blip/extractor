@@ -88,7 +88,7 @@ const mkJunction = (target, link) => fs.symlinkSync(target, link, 'junction');
 const dropLink = (link) => { try { fs.unlinkSync(link); } catch { fs.rmdirSync(link); } }; // саму ссылку, не рекурсивно
 
 // ---------- действие: второй щелчок ----------
-async function harness({ all = false, withCar = false, clock = { t: Date.now() }, gw = null, sessions = emptySessions(), isAlive = undefined } = {}) {
+async function harness({ gitRead = null, all = false, withCar = false, clock = { t: Date.now() }, gw = null, sessions = emptySessions(), isAlive = undefined } = {}) {
   // малый набор: годная (done), свежая без коммитов (fresh), грязная (dirty); «шесть копий» — отдельный тест выше
   const r = mkRepo();
   const wts = { done: addWt(r, 'ext-501-done', { commits: 1, merge: true }) };
@@ -116,7 +116,7 @@ async function harness({ all = false, withCar = false, clock = { t: Date.now() }
   fs.writeFileSync(path.join(web, 'index.html'), '<!doctype html><html><head><meta name="vitrina-token" content="__VITRINA_TOKEN__"></head><body></body></html>');
   const data = tmpDir('ext83-data-');
   const actionsLog = path.join(data, 'actions.log');
-  const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), scan, webDir: web, git: createGitRead(), gitWrite, sessionsDir: sessions,
+  const app = await buildApp({ port: PORT, board, registry: createRegistryReader(regFile), scan, webDir: web, git: gitRead ? gitRead(createGitRead()) : createGitRead(), gitWrite, sessionsDir: sessions,
     pult: { enabled: true, words: true, actionsLog, boardRoot: boardDir },
     pultSeams: { now: () => clock.t, worktrees: { birthOf: (p) => birth.get(fwd(p)) ?? Date.now(), ...(isAlive ? { isAlive } : {}) } } });
   const r0 = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });

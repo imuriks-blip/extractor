@@ -204,3 +204,27 @@ test('копия старше 14 дней (birthOf) проходит весь п
   assert.ok(fs.existsSync(young));
 });
 
+
+test('гонка кэша GET: вычисление, начатое до уборки, после уборки не кладётся в кэш и не отдаётся — следующий GET свежий; в result — имена убранных', async () => {
+  let release;
+  const gate = new Promise((res) => { release = res; });
+  let held; // первое чтение «worktree list» держим уже ПОСЛЕ ответа git: вычисление несёт старый список
+  const entered = new Promise((res) => { held = res; });
+  let armed = true;
+  const h = await harness({ gitRead: (real) => async (repo, args) => {
+    const out = await real(repo, args);
+    if (armed && args[0] === 'worktree') { armed = false; held(); await gate; }
+    return out;
+  } });
+  const stale = h.get('/api/worktrees?project=EXT'); // вычисление пошло, git держим
+  await entered;
+  const b1 = (await h.press({ project: 'EXT' })).json();
+  const b2 = (await h.press({ project: 'EXT', confirm: b1.id })).json();
+  assert.equal(b2.outcome, 'ok');
+  assert.ok(!fs.existsSync(h.wts.done));
+  release();
+  await stale; // старое вычисление дошло до конца
+  const fresh = (await h.get('/api/worktrees?project=EXT')).json();
+  assert.ok(!fresh.some((x) => fwd(x.path) === fwd(h.wts.done)), 'убранной копии в свежем ответе нет');
+  assert.deepEqual(h.lines().find((l) => l.id === b2.id && l.step === 'done').result.removedNames, [path.basename(h.wts.done)]);
+});
