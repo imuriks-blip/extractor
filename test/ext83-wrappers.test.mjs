@@ -17,7 +17,8 @@ const READ_BAD = [['reflog', 'expire', '--all'], ['reflog', 'delete', 'x@{0}'], 
   ['reflog', 'show', '-n', 'x'], ['reflog'], ['reflog', 'x'],
   ['branch', '-D', 'x'], ['branch', 'newname'], ['log', '--output=x'], ['show', '--output=x'], ['show', '--output', 'x'],
   ['worktree', 'add', 'x'], ['worktree', 'remove', 'x'], ['worktree', 'prune'], ['worktree', 'list', '--porcelain', 'x'], ['worktree', 'list', '-z'], ['worktree'],
-  ['status', '--porcelain', '--ignored', 'x'], ['status', '--porcelain', '-uall'], ['status', '--ignored'], ['status']];
+  ['status', '--porcelain', '--ignored', 'x'], ['status', '--porcelain', '-uall'], ['status', '--porcelain', '-uno'], ['status', '--porcelain', '--untracked-files=no'], ['status', '--porcelain', '--untracked-files=all'],
+  ['status', '--porcelain', '--untracked-files=normal', '--untracked-files=normal'], ['status', '--porcelain', '--ignored', '--untracked-files=normal', 'x'], ['status', '--ignored'], ['status']];
 for (const args of READ_BAD) {
   test(`чтение: ${JSON.stringify(args)} → исключение, подменный git не запускался`, async () => {
     const f = fakeGit();
@@ -30,7 +31,7 @@ test('чтение: исправные формы проходят и доход
   const f = fakeGit();
   const g = f.make();
   const ok = [['reflog', 'show', 'ext-83-x'], ['branch', '--list', 'ext-*', '--format=%(refname:short)'], ['worktree', 'list', '--porcelain'], ['worktree', 'list'],
-    ['status', '--porcelain', '--ignored'], ['status', '--porcelain'], ['merge-base', '--is-ancestor', 'a', 'b']];
+    ['status', '--porcelain', '--ignored'], ['status', '--porcelain', '--ignored', '--untracked-files=normal'], ['status', '--porcelain', '--untracked-files=normal'], ['reflog', 'show', 'refs/heads/x'], ['status', '--porcelain'], ['merge-base', '--is-ancestor', 'a', 'b']];
   for (const a of ok) await g('C:/r', a);
   assert.deepEqual(f.calls().map((c) => c.slice(0, 3)), ok.map(() => ['--no-optional-locks', '-C', 'C:/r']));
   assert.deepEqual(f.calls().map((c) => c.slice(3)), ok);

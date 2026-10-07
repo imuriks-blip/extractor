@@ -228,3 +228,35 @@ test('гонка кэша GET: вычисление, начатое до убо�
   assert.ok(!fresh.some((x) => fwd(x.path) === fwd(h.wts.done)), 'убранной копии в свежем ответе нет');
   assert.deepEqual(h.lines().find((l) => l.id === b2.id && l.step === 'done').result.removedNames, [path.basename(h.wts.done)]);
 });
+
+test('TOCTOU: ссылка появилась в копии между пересчётом и remove — копия пропущена, git remove для неё не звался, цель цела; ошибка remove несёт «могла быть разрушена частично»', async () => {
+  const target = tmpDir('ext83-toctou-');
+  fs.writeFileSync(path.join(target, 'marker.txt'), 'жив');
+  let hook = null;
+  const h = await harness({ withCar: true, gw: (base) => async (repo, args) => {
+    const out = await base(repo, args);
+    if (args[1] === 'remove') hook?.();
+    return out;
+  } });
+  const b1 = (await h.press({})).json();
+  assert.deepEqual(b1.confirm.candidates.map((c) => c.card), ['EXT-501', 'CAR-1']);
+  // после убранной первой копии в следующей (CAR) появляется junction в node_modules
+  hook = () => { hook = null; mkJunction(target, path.join(h.carWt, 'node_modules')); };
+  const b2 = (await h.press({ confirm: b1.id })).json();
+  assert.match(b2.message, /^убрано 1, пропущено 1 \(почему: появилась ссылка — разбери руками\)/);
+  assert.equal(h.removes().length, 1, 'remove — только для первой');
+  assert.ok(fs.existsSync(h.carWt), 'копия со ссылкой на месте');
+  assert.equal(fs.readFileSync(path.join(target, 'marker.txt'), 'utf8'), 'жив', 'цель цела');
+  dropLink(path.join(h.carWt, 'node_modules'));
+});
+
+test('ошибка remove: строка несёт «копия могла быть разрушена частично, проверь»', async () => {
+  const h = await harness({ gw: (base) => async (repo, args) => {
+    if (args[1] === 'remove') throw Object.assign(new Error('x'), { code: 128, stderr: 'fatal: boom\n' });
+    return base(repo, args);
+  } });
+  const b1 = (await h.press({})).json();
+  const b2 = (await h.press({ confirm: b1.id })).json();
+  assert.equal(b2.outcome, 'partial');
+  assert.match(b2.message, /копия могла быть разрушена частично, проверь/);
+});

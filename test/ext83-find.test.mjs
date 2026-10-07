@@ -92,7 +92,7 @@ test('основной клон, отсоединённый HEAD, папки н�
   const ok = addWt(r, 'ext-532-ok', { commits: 1, merge: true });
   const broken = addWt(r, 'ext-533-broken', { commits: 1, merge: true });
   const real = createGitRead();
-  const git = (repo, args) => (args[0] === 'merge-base' && args.includes('ext-533-broken') ? Promise.reject(Object.assign(new Error('x'), { code: 128 })) : real(repo, args));
+  const git = (repo, args) => (args[0] === 'merge-base' && args.some((a) => a.endsWith('ext-533-broken')) ? Promise.reject(Object.assign(new Error('x'), { code: 128 })) : real(repo, args));
   const { w } = unit(r, { git, board: boardStub({ 'EXT-532': 'done', 'EXT-533': 'done', 'EXT-531': 'done', 'EXT-530': 'done' }) });
   const rows = await w.list();
   assert.ok(!rows.some((x) => fwd(x.path) === fwd(r.main)), 'основной клон — не строка');
@@ -155,3 +155,55 @@ test('реестр: без дублей по нормализованному п
   assert.equal(rows.length, 1, 'одна копия — одна строка');
 });
 
+
+test('status.showUntrackedFiles=no в конфиге: неотслеживаемый файл в копии всё равно делает её не чистой (флаг --untracked-files=normal); без флага — копия «чистая» (тест зрячий)', async () => {
+  const r = mkRepo();
+  const wt = addWt(r, 'ext-600-untracked', { commits: 1, merge: true });
+  G(r.main, 'config', 'status.showUntrackedFiles', 'no');
+  fs.writeFileSync(path.join(wt, 'precious.txt'), 'не терять');
+  const board = boardStub({ 'EXT-600': 'done' });
+  const rows = await unit(r, { board }).w.list();
+  assert.equal(rowOf(rows, wt).eligible, false);
+  assert.match(rowOf(rows, wt).reason, /^не чистая: 1/);
+  // мутант: git без флага (флаг снят на входе) — конфиг прячет файл, копия «годна»
+  const real = createGitRead();
+  const noFlag = (repo, args) => real(repo, args[0] === 'status' ? args.filter((a) => a !== '--untracked-files=normal') : args);
+  const rows2 = await unit(r, { board, git: noFlag }).w.list();
+  assert.equal(rowOf(rows2, wt).eligible, true, 'без флага конфиг скрывает файл — потому флаг нужен');
+});
+
+test('тег с именем ветки не подменяет ветку: ветка не слита, тег на слитом коммите — суждение по ветке (refs/heads/…)', async () => {
+  const r = mkRepo();
+  const wt = addWt(r, 'ext-601-tagged', { commits: 1 }); // не слита
+  G(r.main, 'tag', 'ext-601-tagged', 'main'); // тег того же имени — на слитом коммите
+  const rows = await unit(r, { board: boardStub({ 'EXT-601': 'done' }) }).w.list();
+  assert.equal(rowOf(rows, wt).eligible, false);
+  assert.match(rowOf(rows, wt).reason, /не слита/);
+});
+
+test('время создания папки ≤ 0 или не число — «не проверить», не кандидат (даже когда по возрасту ушла бы)', async () => {
+  const r = mkRepo();
+  const wt = addWt(r, 'ext-602-birth');
+  for (const bad of [0, -5, NaN, Infinity, undefined]) {
+    const row = rowOf(await unit(r, { birthOf: () => bad }).w.list(), wt);
+    assert.equal(row.eligible, false, String(bad));
+    assert.match(row.reason, /^не проверить: время создания папки/, String(bad));
+  }
+  const ok = rowOf(await unit(r, { birthOf: () => Date.now() - 20 * DAY }).w.list(), wt);
+  assert.equal(ok.eligible, true, 'контроль: нормальное старое время — годна');
+});
+
+test('запасной путь без cwd: живой тред без cwd, а у ветки нет номера карточки — «не проверить», не годна; с номером и без совпадения — годна', async () => {
+  const r = mkRepo();
+  const named = addWt(r, 'feature-no-card', { commits: 1, merge: true });
+  const carded = addWt(r, 'ext-603-card', { commits: 1, merge: true });
+  const dir = emptySessions();
+  fs.writeFileSync(path.join(dir, `${process.pid}.json`), JSON.stringify({ pid: process.pid }));
+  const rows = await unit(r, { board: boardStub({ 'EXT-603': 'done' }), sessionsDir: dir, isAlive: (p) => p === process.pid, birthOf: () => Date.now() - 20 * DAY }).w.list();
+  assert.equal(rowOf(rows, named).eligible, false);
+  assert.match(rowOf(rows, named).reason, /^не проверить: ветка без номера карточки/);
+  assert.equal(rowOf(rows, carded).eligible, true);
+  // контроль: живых без cwd нет — ветка без карточки годна по возрасту
+  const rows2 = await unit(r, { board: boardStub({}), sessionsDir: emptySessions(), birthOf: () => Date.now() - 20 * DAY }).w.list();
+  assert.equal(rowOf(rows2, named).eligible, true);
+});

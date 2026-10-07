@@ -90,7 +90,7 @@ test('findLink: настоящий junction ловится lstat (факт Windo
   assert.ok(findLink(tree)?.link, 'на глубине 6 — ловится');
   dropLink(path.join(deep(6), 'lnk6'));
   mkJunction(target, path.join(deep(7), 'lnk7'));
-  assert.equal(findLink(tree), null, 'глубже 6 не ходим');
+  assert.deepEqual(findLink(tree), { deep: true }, 'глубже 6 не ходим — и «ссылок нет» не утверждаем: {deep}');
   dropLink(path.join(deep(7), 'lnk7'));
   // потолок записей
   const many = path.join(root, 'many');
@@ -147,4 +147,28 @@ test('node_modules: junction — прямой ребёнок и ребёнок @
   assert.ok(fs.existsSync(path.join(target, 'marker.txt')));
   assert.deepEqual(findLink(path.join(scoped), { max: 1 }), { big: true }, 'потолок записей общий');
   for (const l of [path.join(direct, 'node_modules', 'lnk'), path.join(scoped, 'node_modules', '@sc', 'lnk'), path.join(deep, 'node_modules', '@sc', 'real', 'inner')]) dropLink(l);
+});
+
+test('копия глубже предела обхода — не кандидат «слишком глубокая»; junction на глубине >6 тоже не кандидат; мелкая копия — кандидат', async () => {
+  const target = tmpDir('ext83-deeptgt-');
+  fs.writeFileSync(path.join(target, 'marker.txt'), 'm');
+  const r = mkRepo();
+  const shallow = addWt(r, 'ext-575-shallow', { commits: 1, merge: true });
+  const deepWt = addWt(r, 'ext-576-deep', { commits: 1, merge: true });
+  const linked = addWt(r, 'ext-577-deeplink', { commits: 1, merge: true });
+  const segs = (wt, n) => path.join(wt, ...Array.from({ length: n }, (_, i) => `s${i}`));
+  fs.mkdirSync(segs(deepWt, 8), { recursive: true });
+  fs.mkdirSync(segs(linked, 8), { recursive: true });
+  mkJunction(target, path.join(segs(linked, 8), 'lnk'));
+  const { w, writes } = unit(r, { board: boardStub({ 'EXT-575': 'done', 'EXT-576': 'done', 'EXT-577': 'done' }) });
+  // пустые каталоги git не показывает — копии «чистые»; решает только обход
+  const rows = await w.list();
+  assert.equal(rowOf(rows, shallow).eligible, true);
+  assert.equal(rowOf(rows, deepWt).reason, 'слишком глубокая — разбери руками');
+  // git видит неотслеживаемую ссылку и сам делает копию «не чистой»; в любом случае — не кандидат
+  assert.equal(rowOf(rows, linked).eligible, false);
+  assert.match(rowOf(rows, linked).reason, /^(не чистая|слишком глубокая)/);
+  assert.equal(writes.length, 0);
+  assert.ok(fs.existsSync(path.join(target, 'marker.txt')));
+  dropLink(path.join(segs(linked, 8), 'lnk'));
 });
