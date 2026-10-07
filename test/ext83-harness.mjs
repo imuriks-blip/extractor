@@ -88,11 +88,15 @@ const mkJunction = (target, link) => fs.symlinkSync(target, link, 'junction');
 const dropLink = (link) => { try { fs.unlinkSync(link); } catch { fs.rmdirSync(link); } }; // саму ссылку, не рекурсивно
 
 // ---------- действие: второй щелчок ----------
-async function harness({ withCar = false, clock = { t: Date.now() }, gw = null, sessions = emptySessions(), isAlive = undefined } = {}) {
+async function harness({ all = false, withCar = false, clock = { t: Date.now() }, gw = null, sessions = emptySessions(), isAlive = undefined } = {}) {
   // малый набор: годная (done), свежая без коммитов (fresh), грязная (dirty); «шесть копий» — отдельный тест выше
   const r = mkRepo();
-  const wts = { done: addWt(r, 'ext-501-done', { commits: 1, merge: true }), fresh: addWt(r, 'ext-502-fresh'), dirty: addWt(r, 'ext-503-dirty', { commits: 1, merge: true }) };
-  fs.writeFileSync(path.join(wts.dirty, 'new.txt'), 'x');
+  const wts = { done: addWt(r, 'ext-501-done', { commits: 1, merge: true }) };
+  if (all) { // fresh и dirty — только там, где они нужны: каждая копия удлиняет каждый пересчёт (git здесь медленный)
+    wts.fresh = addWt(r, 'ext-502-fresh');
+    wts.dirty = addWt(r, 'ext-503-dirty', { commits: 1, merge: true });
+    fs.writeFileSync(path.join(wts.dirty, 'new.txt'), 'x');
+  }
   const s = { r, wts, status: { 'EXT-501': 'done', 'EXT-502': 'in-progress', 'EXT-503': 'done' } };
   const car = mkRepo('carmain');
   const carWt = withCar ? addWt(car, 'car-1-done', { commits: 1, merge: true }) : null;

@@ -7,7 +7,7 @@ import * as H from './ext83-harness.mjs';
 const { PORT, SELF, DAY, nextIntent, G, fwd, mkRepo, addWt, listPaths, branchesOf, regStub, boardStub, emptySessions, rowOf, unit, six, harness, mkJunction, dropLink, createWorktrees, findLink, hasOwnCommits, reflogMessages, cardOfBranch, parseStatus, groupReasons, createGitRead, createGitWrite, tmpDir } = H;
 void [PORT, SELF, DAY, nextIntent, G, fwd, mkRepo, addWt, listPaths, branchesOf, regStub, boardStub, emptySessions, rowOf, unit, six, harness, mkJunction, dropLink, createWorktrees, findLink, hasOwnCommits, reflogMessages, cardOfBranch, parseStatus, groupReasons, createGitRead, createGitWrite, tmpDir, fs, path, assert, test];
 test('GET /api/worktrees: форма строк, project — только репозитории проекта, без project — все проекты, неверный project — 400', async () => {
-  const h = await harness({ withCar: true });
+  const h = await harness({ all: true, withCar: true });
   const all = (await h.get('/api/worktrees')).json();
   assert.equal(all.length, 4, 'три копии EXT и одна CAR');
   for (const row of all) assert.deepEqual(Object.keys(row).sort(), ['branch', 'card', 'eligible', 'ignored', 'path', 'reason', 'repo']);
@@ -21,7 +21,7 @@ test('GET /api/worktrees: форма строк, project — только реп
 });
 
 test('первый щелчок ничего не убирает: need-confirm с what/follows/mirrorAt/candidates; второй щелчок убирает ровно первую копию, ветки и основная копия целы', async () => {
-  const h = await harness();
+  const h = await harness({ all: true });
   const before = listPaths(h.r.main);
   assert.equal(before.length, 4);
   const branchesBefore = branchesOf(h.r.main);
@@ -57,7 +57,7 @@ test('первый щелчок ничего не убирает: need-confirm �
 });
 
 test('отказы второго щелчка — git remove не звался: без confirm (первый щелчок), чужой confirm, другой проект, просроченный, потраченный', async () => {
-  const h = await harness();
+  const h = await harness({ all: true });
   const b1 = (await h.press({ project: 'EXT' })).json();
   // без confirm — снова первый щелчок, ничего не убрано
   assert.equal((await h.press({ project: 'EXT' })).json().outcome, 'need-confirm');
@@ -192,7 +192,7 @@ test('копия с junction node_modules на запрос и при второ
 });
 
 test('копия старше 14 дней (birthOf) проходит весь путь щелчков и убирается вместе со слитой; моложе — остаётся', async () => {
-  const h = await harness();
+  const h = await harness({ all: true });
   h.birth.set(fwd(h.wts.fresh), Date.now() - 15 * DAY);
   const young = addWt(h.r, 'ext-595-young');
   h.birth.set(fwd(young), Date.now() - 13 * DAY);

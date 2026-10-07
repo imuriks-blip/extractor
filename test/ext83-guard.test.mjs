@@ -122,3 +122,29 @@ test('копия с junction node_modules на основной клон — н�
   assert.ok(fs.existsSync(path.join(r.main, 'node_modules', 'marker.txt')));
 });
 
+
+test('node_modules: junction — прямой ребёнок и ребёнок @scope — ловится, копия не кандидат, git-write не звался, ссылка и цель целы; контроль без ссылок — кандидат; глубже (внук) — принятое ограничение', async () => {
+  const target = tmpDir('ext83-nmtgt-');
+  fs.writeFileSync(path.join(target, 'marker.txt'), 'm');
+  const r = mkRepo();
+  const direct = addWt(r, 'ext-571-direct', { commits: 1, merge: true });
+  const scoped = addWt(r, 'ext-572-scoped', { commits: 1, merge: true });
+  const clean = addWt(r, 'ext-573-clean', { commits: 1, merge: true });
+  const deep = addWt(r, 'ext-574-deep', { commits: 1, merge: true });
+  for (const wt of [direct, scoped, clean, deep]) fs.mkdirSync(path.join(wt, 'node_modules', '@sc', 'real'), { recursive: true });
+  fs.mkdirSync(path.join(clean, 'node_modules', 'plain'));
+  mkJunction(target, path.join(direct, 'node_modules', 'lnk'));
+  mkJunction(target, path.join(scoped, 'node_modules', '@sc', 'lnk'));
+  mkJunction(target, path.join(deep, 'node_modules', '@sc', 'real', 'inner'));
+  const { w, writes } = unit(r, { board: boardStub({ 'EXT-571': 'done', 'EXT-572': 'done', 'EXT-573': 'done', 'EXT-574': 'done' }) });
+  const rows = await w.list();
+  assert.equal(rowOf(rows, direct).reason, 'внутри ссылка — разбери руками');
+  assert.equal(rowOf(rows, scoped).reason, 'внутри ссылка — разбери руками');
+  assert.equal(rowOf(rows, clean).eligible, true, 'контроль: node_modules без ссылок — кандидат');
+  assert.equal(rowOf(rows, deep).eligible, true, 'ограничение: ссылка глубже детей @scope не ловится');
+  assert.equal(writes.length, 0);
+  assert.ok(fs.lstatSync(path.join(direct, 'node_modules', 'lnk')).isSymbolicLink());
+  assert.ok(fs.existsSync(path.join(target, 'marker.txt')));
+  assert.deepEqual(findLink(path.join(scoped), { max: 1 }), { big: true }, 'потолок записей общий');
+  for (const l of [path.join(direct, 'node_modules', 'lnk'), path.join(scoped, 'node_modules', '@sc', 'lnk'), path.join(deep, 'node_modules', '@sc', 'real', 'inner')]) dropLink(l);
+});

@@ -68,10 +68,27 @@ async function main() {
     const rows2 = await finder(p.r).compute(null);
     say(`(а, контроль) та же копия без ссылки: eligible=${rows2.find((x) => fwd(x.path).toLowerCase() === fwd(p.wt).toLowerCase()).eligible}`);
   }
-  // (б) git worktree remove БЕЗ силы — два варианта
-  let stop = false;
+  // (а2) ссылка — прямой ребёнок node_modules и ребёнок @scope: только lstat-правило, ничего не удаляется
+  for (const [label, rel] of [['прямой ребёнок', ['pkg']], ['ребёнок @scope', ['@sc', 'pkg']]]) {
+    const r = mkRepo('node_modules/\n');
+    const wt = addCopy(r, label === 'прямой ребёнок' ? 'ext-907-direct' : 'ext-908-scope');
+    const tgt = fs.mkdtempSync(path.join(os.tmpdir(), 'ext83-probe-tgt-'));
+    roots.push(tgt);
+    fs.mkdirSync(path.join(wt, 'node_modules', ...rel.slice(0, -1)), { recursive: true });
+    const lnk = path.join(wt, 'node_modules', ...rel);
+    fs.symlinkSync(tgt, lnk, 'junction');
+    const row = (await finder(r).compute(null)).find((x) => fwd(x.path).toLowerCase() === fwd(wt).toLowerCase());
+    say(`(а2) junction — ${label} node_modules: eligible=${row.eligible}, reason="${row.reason}"`);
+    dropLink(lnk);
+    const row2 = (await finder(r).compute(null)).find((x) => fwd(x.path).toLowerCase() === fwd(wt).toLowerCase());
+    say(`(а2, контроль) без ссылки: eligible=${row2.eligible}`);
+  }
+  // (б) git worktree remove БЕЗ силы — РАЗРУШАЮЩИЙ шаг, по умолчанию ВЫКЛЮЧЕН (флаг --destructive). Факт уже снят 07.10 (б1): git remove
+  // без силы прошёл по junction в .gitignore копии и стёр содержимое цели. Цель здесь всегда во временной папке os.tmpdir() временного репозитория.
+  let stop = !process.argv.includes('--destructive');
+  if (stop) say('(б) пропущено: нужен флаг --destructive (факт б1 уже есть: remove без силы стирает цель junction)');
   for (const [label, gi, branch] of [['(б1) junction в .gitignore копии', 'node_modules/\n', 'ext-902-ignored'], ['(б2) junction НЕ в .gitignore копии', '# ничего\n', 'ext-903-untracked']]) {
-    if (stop) { say(`${label}: НЕ запускалось — цель была тронута в предыдущем варианте`); continue; }
+    if (stop) continue;
     const p = removeProbe(label, gi, branch);
     const marker = path.join(p.target, 'marker.txt');
     let res;
