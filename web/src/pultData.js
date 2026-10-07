@@ -9,7 +9,10 @@ const OUTCOME = {
   error: 'не записано',
   asked: 'идёт или оборвано',
 };
+// «Новая карточка» (EXT-81): слов треду нет — исход про карточку; error — и «не создана», и «исход неясен»: смотреть доску
+const NEW_CARD = { done: 'создана', 'need-confirm': 'ждёт «всё равно создать»', error: 'не создана или исход неясен — проверь доску' };
 export function outcomeText(r) {
+  if (r.action === 'new-card' && NEW_CARD[r.status]) return NEW_CARD[r.status];
   if (r.status === 'need-confirm') return r.bdeal ? 'ждёт второго щелчка' : 'ждёт выбора треда';
   return OUTCOME[r.status] ?? r.status ?? '—';
 }

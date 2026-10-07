@@ -1,5 +1,5 @@
 // Подменный plane.py (ПТ3, EXT-43): тот же вывод и коды, что у C:\projects\_plane-rest\plane.py (строка документации):
-//   show <ID> [--last] · comment <html> <ID> · state <ID> <статус>. Запускается как `node fake-plane.mjs …` —
+//   show <ID> [--last] · comment <html> <ID> · state <ID> <статус> · create <КОД> <файл.json> (EXT-81). Запускается как `node fake-plane.mjs …` —
 // витрина зовёт его настройкой pult.python = node, pult.planePy = путь к копии этого файла. Состояние карточки —
 // state.json рядом с копией: {status, title, comments: [{id, created_at, html}], fail: {comment, state}, clock, calls}.
 // fail.comment: 'refuse' — код 1, коммента нет; 'unclear-after' — коммент лёг, код 3; 'unclear-before' — код 3, коммента нет.
@@ -57,6 +57,29 @@ if (cmd === 'show') {
   if (fail.state !== 'mismatch') st.status = name;
   save();
   out(`${ref} → ${name} (state ${fail.state === 'mismatch' ? 'НЕ совпал' : 'подтверждён'})`);
+} else if (cmd === 'create') {
+  // create <КОД> <файл.json>: файл {name, description_html, state}; существование файла и его содержимое — в creates (в момент вызова)
+  const [, code, file] = args;
+  const existed = fs.existsSync(file);
+  let body = null;
+  try { body = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* файла нет или не JSON */ }
+  st.creates = [...(st.creates ?? []), { code, file, existed, body }];
+  if (fail.create === 'refuse') { save(); err('Доска ответила 400: {"error":"bad state"}'); process.exit(1); }
+  if (fail.create === 'refuse502') { save(); err('Доска ответила 502: bad gateway'); process.exit(1); }
+  if (fail.create === 'nostatus') { save(); err('Нет статуса «Backlog» в проекте'); process.exit(1); }
+  if (fail.create === 'noenv') { save(); err('нет PLANE_API_KEY: ни в окружении, ни в конфиге'); process.exit(1); }
+  const num = (st.cardSeq ?? 100) + 1;
+  st.cardSeq = num;
+  st.cards = [...(st.cards ?? []), { id: `${code}-${num}`, ...body }];
+  save();
+  if (fail.create === 'unclear') { err('неясный исход: таймаут'); process.exit(3); }
+  if (fail.create === 'garbage') { out('что-то вышло, но непонятно что'); process.exit(0); }
+  if (fail.create === 'traceback') {
+    err('Traceback (most recent call last):');
+    err('requests.exceptions.ReadTimeout: HTTPSConnectionPool(host=\'board.example\', port=443)');
+    process.exit(1);
+  }
+  out(`создана ${code}-${num} · 3f2a1c4e-0000-4000-8000-${String(num).padStart(12, '0')}`);
 } else {
   save();
   err('использование');

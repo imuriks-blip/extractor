@@ -290,7 +290,10 @@ button.prow:hover,.prow[aria-current="true"]{background:var(--hover)}
 .pamb{color:var(--amber)} .pbad{color:var(--red)}
 .pret{flex-basis:100%;display:flex;flex-direction:column;gap:4px;max-width:520px}
 .pret textarea{font:inherit;font-size:13px;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:3px 7px;resize:vertical;min-height:2.6em;max-height:8em}
-.pret-row{display:flex;gap:6px;align-items:baseline}
+.pret input,.pret select{font:inherit;font-size:13px;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:3px 7px;min-width:0}
+.pret select{align-self:flex-start;max-width:100%}
+.ncf{display:flex;gap:6px;align-items:baseline}.ncf input{flex:1}
+.pret-row{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
 .pcnt{margin-left:auto;color:var(--faint)}
 details.grp.ans>summary{color:var(--faint)}
 details.grp.ans .wrow{color:var(--faint)}
@@ -455,7 +458,12 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
 .wtb{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;padding:6px 10px;border-top:1px solid var(--line);font-size:12px}
 .wtb .cfm{margin:0;flex:1}
 /* подтверждение «под строкой» (полный проход зеркала в «Служебном», EXT-75): своей строкой, в потоке */
-.wtb>.cfm{flex-basis:100%}
+.nc-bar{flex-direction:column;align-items:flex-start;gap:4px}
+.ncb{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.nc-bar>.pret,.nc-bar>.cfm{width:100%}
+.cfm .sim{display:block}
+.ncx{white-space:pre-wrap}
+.nc-un .pnote{display:block}
 
 /* ===== «Готово, посмотри» с 11 карточек (EXT-79, макет VKxJw5DGv6VvqiY6iFreph, вариант В): подгруппы проекта и чипы следа.
    Только существующие значения: 12px, отступы 4/10/28px, --line, .code, .filt ===== */

@@ -375,10 +375,10 @@ test('config.default.json: pult.enabled, pult.words и pult.bell — false; па
 // проверки в test/pult-words.test.mjs: здесь 501 только у ещё не подключённых
 test('словарь §1.3: шестнадцать действий таблицы (с defer и undefer, EXT-47, и reread, EXT-65) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
   assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'reread', 'return', 'take', 'undefer', 'withdraw', 'yes'].sort());
-  assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай'].sort());
+  assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай', 'Новая карточка / мысль'].sort()); // EXT-81: new-card держится pult.words
   const { app, lines } = await setup();
   const token = await pageToken(app);
-  const body = { take: { card: 'EXT-6' }, cleanup: {}, reindex: {}, 'new-card': { project: 'EXT', title: 'мысль' } };
+  const body = { take: { card: 'EXT-6' }, cleanup: {}, reindex: {} }; // new-card подключён в EXT-81 (test/ext81-new-card.test.mjs)
   for (const [action, extra] of Object.entries(body)) {
     const r = await act(app, token, { body: { action, intentId: nextIntent(), ...extra } });
     assert.equal(r.statusCode, 501, action);
@@ -421,7 +421,7 @@ test('параметры: пределы текстов по таблице (н�
   assert.equal(await code({ action: 'return', card: 'EXT-6', text: '\u0001\u0002' }), 400, 'одни управляющие — пусто');
   assert.equal(await code({ action: 'new-card', project: 'EXT', title: 'я'.repeat(121) }), 400);
   assert.equal(await code({ action: 'new-card', project: 'EXT', title: 'т', text: 'я'.repeat(2001) }), 400);
-  assert.equal(await code({ action: 'new-card', project: 'EXT', title: 'т', text: 'я'.repeat(2000) }), 501);
+  assert.equal(await code({ action: 'new-card', project: 'EXT', title: 'т', text: 'я'.repeat(2000) }), 501, 'пределы проходят, обработчика без функции похожих нет — 501');
   assert.equal(await code({ action: 'new-card', project: 'NOPE', title: 'т' }), 400);
 });
 

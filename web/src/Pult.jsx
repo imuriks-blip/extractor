@@ -88,7 +88,7 @@ function resume403(key) {
 /* ---------- вид ---------- */
 
 // «идёт»: сверка и запись — ~6 запросов к Plane по 1,05 с, 7–8 с на нажатие (1.1 п.10)
-function Going({ since, text }) {
+export function Going({ since, text }) {
   const now = useNow(1000);
   const s = Math.max(0, Math.floor((now - since) / 1000));
   return <span className="going" role="status">{text}… <span className="num">{s} с</span> <span className="faint">· обычно 7–8 с</span></span>;
