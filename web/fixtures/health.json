@@ -96,6 +96,7 @@
     "journalBad": { "count": 2, "first": 7 }
   },
   "bell": { "on": false, "waiters": null, "queued": 0 },
+  "planeQueue": { "running": 0, "queued": 0 },
   "pult": { "enabled": false },
   "rss": 61234176,
   "uptimeS": 720
