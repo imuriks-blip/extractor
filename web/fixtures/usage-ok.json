@@ -1,0 +1,386 @@
+{
+  "generatedAt": "2026-10-07T14:05:00.000Z",
+  "today": {
+    "date": "2026-10-07",
+    "in": 88000,
+    "out": 210000,
+    "cacheRead": 910000000,
+    "cacheWrite": 14500000,
+    "total": 924798000
+  },
+  "week": {
+    "from": "2026-10-01",
+    "to": "2026-10-07",
+    "in": 267300,
+    "out": 653800,
+    "cacheRead": 2411000000,
+    "cacheWrite": 42800000,
+    "total": 2454721100
+  },
+  "days": [
+    {
+      "date": "2026-10-01",
+      "in": 41200,
+      "out": 96000,
+      "cacheRead": 310000000,
+      "cacheWrite": 6100000,
+      "total": 316237200
+    },
+    {
+      "date": "2026-10-02",
+      "in": 23000,
+      "out": 71000,
+      "cacheRead": 180000000,
+      "cacheWrite": 3900000,
+      "total": 183994000
+    },
+    {
+      "date": "2026-10-03",
+      "in": 2100,
+      "out": 8800,
+      "cacheRead": 21000000,
+      "cacheWrite": 700000,
+      "total": 21710900
+    },
+    {
+      "date": "2026-10-04",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-05",
+      "in": 52000,
+      "out": 140000,
+      "cacheRead": 520000000,
+      "cacheWrite": 9400000,
+      "total": 529592000
+    },
+    {
+      "date": "2026-10-06",
+      "in": 61000,
+      "out": 128000,
+      "cacheRead": 470000000,
+      "cacheWrite": 8200000,
+      "total": 478389000
+    },
+    {
+      "date": "2026-10-07",
+      "in": 88000,
+      "out": 210000,
+      "cacheRead": 910000000,
+      "cacheWrite": 14500000,
+      "total": 924798000
+    }
+  ],
+  "byProject": {
+    "today": [
+      {
+        "project": "EXT",
+        "label": "EXT",
+        "in": 49000,
+        "out": 115000,
+        "cacheRead": 472000000,
+        "cacheWrite": 7500000,
+        "total": 479664000
+      },
+      {
+        "project": "CAR",
+        "label": "CAR",
+        "in": 21000,
+        "out": 55000,
+        "cacheRead": 250000000,
+        "cacheWrite": 4100000,
+        "total": 254176000
+      },
+      {
+        "project": null,
+        "label": "без проекта",
+        "in": 15000,
+        "out": 31000,
+        "cacheRead": 160000000,
+        "cacheWrite": 2500000,
+        "total": 162546000
+      },
+      {
+        "project": "INFRA",
+        "label": "INFRA",
+        "in": 3000,
+        "out": 9000,
+        "cacheRead": 28000000,
+        "cacheWrite": 400000,
+        "total": 28412000
+      }
+    ],
+    "week": [
+      {
+        "project": "EXT",
+        "label": "EXT",
+        "in": 196000,
+        "out": 460000,
+        "cacheRead": 1888000000,
+        "cacheWrite": 30000000,
+        "total": 1918656000
+      },
+      {
+        "project": "CAR",
+        "label": "CAR",
+        "in": 84000,
+        "out": 220000,
+        "cacheRead": 1000000000,
+        "cacheWrite": 16400000,
+        "total": 1016704000
+      },
+      {
+        "project": null,
+        "label": "без проекта",
+        "in": 60000,
+        "out": 124000,
+        "cacheRead": 640000000,
+        "cacheWrite": 10000000,
+        "total": 650184000
+      },
+      {
+        "project": "INFRA",
+        "label": "INFRA",
+        "in": 12000,
+        "out": 36000,
+        "cacheRead": 112000000,
+        "cacheWrite": 1600000,
+        "total": 113648000
+      }
+    ]
+  },
+  "byAgent": {
+    "today": [
+      {
+        "agent": "main",
+        "label": "главная сессия",
+        "in": 52000,
+        "out": 120000,
+        "cacheRead": 520000000,
+        "cacheWrite": 8000000,
+        "total": 528172000
+      },
+      {
+        "agent": "foreman",
+        "label": "прораб",
+        "in": 30000,
+        "out": 70000,
+        "cacheRead": 330000000,
+        "cacheWrite": 5200000,
+        "total": 335300000
+      },
+      {
+        "agent": "subagent",
+        "label": "субагент (тип не известен)",
+        "in": 6000,
+        "out": 20000,
+        "cacheRead": 60000000,
+        "cacheWrite": 1300000,
+        "total": 61326000
+      }
+    ],
+    "week": [
+      {
+        "agent": "main",
+        "label": "главная сессия",
+        "in": 208000,
+        "out": 480000,
+        "cacheRead": 2080000000,
+        "cacheWrite": 32000000,
+        "total": 2112688000
+      },
+      {
+        "agent": "foreman",
+        "label": "прораб",
+        "in": 120000,
+        "out": 280000,
+        "cacheRead": 1320000000,
+        "cacheWrite": 20800000,
+        "total": 1341200000
+      },
+      {
+        "agent": "subagent",
+        "label": "субагент (тип не известен)",
+        "in": 24000,
+        "out": 80000,
+        "cacheRead": 240000000,
+        "cacheWrite": 5200000,
+        "total": 245304000
+      }
+    ]
+  },
+  "byThread": {
+    "today": [
+      {
+        "sessionId": "a1",
+        "title": "Демо-тред А",
+        "project": "EXT",
+        "in": 40000,
+        "out": 98000,
+        "cacheRead": 420000000,
+        "cacheWrite": 6600000,
+        "total": 426738000
+      },
+      {
+        "sessionId": "b2",
+        "title": "Демо-тред Б: длинное название треда, которое придётся переносить на узком экране",
+        "project": "CAR",
+        "in": 21000,
+        "out": 55000,
+        "cacheRead": 250000000,
+        "cacheWrite": 4100000,
+        "total": 254176000
+      },
+      {
+        "sessionId": "c3",
+        "title": "тред c3c3c3c3",
+        "project": null,
+        "in": 15000,
+        "out": 31000,
+        "cacheRead": 160000000,
+        "cacheWrite": 2500000,
+        "total": 162546000
+      },
+      {
+        "sessionId": "d4",
+        "title": "Демо-тред Г",
+        "project": "EXT",
+        "in": 9000,
+        "out": 17000,
+        "cacheRead": 52000000,
+        "cacheWrite": 900000,
+        "total": 52926000
+      },
+      {
+        "sessionId": "e5",
+        "title": "Демо-тред Д",
+        "project": "INFRA",
+        "in": 3000,
+        "out": 9000,
+        "cacheRead": 28000000,
+        "cacheWrite": 400000,
+        "total": 28412000
+      }
+    ],
+    "week": [
+      {
+        "sessionId": "a1",
+        "title": "Демо-тред А",
+        "project": "EXT",
+        "in": 160000,
+        "out": 392000,
+        "cacheRead": 1680000000,
+        "cacheWrite": 26400000,
+        "total": 1706952000
+      },
+      {
+        "sessionId": "b2",
+        "title": "Демо-тред Б: длинное название треда, которое придётся переносить на узком экране",
+        "project": "CAR",
+        "in": 84000,
+        "out": 220000,
+        "cacheRead": 1000000000,
+        "cacheWrite": 16400000,
+        "total": 1016704000
+      },
+      {
+        "sessionId": "c3",
+        "title": "тред c3c3c3c3",
+        "project": null,
+        "in": 60000,
+        "out": 124000,
+        "cacheRead": 640000000,
+        "cacheWrite": 10000000,
+        "total": 650184000
+      },
+      {
+        "sessionId": "d4",
+        "title": "Демо-тред Г",
+        "project": "EXT",
+        "in": 36000,
+        "out": 68000,
+        "cacheRead": 208000000,
+        "cacheWrite": 3600000,
+        "total": 211704000
+      },
+      {
+        "sessionId": "e5",
+        "title": "Демо-тред Д",
+        "project": "INFRA",
+        "in": 12000,
+        "out": 36000,
+        "cacheRead": 112000000,
+        "cacheWrite": 1600000,
+        "total": 113648000
+      }
+    ]
+  },
+  "top5h": [
+    {
+      "sessionId": "a1",
+      "title": "Демо-тред А",
+      "project": "EXT",
+      "in": 40000,
+      "out": 98000,
+      "cacheRead": 420000000,
+      "cacheWrite": 6600000,
+      "total": 426738000
+    },
+    {
+      "sessionId": "b2",
+      "title": "Демо-тред Б: длинное название треда, которое придётся переносить на узком экране",
+      "project": "CAR",
+      "in": 21000,
+      "out": 55000,
+      "cacheRead": 250000000,
+      "cacheWrite": 4100000,
+      "total": 254176000
+    },
+    {
+      "sessionId": "c3",
+      "title": "тред c3c3c3c3",
+      "project": null,
+      "in": 15000,
+      "out": 31000,
+      "cacheRead": 160000000,
+      "cacheWrite": 2500000,
+      "total": 162546000
+    },
+    {
+      "sessionId": "d4",
+      "title": "Демо-тред Г",
+      "project": "EXT",
+      "in": 9000,
+      "out": 17000,
+      "cacheRead": 52000000,
+      "cacheWrite": 900000,
+      "total": 52926000
+    },
+    {
+      "sessionId": "e5",
+      "title": "Демо-тред Д",
+      "project": "INFRA",
+      "in": 3000,
+      "out": 9000,
+      "cacheRead": 28000000,
+      "cacheWrite": 400000,
+      "total": 28412000
+    }
+  ],
+  "unplaced": 0,
+  "window5h": {
+    "total": 96000000,
+    "median": 128000000,
+    "factor": 0.75,
+    "warn": false,
+    "enough": true,
+    "nonEmptyWindows": 14,
+    "message": "за 5 ч расход выше обычного"
+  },
+  "remaining": null,
+  "remainingNote": "остаток не виден (событий лимита нет)"
+}
