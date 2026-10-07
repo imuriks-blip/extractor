@@ -57,7 +57,7 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
   }
 
   // пусто и null — «все»; строчный код — в заглавные
-  const normProject = (p) => (p === undefined || p === null || p === '' ? undefined : typeof p === 'string' ? p.trim().toUpperCase() : p);
+  const normProject = (p) => (typeof p === 'string' ? p.trim().toUpperCase() || undefined : p === null ? undefined : p);
   const badProject = (p) => (p !== undefined && p !== null && p !== '' && (typeof p !== 'string' || !CODE_RE.test(p)) ? 'project: код проекта заглавными (CAR, EXT…)' : null);
 
   async function waiting({ project } = {}) {

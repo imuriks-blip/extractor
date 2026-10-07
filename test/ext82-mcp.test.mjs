@@ -289,7 +289,7 @@ test('протокол: initialize, tools/list (три инструмента, �
 test('project: пусто и null — все, строчный код — заглавный; тело не список и нечисловая очередь — строка, не падение', async () => {
   const f = await fakeVitrina((p) => (p === '/api/actions' ? null : p === '/api/health' ? { readers: {}, planeQueue: {}, bell: { on: true } } : p === '/api/ceh' ? ceh({ yes: [{ id: 'EXT-1', project: 'EXT', mark: 'да', title: 'a' }] }) : undefined));
   const s = startServer({ url: f.url });
-  for (const project of ['', null]) assert.match((await s.callTool('waiting', { project })).content[0].text, /^Ждёт Ивана: /);
+  for (const project of ['', '  ', null]) assert.match((await s.callTool('waiting', { project })).content[0].text, /^Ждёт Ивана: /);
   assert.match((await s.callTool('waiting', { project: 'ext' })).content[0].text, /по EXT: .*\(б\).* 1/);
   const w = await s.callTool('words');
   assert.equal(w.isError, true);
