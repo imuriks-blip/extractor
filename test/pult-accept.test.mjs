@@ -738,6 +738,7 @@ test('ПТ4а, §4.3: pult.bell=false — GET /api/bell/:sid → 503, сигна
   assert.ok(!fs.existsSync(path.join(off.bellDir, SID)));
   assert.equal((await off.get('/api/actions'))[0].ring, 'звонок выключен');
   assert.deepEqual((await off.get('/api/health')).bell, { on: false, waiters: null, queued: 0 });
+  assert.deepEqual((await off.get('/api/health')).planeQueue, { running: 0, queued: 0 }); // EXT-82: MCP health читает очередь Plane
   const on = await setup({}, { bell: true, threads: [thread(SID, { card: 'EXT-7' })] });
   await on.press({ action: 'return', card: 'EXT-7', q: Q, text: 'нет теста' });
   assert.deepEqual((await on.get('/api/health')).bell, { on: true, waiters: null, queued: 1 });
