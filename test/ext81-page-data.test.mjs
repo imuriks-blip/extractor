@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { canNewCard, canNewCardIn, projectChoices, canSubmit, buildPayload, classifyReply, copyText, TITLE_MAX, TEXT_MAX } = await import('../web/src/newCardData.js');
+const { NET_RETRY_MS, UNCLEAR_ACTIONS, canRetryNet, closeAction, len, clip, canNewCard, canNewCardIn, projectChoices, canSubmit, buildPayload, classifyReply, copyText, TITLE_MAX, TEXT_MAX } = await import('../web/src/newCardData.js');
 
 const ON = { enabled: true, words: true, bell: true };
 
@@ -114,4 +114,37 @@ test('«Мои слова»: у new-card исход — про карточку,
   assert.match(outcomeText({ action: 'new-card', status: 'error' }), /проверь доску/);
   assert.equal(outcomeText({ action: 'yes', status: 'need-confirm' }), 'ждёт выбора треда');
   assert.equal(outcomeText({ action: 'new-card', status: 'refused' }), 'отказ');
+});
+
+test('«нет связи»: закрытие из net — «исход неясен», не очистка и не новый ввод; во время запроса закрыть нельзя', () => {
+  assert.equal(closeAction('net'), 'unclear');
+  assert.equal(closeAction('busy'), 'none');
+  for (const ph of ['form', 'confirm', 'unclear', 'ok']) assert.equal(closeAction(ph), 'close', ph);
+});
+
+test('«повторить» тем же intentId: до 9 минут от отправки; с 9 минут, без времени и из будущего — нет', () => {
+  const t0 = 1_000_000;
+  assert.equal(NET_RETRY_MS, 9 * 60_000);
+  assert.equal(canRetryNet(t0, t0), true);
+  assert.equal(canRetryNet(t0, t0 + NET_RETRY_MS - 1), true, 'без секунды девять минут');
+  assert.equal(canRetryNet(t0, t0 + NET_RETRY_MS), false, 'ровно девять — уже нет');
+  assert.equal(canRetryNet(t0, t0 + 10 * 60_000), false);
+  assert.equal(canRetryNet(undefined, t0), false);
+  assert.equal(canRetryNet(t0 + 5, t0), false, 'отправка «в будущем» — не верим');
+});
+
+test('вид «исход неясен» берёт решение из newCardData: повтора нет, копирование есть; classifyReply отдаёт то же', () => {
+  assert.deepEqual({ ...UNCLEAR_ACTIONS }, { retry: false, copy: true });
+  const v = classifyReply(200, { outcome: 'error', message: 'исход неясен — проверь доску' });
+  assert.equal(v.retry, UNCLEAR_ACTIONS.retry);
+  assert.equal(v.copy, UNCLEAR_ACTIONS.copy);
+  assert.throws(() => { 'use strict'; UNCLEAR_ACTIONS.retry = true; }, TypeError, 'решение не переписать');
+});
+
+test('знаки как у сервера: эмодзи — один знак; обрезка по знакам, а не по половинкам', () => {
+  assert.equal(len('a😀b'), 3);
+  assert.equal(clip('😀'.repeat(5), 3), '😀😀😀');
+  assert.equal(clip('abc', 5), 'abc');
+  assert.equal(canSubmit({ project: 'EXT', title: '😀'.repeat(TITLE_MAX), text: '' }), true, '120 эмодзи = 120 знаков');
+  assert.equal(canSubmit({ project: 'EXT', title: '😀'.repeat(TITLE_MAX + 1), text: '' }), false);
 });

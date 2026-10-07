@@ -67,8 +67,10 @@ const app = await buildApp({ port: 4317, board, registry, scan, similar, webDir:
   pult: { enabled: true, words: true, actionsLog: path.join(data, 'actions.log'), boardRoot: boardDir, python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') } })
 
 let intercepted = 0
+let drop = false // «нет связи»: запрос обрывается, не дойдя до app.inject
 const srv = http.createServer((req, res) => {
   if (req.url.startsWith('/api/events')) { res.writeHead(404); res.end(); return }
+  if (drop && req.method === 'POST') { req.socket.destroy(); return }
   const chunks = []
   req.on('data', (c) => chunks.push(c))
   req.on('end', async () => {
@@ -194,6 +196,22 @@ try {
   await shots4('6-sekret-mozhet')
   await click('это не секрет — отправить')
   must('после «это не секрет»: создана CAR-42', await waitFor(`/создана CAR-42/.test(document.querySelector('${F}')?.innerText??'')`, 15000), await txt())
+
+  // (4б) нет связи: «повторить» есть; «отмена» ведёт в «исход неясен», а не молча закрывает
+  await click('Новая карточка'); await waitFor(`document.querySelector('${F} form')`)
+  await setSel('EXT'); await fill('Заметка про связь', 'текст на случай обрыва')
+  const nBefore = plane().creates.length
+  drop = true
+  await click('создать')
+  must('нет связи: заметка и «повторить»', await waitFor(`/нет связи/.test(document.querySelector('${F} .pnote')?.textContent??'')`, 10000) && (await btnsOf()).includes('повторить'), await txt())
+  await shots4('7a-net')
+  await click('отмена')
+  must('«отмена» из «нет связи» — «исход неясен» с текстом, без «создать»/«повторить»', await waitFor(`/исход неясен/.test(document.querySelector('${F} .nc-un')?.textContent??'')`) && !(await btnsOf()).some((x) => /создать|повторить/.test(x)) && /Заметка про связь/.test(await txt()), await btnsOf())
+  must('на доску ничего не ушло', plane().creates.length === nBefore, plane().creates.length)
+  await shots4('7b-net-neyasno')
+  await click('закрыть')
+  must('после «закрыть» поля очищены', await b.ev(`!document.querySelector('${F} form')`), null)
+  drop = false
 
   // (5) исход неясен
   setFail('unclear')

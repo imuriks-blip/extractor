@@ -5,6 +5,18 @@
 export const TITLE_MAX = 120;
 export const TEXT_MAX = 2000;
 export const SIMILAR_SHOWN = 5;
+export const NET_RETRY_MS = 9 * 60_000; // сервер помнит ключ намерения 10 мин; «повторить» тем же ключом — не дольше 9
+export const NET_UNCLEAR_MESSAGE = 'нет связи с витриной — исход неясен: запрос мог дойти и создать карточку; проверь доску (повторять вслепую нельзя)';
+// что даёт вид «исход неясен»: повторить нельзя никогда, скопировать — можно (вид и classifyReply берут решение отсюда)
+export const UNCLEAR_ACTIONS = Object.freeze({ retry: false, copy: true });
+// знаки как у сервера (кодовые точки): счётчик и обрезка
+export const len = (s) => [...String(s ?? '')].length;
+export const clip = (s, max) => { const a = [...String(s ?? '')]; return a.length > max ? a.slice(0, max).join('') : String(s ?? ''); };
+// «нет связи»: «повторить» тем же intentId — до 9 мин от отправки; позже (или время неизвестно) — исход неясен
+export const canRetryNet = (since, now) => Number.isFinite(since) && now - since >= 0 && now - since < NET_RETRY_MS;
+// закрытие формы (отмена, Esc, кнопка «Новая карточка»): из «нет связи» — не молча, а в «исход неясен»; во время запроса — нельзя
+export const closeAction = (phase) => (phase === 'net' ? 'unclear' : phase === 'busy' ? 'none' : 'close');
+
 export const NO_NEW_CARD = ['RADAR']; // в RADAR карточка рождается с вердиктом — заводит дирижёр (сервер откажет и сам)
 
 // кнопка — только при включённых пульте и словах (иначе ответ 503); у RADAR кнопки нет
@@ -16,7 +28,7 @@ export const projectChoices = (projects) => (Array.isArray(projects) ? projects 
 
 // «создать» активна: проект выбран (и не RADAR), заголовок не пуст, длины в пределах
 export const canSubmit = ({ project, title, text }) => !!project && !NO_NEW_CARD.includes(project)
-  && String(title ?? '').trim().length > 0 && String(title).length <= TITLE_MAX && String(text ?? '').length <= TEXT_MAX;
+  && String(title ?? '').trim().length > 0 && len(title) <= TITLE_MAX && len(text) <= TEXT_MAX;
 
 // text — только если не пуст; confirm — id ответа (второй щелчок / «это не секрет»); намерение новое — id даёт вызывающий
 export const buildPayload = ({ project, title, text }, intentId, confirm = null) => ({
@@ -64,7 +76,7 @@ export function classifyReply(status, body) {
   }
   // 5xx без внятного ответа — запись могла лечь: как «исход неясен» (повторять вслепую нельзя)
   if (status >= 500 || (b.outcome === 'error' && isUnclear(message))) {
-    return { kind: 'unclear', message: isUnclear(message) ? message : 'исход неясен — проверь доску: карточка могла создаться (повторять вслепую нельзя)', retry: false, copy: true };
+    return { kind: 'unclear', message: isUnclear(message) ? message : 'исход неясен — проверь доску: карточка могла создаться (повторять вслепую нельзя)', ...UNCLEAR_ACTIONS };
   }
   if (b.outcome === 'error' && isNotCreated(message)) return { kind: 'not-created', message, retry: true, copy: false };
   return { kind: 'error', message: message || `ошибка: HTTP ${status}`, retry: false, copy: false };

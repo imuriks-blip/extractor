@@ -4,10 +4,12 @@
 // пересборка данных страницы форму не сбрасывает. Данные и разбор ответа — newCardData.js.
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { clear403, postAct, reloadOn403, take403 } from './act.js';
+import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { Going } from './Pult.jsx';
 import {
-  TEXT_MAX, TITLE_MAX, buildPayload, canNewCardIn, canSubmit, classifyReply, copyText, projectChoices,
+  NET_UNCLEAR_MESSAGE, TEXT_MAX, TITLE_MAX, UNCLEAR_ACTIONS, buildPayload, canNewCardIn, canRetryNet, canSubmit, classifyReply, clip,
+  closeAction, copyText, len, projectChoices,
 } from './newCardData.js';
 
 const CONFIRM_MS = 5 * 60_000; // второй щелчок — не дольше 5 мин после первого (как у слов)
@@ -24,11 +26,20 @@ const subscribe = (f) => { subs.add(f); return () => subs.delete(f); };
 const useStore = (key) => useSyncExternalStore(subscribe, () => get(key));
 const reset = (key) => { stores.set(key, EMPTY); subs.forEach((f) => f()); };
 const fresh = () => crypto.randomUUID();
+// закрытие формы: из «нет связи» — в «исход неясен» (запрос мог дойти), не молча; во время запроса — нельзя
+const closeForm = (key) => {
+  const a = closeAction(get(key).phase);
+  if (a === 'unclear') patch(key, { open: true, phase: 'unclear', note: { cls: 'pbad', text: NET_UNCLEAR_MESSAGE } });
+  else if (a === 'close') patch(key, { open: false, phase: 'form', note: null });
+};
 
 const FORBIDDEN = 'пульт отказал, перезапусти витрину (ответ 403 дважды подряд)';
 
 async function send(key, payload) {
-  patch(key, { phase: 'busy', payload, since: Date.now(), note: null });
+  // sentAt — первая отправка этого намерения: окно «повторить» (9 мин) считается от неё, а не от последнего повтора
+  const prev = get(key);
+  const sentAt = prev.payload?.intentId === payload.intentId && prev.sentAt ? prev.sentAt : Date.now();
+  patch(key, { phase: 'busy', payload, since: Date.now(), sentAt, note: null });
   let r;
   try {
     r = await postAct(payload);
@@ -78,7 +89,7 @@ async function copy(key) {
 /* ---------- вид ---------- */
 
 function Count({ n, max }) {
-  return <span className="pcnt num" aria-live="polite">{n}/{max}</span>;
+  return <span className="pcnt num">{n}/{max}</span>;
 }
 
 function Form({ k, st, fixed, choices }) {
@@ -92,7 +103,7 @@ function Form({ k, st, fixed, choices }) {
   // кнопка, на которой стоял фокус, на время запроса неактивна — фокус не теряем: после ответа он возвращается в форму
   useEffect(() => { if (!lock && document.activeElement === document.body) ref.current?.focus(); }, [lock]);
   const edit = (p) => patch(k, { ...p, ...(st.note?.rid || st.note?.fix ? { note: null } : {}) }); // правка отменяет «это не секрет»
-  const close = () => patch(k, { open: false, phase: 'form', note: null });
+  const close = () => closeForm(k);
   const submit = (e) => { e.preventDefault(); if (ok) send(k, buildPayload({ ...st, project: fixed ?? st.project }, fresh())); };
   const n = st.note;
   const fixText = () => { patch(k, { note: null }); textRef.current?.focus(); };
@@ -107,16 +118,16 @@ function Form({ k, st, fixed, choices }) {
         </select>
       )}
       <span className="ncf">
-        <input ref={ref} type="text" maxLength={TITLE_MAX} value={st.title} disabled={lock} aria-label="Заголовок" aria-required="true"
-          placeholder="Заголовок" onChange={(e) => edit({ title: e.target.value })} />
-        <Count n={st.title.length} max={TITLE_MAX} />
+        <input ref={ref} type="text" value={st.title} disabled={lock} aria-label="Заголовок" aria-required="true"
+          placeholder="Заголовок" onChange={(e) => edit({ title: clip(e.target.value, TITLE_MAX) })} />
+        <Count n={len(st.title)} max={TITLE_MAX} />
       </span>
-      <textarea ref={textRef} rows={3} maxLength={TEXT_MAX} value={st.text} disabled={lock} aria-label="Текст (необязательно)"
-        placeholder="Текст — необязательно" onChange={(e) => edit({ text: e.target.value })} />
+      <textarea ref={textRef} rows={3} value={st.text} disabled={lock} aria-label="Текст (необязательно)"
+        placeholder="Текст — необязательно" onChange={(e) => edit({ text: clip(e.target.value, TEXT_MAX) })} />
       {busy && <Going since={st.since} text="создаю карточку" />}
       {net && (
-        <span className="pnote pbad" role="status">нет связи с витриной — «повторить» пошлёт то же нажатие{' '}
-          <button type="button" className="pbtn" onClick={() => send(k, st.payload)}>повторить</button></span>
+        <span className="pnote pbad" role="status">нет связи с витриной: запрос мог дойти и создать карточку. «Повторить» пошлёт то же нажатие (до 9 минут), «отмена» — проверить доску самому{' '}
+          <button type="button" className="pbtn" onClick={() => (canRetryNet(st.sentAt, Date.now()) ? send(k, st.payload) : closeForm(k))}>повторить</button></span>
       )}
       {n && !lock && (
         <span className={`pnote ${n.cls}`} role="status">
@@ -171,7 +182,8 @@ function Unclear({ k, st, fixed }) {
         {st.text.trim() && <><dt>текст</dt><dd className="ncx">{st.text}</dd></>}
       </dl>
       <span className="row">
-        <button type="button" className="pbtn" autoFocus onClick={() => copy(k)}>скопировать текст</button>
+        {UNCLEAR_ACTIONS.retry && st.payload && <button type="button" className="pbtn" onClick={() => send(k, st.payload)}>повторить</button>}
+        {UNCLEAR_ACTIONS.copy && <button type="button" className="pbtn" autoFocus onClick={() => copy(k)}>скопировать текст</button>}
         <button type="button" className="pbtn" onClick={() => reset(k)}>закрыть</button>
         {st.copied && <span className="faint" role="status">{st.copied}</span>}
       </span>
@@ -183,11 +195,21 @@ function Unclear({ k, st, fixed }) {
 export default function NewCard({ fixed = null, projects = [], pult }) {
   const k = fixed ? `p:${fixed}` : 'ceh';
   const st = useStore(k);
+  const now = useNow(5000);
+  // «создана …» — свой таймер на 60 с, не зависит от перерисовок страницы
+  useEffect(() => {
+    if (st.phase !== 'ok') return undefined;
+    const t = setTimeout(() => { if (get(k).phase === 'ok') reset(k); }, OK_SHOWN_MS);
+    return () => clearTimeout(t);
+  }, [k, st.phase, st.okAt]);
+  // «нет связи» старше 9 минут — повтор тем же ключом больше нельзя: исход неясен
+  const netOld = st.phase === 'net' && !canRetryNet(st.sentAt, Math.max(now, Date.now()));
+  useEffect(() => { if (netOld) patch(k, { phase: 'unclear', note: { cls: 'pbad', text: NET_UNCLEAR_MESSAGE } }); }, [k, netOld]);
   useEffect(() => { resume403(k, fixed); }, [k, fixed]);
   if (!canNewCardIn(pult, fixed)) return null;
-  const okShown = st.phase === 'ok' && Date.now() - st.okAt < OK_SHOWN_MS;
+  const okShown = st.phase === 'ok';
   const busy = st.phase === 'busy';
-  const toggle = () => (st.open ? patch(k, { open: false, phase: 'form', note: null }) : patch(k, { open: true, ...(st.phase === 'ok' ? { phase: 'form' } : {}) }));
+  const toggle = () => (st.open ? closeForm(k) : patch(k, { open: true, ...(st.phase === 'ok' ? { phase: 'form' } : {}) }));
   return (
     <div className="wtb nc-bar">
       <span className="ncb">
