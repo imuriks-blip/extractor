@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-10-07T14:05:00.000Z",
+  "today": {
+    "date": "2026-10-07",
+    "in": 0,
+    "out": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "total": 0
+  },
+  "week": {
+    "from": "2026-10-01",
+    "to": "2026-10-07",
+    "in": 0,
+    "out": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "total": 0
+  },
+  "days": [
+    {
+      "date": "2026-10-01",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-02",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-03",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-04",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-05",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-06",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    },
+    {
+      "date": "2026-10-07",
+      "in": 0,
+      "out": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    }
+  ],
+  "byProject": {
+    "today": [],
+    "week": []
+  },
+  "byAgent": {
+    "today": [],
+    "week": []
+  },
+  "byThread": {
+    "today": [],
+    "week": []
+  },
+  "top5h": [],
+  "window5h": {
+    "total": 0,
+    "median": null,
+    "factor": null,
+    "warn": false,
+    "enough": false,
+    "nonEmptyWindows": 0,
+    "message": "мало данных"
+  },
+  "remaining": null,
+  "remainingNote": "остаток не виден (событий лимита нет)",
+  "unplaced": 0
+}
