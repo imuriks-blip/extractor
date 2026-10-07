@@ -378,7 +378,7 @@ test('словарь §1.3: шестнадцать действий таблиц
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай', 'Новая карточка / мысль'].sort()); // EXT-81: new-card держится pult.words
   const { app, lines } = await setup();
   const token = await pageToken(app);
-  const body = { take: { card: 'EXT-6' }, cleanup: {}, reindex: {} }; // new-card подключён в EXT-81 (test/ext81-new-card.test.mjs)
+  const body = { take: { card: 'EXT-6' }, reindex: {} }; // new-card подключён в EXT-81 (test/ext81-new-card.test.mjs), cleanup — в EXT-83 (test/ext83-*.test.mjs)
   for (const [action, extra] of Object.entries(body)) {
     const r = await act(app, token, { body: { action, intentId: nextIntent(), ...extra } });
     assert.equal(r.statusCode, 501, action);
