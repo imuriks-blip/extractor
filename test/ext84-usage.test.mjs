@@ -49,7 +49,9 @@ const rd = (root, indexDir = tmpDir('usage-i-')) => createJournalReader({ root, 
 async function payload(w, { reader, rateLimit = null, titleOf = () => null, cfg = {} } = {}) {
   const r = reader ?? rd(w.root);
   await r.refresh();
-  return createUsage({ journals: r, rateLimit, board, titleOf, now: () => NOW, cfg, cacheMs: 0 }).payload();
+  const usage = createUsage({ journals: r, rateLimit, board, titleOf, now: () => NOW, cfg, cacheMs: 0 });
+  usage.tick(); // как опрос витрины: признак «прораб» ставит он, не ручка
+  return usage.payload();
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

@@ -38,9 +38,10 @@ test('столбики по дням: высота от самого больш�
 test('остаток: есть — части строки и пометки; нет — remainingNote дословно', () => {
   const r = remainingLine({ remaining: { fiveHour: { utilization: 0.62, resetsAt: '2026-10-07T16:20:00.000Z', expired: false }, sevenDay: { utilization: 0.41, expired: true }, ageSec: 720 } });
   assert.equal(r.has, true);
-  assert.match(r.text, /^5 ч: 62 % · сброс в \d\d:\d\d · 7 дн: 41 % · данные 12 мин назад \(событие прогона прораба\)$/);
+  assert.match(r.text, /^5 ч: 62 % · сброс в \d\d:\d\d · 7 дн: 41 % · данные не моложе 12 мин \(событие прогона прораба\)$/);
   assert.match(r.expired, /7 дн/);
-  assert.match(r.note, /верхняя граница/);
+  assert.match(r.note, /нижняя граница/);
+  assert.match(remainingLine({ remaining: { fiveHour: null, sevenDay: null, ageSec: 20 } }).text, /данные не моложе 0 мин/);
   const n = remainingLine({ remaining: null, remainingNote: 'остаток не виден (событий лимита нет)' });
   assert.deepEqual(n, { has: false, text: 'остаток не виден (событий лимита нет)' });
   assert.equal(ageText(30), 'меньше минуты');

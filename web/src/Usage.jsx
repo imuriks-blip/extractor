@@ -169,7 +169,7 @@ export default function Usage() {
           <Days days={data.days} />
           <Breakdowns d={data} />
           <Top5 rows={data.top5h} />
-          {data.unplaced > 0 && <div className="foot">Не поставлено в день (нет времени или ключа): {data.unplaced} строк.</div>}
+          {data.unplaced > 0 && <div className="foot">Не поставлено в день (нет времени или ключа), за всё время с пересборки индекса: {data.unplaced} строк.</div>}
         </>
       )}
     </div>

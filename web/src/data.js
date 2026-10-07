@@ -95,7 +95,7 @@ export function pollSource(url, everyMs = 30000) {
 }
 export const usageSource = pollSource('/api/usage', 30000);
 
-export const cehSource =streamSource('/api/ceh');
+export const cehSource = streamSource('/api/ceh');
 // источник без данных (экран, которому нечего читать)
 export const idleSource = { subscribe: () => () => {} };
 

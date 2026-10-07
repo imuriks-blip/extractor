@@ -93,12 +93,13 @@ export function remainingLine(d) {
   if (five) parts.push(`5 ч: ${pct(five.utilization)}`);
   if (reset) parts.push(`сброс в ${reset}`);
   if (seven) parts.push(`7 дн: ${pct(seven.utilization)}`);
-  parts.push(`данные ${ageText(r.ageSec)}${Number.isFinite(r.ageSec) && r.ageSec >= 60 ? ' назад' : ''} (событие прогона прораба)`);
+  // возраст — нижняя граница (время файла прогона не раньше самого события): «не моложе N»
+  parts.push(`данные не моложе ${Number.isFinite(r.ageSec) && r.ageSec >= 60 ? ageText(r.ageSec) : '0 мин'} (событие прогона прораба)`);
   const expired = [five?.expired ? '5 ч' : null, seven?.expired ? '7 дн' : null].filter(Boolean);
   return {
     has: true,
     text: parts.join(' · '),
     expired: expired.length ? `окно (${expired.join(', ')}) уже сменилось — число из прошлого окна` : null,
-    note: 'возраст — по времени файла прогона, верхняя граница',
+    note: 'возраст — нижняя граница: время файла прогона не раньше самого события',
   };
 }
