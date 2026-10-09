@@ -9,7 +9,6 @@ import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 import { Summary } from './Summary.jsx';
 import Reread from './Reread.jsx';
-import { Service } from './Service.jsx';
 import { MyWords, Worktrees } from './Words.jsx';
 import NewCard from './NewCard.jsx';
 
@@ -461,7 +460,6 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
         <Workers w={data.workers} now={now} stale={staleText(f.journals, failing, now)} />
         {data.pult?.enabled === true && <MyWords now={now} pult={data.pult} />}
         {data.pult?.enabled === true && <Worktrees />}
-        {data.pult?.enabled === true && <Service />}
       </div>
     </div>
   );

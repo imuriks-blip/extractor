@@ -366,12 +366,16 @@ test('pult.words = false: слово («да») → 503 без записи; pin
 
 test('config.default.json: pult.enabled, pult.words и pult.bell — false; папка звонка — data/vitrina/bell/ (§4.3, ПТ4а)', () => {
   const d = JSON.parse(fs.readFileSync(new URL('../config.default.json', import.meta.url), 'utf8'));
-  const { cleanup, usage, ...flags } = d.pult;
+  const { cleanup, usage, measure, ...flags } = d.pult;
   assert.deepEqual(flags, { enabled: false, words: false, bell: false, bellDir: 'data/vitrina/bell/' });
   // «Расход» (EXT-84, §6): порог предупреждения 1,5 × медиана, папка прогонов прораба — только чтение события лимита
   assert.equal(usage.warnFactor, 1.5);
   assert.equal(usage.foremanRuns, 'C:/projects/_foreman/runs');
   assert.equal(usage.maxRuns, 10);
+  // EXT-87: свежесть остатка (30 мин / 6 ч) и модель замера — умолчания спеки §6 п.2
+  assert.equal(usage.freshFiveHourMin, 30);
+  assert.equal(usage.freshSevenDayH, 6);
+  assert.equal(measure.model, 'claude-haiku-4-5-20251001');
   // уборка рабочих копий (EXT-83, §1.5): порог и безопасный список спеки — настройка
   assert.equal(cleanup.maxAgeDays, 14);
   assert.deepEqual(cleanup.safeIgnored, ['node_modules/', 'web/node_modules/', 'dist/', 'web/dist/', '.venv/', '__pycache__/']);
@@ -381,8 +385,8 @@ test('config.default.json: pult.enabled, pult.words и pult.bell — false; па
 
 // «Принять» и «Вернуть» подключены в ПТ3 — их проверки в test/pult-accept.test.mjs; слова (да, го, сливай, выкатывай, нет, ответ) — в ПТ6,
 // проверки в test/pult-words.test.mjs: здесь 501 только у ещё не подключённых
-test('словарь §1.3: шестнадцать действий таблицы (с defer и undefer, EXT-47, и reread, EXT-65) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
-  assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'reread', 'return', 'take', 'undefer', 'withdraw', 'yes'].sort());
+test('словарь §1.3: шестнадцать действий таблицы (с defer и undefer, EXT-47, reread, EXT-65, и measure, EXT-87) и ping; не подключённые — 501 «ещё не подключено» без строки в actions.log', async () => {
+  assert.deepEqual(Object.keys(ACTIONS).sort(), ['accept', 'cleanup', 'defer', 'deploy', 'go', 'measure', 'merge', 'mirror', 'new-card', 'no', 'ping', 'reindex', 'reply', 'reread', 'return', 'take', 'undefer', 'withdraw', 'yes'].sort());
   assert.deepEqual(Object.values(ACTIONS).filter((a) => a.word).map((a) => a.label).sort(), ['да', 'выкатывай', 'го', 'нет', 'ответ треду', 'сливай', 'Новая карточка / мысль'].sort()); // EXT-81: new-card держится pult.words
   const { app, lines } = await setup();
   const token = await pageToken(app);

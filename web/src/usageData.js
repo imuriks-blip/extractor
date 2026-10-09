@@ -1,5 +1,6 @@
 // Экран «Расход» (EXT-84, ПТ12; спека пульта §6): выбор данных без разметки, чтобы проверялось тестом (test/ext84-usage-page.test.mjs).
-// Ручка: GET /api/usage (lib/usage.mjs). «Замерить остаток» не делается (слово Ивана 07.10): остаток — строкой из уже виденного события.
+// Ручка: GET /api/usage (lib/usage.mjs). Остаток — новая форма remaining (EXT-87, спека пульта §1.7): источник, возраст, свежесть;
+// «Замерить остаток» вернулась (слово Ивана 09.10) — пункт меню «Служебное» и кнопка на экране.
 
 export const USAGE_URL = '/api/usage';
 export const USAGE_POLL_MS = 30000;
@@ -63,13 +64,25 @@ export function breakdownRows(d, kind, scope) {
   });
 }
 
-// предупреждение 5 ч: kind — warn | ok | few | none
+// Подпись веса из window5h.weights (ценовые веса API, EXT-87): «вывод ×5, чтение кэша ×0,1». Ввод ×1 и запись кэша ×1,25 — в подсказке.
+// Весов в ответе нет (старый сервер) — подписи нет: число не выдаём за «условные токены».
+const W_NAMES = [['in', 'ввод'], ['out', 'вывод'], ['cacheWrite', 'запись кэша'], ['cacheRead', 'чтение кэша']];
+const wTxt = (v) => `×${dec(v)}`;
+export function weightNote(weights, short = true) {
+  if (!weights || typeof weights !== 'object') return null;
+  const list = W_NAMES.filter(([k]) => Number.isFinite(weights[k]) && (!short || weights[k] !== 1 && weights[k] !== 1.25));
+  return list.length ? `вес: ${list.map(([k, n]) => `${n} ${wTxt(weights[k])}`).join(', ')}` : null;
+}
+
+// предупреждение 5 ч (объём взвешен по ценам API — «условные токены»): kind — warn | ok | few | none
 export function windowNote(w) {
   if (!w) return { kind: 'none', text: '' };
-  if (!w.enough) return { kind: 'few', text: 'за 5 ч: мало данных для сравнения' };
+  if (!w.enough) return { kind: 'few', text: 'за 5 ч: мало данных для сравнения', title: w.message };
   const f = Number.isFinite(w.factor) ? `×${dec(w.factor)}` : '';
-  if (w.warn) return { kind: 'warn', head: 'За 5 ч расход выше обычного', text: `${fmtTokens(w.total)} против медианы ${fmtTokens(w.median)}${f ? ` (${f} от медианы)` : ''}`, title: `${exact(w.total)} против медианы ${exact(Math.round(w.median))}` };
-  return { kind: 'ok', text: `за 5 ч в норме: ${fmtTokens(w.total)} при медиане ${fmtTokens(w.median)}`, title: `${exact(w.total)} при медиане ${exact(Math.round(w.median))}` };
+  const wn = weightNote(w.weights);
+  const title = [w.message, weightNote(w.weights, false)].filter(Boolean).join(' · ') || undefined;
+  if (w.warn) return { kind: 'warn', head: 'За 5 ч расход выше обычного', text: `≈ ${fmtTokens(w.total)} условных токенов против медианы ${fmtTokens(w.median)}${f || wn ? ` (${[f && `${f} от медианы`, wn].filter(Boolean).join('; ')})` : ''}`, title };
+  return { kind: 'ok', text: `за 5 ч в норме: ≈ ${fmtTokens(w.total)} условных токенов при медиане ${fmtTokens(w.median)}${wn ? ` (${wn})` : ''}`, title };
 }
 
 const pct = (u) => (Number.isFinite(u) ? `${Math.round(u * 100)} %` : '—');
@@ -83,23 +96,71 @@ export function ageText(sec) {
 const p2 = (n) => String(n).padStart(2, '0');
 const clock = (iso) => { const t = new Date(iso); return Number.isNaN(t.getTime()) ? null : `${p2(t.getHours())}:${p2(t.getMinutes())}`; };
 
-// строка остатка. remaining есть — части строки (5 ч, сброс, 7 дн, возраст) и пометки; нет — remainingNote дословно
-export function remainingLine(d) {
+export const MEASURE_HINT = 'Служебное → Замерить остаток';
+const NO_EVENTS = 'остаток не виден (событий лимита нет)';
+
+// возраст рядом с числом: замер — точный («замер 5 мин назад»), прогон прораба — нижняя граница («прогон прораба, не моложе 20 мин»)
+export function sourceText(r) {
+  const age = Number.isFinite(r?.ageSec) ? (r.ageSec < 60 ? 'меньше минуты' : ageText(r.ageSec)) : null;
+  if (r?.source === 'foreman') return `прогон прораба, не моложе ${age ?? '—'}`;
+  return age ? `замер ${r.ageSec < 60 ? 'меньше минуты' : age} назад` : 'замер';
+}
+// возраст события в подписи «последнее событие лимита N назад» (у прораба — нижняя граница)
+const lastEventAge = (r) => `${r?.ageKind === 'lowerBound' ? 'не моложе ' : ''}${ageText(r?.ageSec)}`;
+
+// Остаток новой формы (EXT-87, спека пульта §1.7 и §6 п.2 «Свежесть»): число показывается, только если fresh; сервер несвежему
+// число не отдаёт (utilization: null), страница не пытается его достать. Результат:
+//   kind: 'none' — событий нет (text — remainingNote дословно); 'stale' — оба окна несвежие; 'ok' — виден хотя бы один процент;
+//   five/seven — готовая подпись части (null — нет вовсе), parts — {k, text, fresh}; source — «замер 5 мин назад»; at — «ЧЧ:ММ» события.
+export function remainingView(d) {
   const r = d?.remaining;
-  if (!r) return { has: false, text: d?.remainingNote ?? 'остаток не виден (событий лимита нет)' };
-  const five = r.fiveHour ?? null, seven = r.sevenDay ?? null;
-  const reset = five?.resetsAt ? clock(five.resetsAt) : null;
-  const parts = [];
-  if (five) parts.push(`5 ч: ${pct(five.utilization)}`);
-  if (reset) parts.push(`сброс в ${reset}`);
-  if (seven) parts.push(`7 дн: ${pct(seven.utilization)}`);
-  // возраст — нижняя граница (время файла прогона не раньше самого события): «не моложе N»
-  parts.push(`данные не моложе ${Number.isFinite(r.ageSec) && r.ageSec >= 60 ? ageText(r.ageSec) : '0 мин'} (событие прогона прораба)`);
-  const expired = [five?.expired ? '5 ч' : null, seven?.expired ? '7 дн' : null].filter(Boolean);
-  return {
-    has: true,
-    text: parts.join(' · '),
-    expired: expired.length ? `окно (${expired.join(', ')}) уже сменилось — число из прошлого окна` : null,
-    note: 'возраст — нижняя граница: время файла прогона не раньше самого события',
+  if (!r) return { kind: 'none', text: d?.remainingNote ?? NO_EVENTS, hint: MEASURE_HINT };
+  const part = (w, label, withReset) => {
+    if (!w) return null;
+    if (w.fresh === true && Number.isFinite(w.utilization)) {
+      const reset = withReset && w.resetsAt ? clock(w.resetsAt) : null;
+      return { fresh: true, text: `${label}: ${pct(w.utilization)}${reset ? ` · сброс ${reset}` : ''}` };
+    }
+    return { fresh: false, text: `${label}: не виден` };
   };
+  const five = part(r.fiveHour, '5 ч', true);
+  const seven = part(r.sevenDay, '7 дн', false);
+  const parts = [five, seven].filter(Boolean);
+  const source = sourceText(r);
+  const at = r.at ? clock(r.at) : null;
+  if (!parts.some((p) => p.fresh)) {
+    return { kind: 'stale', text: `остаток не виден — последнее событие лимита ${lastEventAge(r)} назад`, hint: MEASURE_HINT, parts, source, at };
+  }
+  return { kind: 'ok', text: parts.map((p) => p.text).join(' · '), parts, source, at, lowerBound: r.ageKind === 'lowerBound' };
+}
+
+// «замеры сегодня: 3, ≈$0,08» (measures.today из log.jsonl; стоимость — округлённо до цента, меньше цента — «<$0,01»)
+export function measuresLine(d) {
+  const t = d?.measures?.today;
+  if (!t || !Number.isFinite(t.count)) return null;
+  const c = Number.isFinite(t.costUsd) ? t.costUsd : 0;
+  const money = c <= 0 ? null : c < 0.005 ? '<$0,01' : `≈$${dec(c.toFixed(2))}`;
+  return `замеры сегодня: ${t.count}${money ? `, ${money}` : ''}`;
+}
+
+// Подпись пункта «Замерить остаток» в меню «Служебное»: «5 ч: N % · сброс ЧЧ:ММ · 7 дн: M % · замер ЧЧ:ММ» по тому же правилу свежести
+export function measureMenuLine(d) {
+  const v = remainingView(d);
+  if (v.kind === 'none') return { cls: 'faint', text: 'замеров ещё не было' };
+  if (v.kind === 'stale') return { cls: 'pamb', text: v.text };
+  const src = d.remaining.source === 'foreman' ? `прораб, не моложе ${ageText(d.remaining.ageSec)}` : v.at ? `замер ${v.at}` : 'замер';
+  return { cls: 'muted', text: `${v.text} · ${src}` };
+}
+
+// Ответ на «Замерить остаток» словами: {cls, text}. status — HTTP, body — тело /api/act (outcome, refusal, reused, message)
+export function measureAnswer(status, body) {
+  const b = body ?? {};
+  if (status === 409 && b.refusal === 'measure-running') return { cls: 'going', text: 'замер уже идёт' };
+  if (status === 501) return { cls: 'muted', text: 'ещё не подключено' };
+  if (status === 503) return { cls: 'muted', text: 'пульт выключен' };
+  if (status === 429) return { cls: 'pbad', text: 'слишком часто — попробуй через минуту' };
+  if (b.outcome === 'ok') return b.reused === true ? { cls: 'muted', text: b.message || 'замер был недавно' } : { cls: 'muted', text: b.message || 'замер сделан' };
+  if (b.outcome === 'error') return { cls: 'pbad', text: b.message || 'замер не удался' };
+  if (b.outcome === 'refused') return { cls: 'pbad', text: b.message || 'отказ' };
+  return { cls: 'pbad', text: b.message || `ошибка: HTTP ${status}` };
 }

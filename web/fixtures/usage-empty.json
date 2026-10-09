@@ -99,5 +99,7 @@
   },
   "remaining": null,
   "remainingNote": "остаток не виден (событий лимита нет)",
+  "measuring": false,
+  "measures": { "today": { "count": 0, "costUsd": 0, "tokens": 0 } },
   "unplaced": 0
 }

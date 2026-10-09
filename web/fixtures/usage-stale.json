@@ -379,18 +379,37 @@
     "warn": false,
     "enough": true,
     "nonEmptyWindows": 14,
-    "weights": { "in": 1, "out": 5, "cacheWrite": 1.25, "cacheRead": 0.1 },
+    "weights": {
+      "in": 1,
+      "out": 5,
+      "cacheWrite": 1.25,
+      "cacheRead": 0.1
+    },
     "message": "расход за 5 ч в норме: ≈ 9600000 условных токенов при медиане 12800000 (порог ×1.5; вес: вывод ×5, чтение кэша ×0,1)"
   },
   "remaining": {
-    "source": "foreman",
-    "at": "2026-10-09T10:36:00.000Z",
-    "ageSec": 1200,
-    "ageKind": "lowerBound",
-    "fiveHour": { "utilization": 0.35, "resetsAt": "2026-10-09T13:20:00.000Z", "fresh": true },
-    "sevenDay": { "utilization": null, "resetsAt": "2026-10-11T09:00:00.000Z", "fresh": false }
+    "source": "measure",
+    "at": "2026-10-07T13:53:00.000Z",
+    "ageSec": 172800,
+    "ageKind": "exact",
+    "fiveHour": {
+      "utilization": null,
+      "resetsAt": "2026-10-07T16:20:00.000Z",
+      "fresh": false
+    },
+    "sevenDay": {
+      "utilization": null,
+      "resetsAt": "2026-10-11T09:00:00.000Z",
+      "fresh": false
+    }
   },
   "remainingNote": null,
   "measuring": false,
-  "measures": { "today": { "count": 0, "costUsd": 0, "tokens": 0 } }
+  "measures": {
+    "today": {
+      "count": 1,
+      "costUsd": 0.027,
+      "tokens": 13462
+    }
+  }
 }
