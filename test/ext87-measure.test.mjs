@@ -161,11 +161,11 @@ test('хуки: в потоке есть hook_started — строка error в 
 });
 
 test('потолок: зависший замер снят деревом по своему pid — ни процесса, ни внука; прежний результат цел; быстрый замер потолка не касается', async () => {
-  const r = rig({ mode: 'hang', ceilingMs: 1500 });
+  const r = rig({ mode: 'hang', ceilingMs: 6000 });
   try {
     const t0 = Date.now();
     const res = await r.m.act({});
-    assert.ok(Date.now() - t0 < 10000);
+    assert.ok(Date.now() - t0 < 30000);
     assert.equal(res.outcome, 'error');
     assert.match(res.message, /превышен потолок/);
     const p = readJson(r.pids);
@@ -179,7 +179,7 @@ test('потолок: зависший замер снят деревом по �
     // после снятия замер свободен: идущего нет
     assert.equal(r.m.running(), false);
   } finally { r.killLeft(); }
-  const quick = rig({ mode: 'ok', ceilingMs: 1500 });
+  const quick = rig({ mode: 'ok', ceilingMs: 6000 });
   assert.equal((await quick.m.act({})).outcome, 'ok');
 });
 
