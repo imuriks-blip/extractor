@@ -168,6 +168,7 @@ test('потолок: зависший замер снят деревом по �
     assert.ok(Date.now() - t0 < 30000);
     assert.equal(res.outcome, 'error');
     assert.match(res.message, /превышен потолок/);
+    for (let i = 0; i < 200 && !fs.existsSync(r.pids); i++) await sleep(50); // подменный бинарник мог записать pids уже после снятия
     const p = readJson(r.pids);
     assert.ok(Number.isInteger(p.child) && Number.isInteger(p.grandchild));
     await sleep(300);
@@ -300,6 +301,15 @@ test('свежесть 7 дн: число есть при 5 ч 59 мин, нет
   assert.equal(old.fiveHour.utilization, null);
   assert.equal(rem(mlast(361), { cfg: { freshSevenDayH: 7 } }).sevenDay.utilization, 0.34);
   assert.equal(rem(mlast(40), { cfg: { freshFiveHourMin: 45 } }).fiveHour.utilization, 0.69);
+});
+
+test('свежесть 7 дн: недельное окно сменилось (resetsAt в прошлом) при возрасте события < 6 ч — utilization: null; resetsAt в будущем — число показано', () => {
+  const changed = rem(mlast(10, { sevenResetIn: -60 }));
+  assert.deepEqual([changed.sevenDay.fresh, changed.sevenDay.utilization], [false, null], 'окно сменилось — число старого окна не показывается');
+  assert.equal(JSON.stringify(changed.sevenDay).includes('0.34'), false);
+  assert.equal(changed.fiveHour.utilization, 0.69, 'пятичасовое при этом свежее и остаётся');
+  const ok = rem(mlast(10, { sevenResetIn: 60 }));
+  assert.deepEqual([ok.sevenDay.fresh, ok.sevenDay.utilization], [true, 0.34]);
 });
 
 test('источники: прораб — нижняя граница возраста (lowerBound); побеждает самый свежий, при равенстве — замер', () => {
