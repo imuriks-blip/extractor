@@ -3,6 +3,7 @@
 //   ok       — событие лимита (5 ч 0.69, 7 дн 0.34), ответ, result со стоимостью и usage
 //   hooks    — то же, но с событием hook_started
 //   noevent  — только result, события лимита нет
+//   nowindows — событие лимита без unifiedWindows
 //   auth     — result с ошибкой входа
 //   slow     — как ok, но result через 500 мс (замер «идёт»)
 //   hang     — ничего не пишет и не выходит; порождает внука (его pid — в FAKE_PIDS)
@@ -37,7 +38,7 @@ if (mode === 'hang') {
 } else {
   send({ type: 'system', subtype: 'init' });
   if (mode === 'hooks') send({ type: 'system', subtype: 'hook_started', hook_name: 'SessionStart' });
-  send(event);
+  send(mode === 'nowindows' ? { type: 'rate_limit_event', rate_limit_info: { status: 'allowed' } } : event);
   send({ type: 'assistant', message: { content: [{ type: 'text', text: 'ок' }] } });
   if (mode === 'slow') setTimeout(() => send(result()), 500); else send(result());
 }

@@ -113,6 +113,25 @@ test('неудача не затирает last.json: нет события ли
   assert.equal(readJson(path.join(good.dir, 'last.json')).at, new Date(clock.t).toISOString());
 });
 
+test('событие лимита без окон — неудача: last.json цел, строка ok:false; исправный рядом — с окнами заменяет', async () => {
+  const clock = { t: T0 };
+  const good = rig({ clock });
+  await good.m.act({});
+  const before = fs.readFileSync(path.join(good.dir, 'last.json'), 'utf8');
+  clock.t += 6 * MIN;
+  const bad = createMeasure({ dir: good.dir, now: () => clock.t, env: { PATH: process.env.PATH, FAKE_MODE: 'nowindows' }, findBin: () => FAKE, launch: (b, a, o) => spawn(process.execPath, [b, ...a], o) });
+  const res = await bad.act({});
+  assert.equal(res.outcome, 'error');
+  assert.match(res.message, /в событии лимита нет окон/);
+  assert.equal(fs.readFileSync(path.join(good.dir, 'last.json'), 'utf8'), before, 'last.json цел');
+  const rows = fs.readFileSync(path.join(good.dir, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.equal(rows.at(-1).ok, false);
+  clock.t += 6 * MIN;
+  const again = createMeasure({ dir: good.dir, now: () => clock.t, env: { PATH: process.env.PATH, FAKE_MODE: 'ok' }, findBin: () => FAKE, launch: (b, a, o) => spawn(process.execPath, [b, ...a], o) });
+  assert.equal((await again.act({})).outcome, 'ok');
+  assert.equal(readJson(path.join(good.dir, 'last.json')).fiveHour.utilization, 0.69);
+});
+
 test('повтор раньше 5 мин не запускает (reused: true, прежний результат); позже — запускает', async () => {
   const r = rig();
   const first = await r.m.act({});
