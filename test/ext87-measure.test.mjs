@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { createMeasure, findClaudeBin, sessionDirName, measureEnv, AUTH_MESSAGE } from '../lib/pult/measure.mjs';
 import { createUsage, buildUsage, buildRemaining } from '../lib/usage.mjs';
 import { createJournalReader } from '../lib/journal-reader.mjs';
+import { createProcessReader } from '../lib/processes.mjs';
 import { createRateLimitReader } from '../lib/rate-limit.mjs';
 import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
@@ -261,6 +262,21 @@ test('папку сессии замера журналы пропускают (
   put(skipName, 'measure-sid-2', [asst('measure-sid-2', T0 - 1000, us(5, 0, 0, 0))]);
   await skipping.refresh();
   assert.deepEqual(skipping.sessions().map((s) => s.sessionId).sort(), ['real-sid']);
+});
+
+test('реестр процессов пропускает процесс сессии замера по cwd (регистр и слэши не важны); чужой cwd и такой же без пропуска — читаются', async () => {
+  const measureDir = path.resolve(tmpDir('data-'), 'measure');
+  const sf = (pid, sid, cwd) => JSON.stringify({ pid, sessionId: sid, cwd, startedAt: T0, procStart: '1', version: '2.1.0', kind: 'interactive', entrypoint: 'cli', status: 'busy' });
+  const files = { '101.json': sf(101, 'measure-sid', measureDir.toUpperCase().replace(/\\/g, '/')), '102.json': sf(102, 'real-sid', 'C:\\proj') };
+  const fakeFs = { readdirSync: () => Object.keys(files), readFileSync: (p) => files[path.basename(p)] };
+  const mk = (skipCwds) => createProcessReader({ dir: 'C:/s', fs: fakeFs, now: () => T0, isAlive: () => true, procStartOf: async (pids) => new Map(pids.map((p) => [p, '1'])), skipCwds });
+  const skipping = mk([measureDir]);
+  await skipping.refresh();
+  assert.deepEqual(skipping.entries().map((e) => e.sessionId), ['real-sid'], 'процесса замера среди живых нет — треда и строки «Кто работает» не будет');
+  assert.equal(skipping.state().live, 1);
+  const plain = mk([]);
+  await plain.refresh();
+  assert.deepEqual(plain.entries().map((e) => e.sessionId).sort(), ['measure-sid', 'real-sid'], 'без пропуска тот же файл читается');
 });
 
 // ---- остаток новой формы и свежесть ----
