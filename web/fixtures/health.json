@@ -99,5 +99,6 @@
   "planeQueue": { "running": 0, "queued": 0 },
   "pult": { "enabled": false },
   "rss": 61234176,
-  "uptimeS": 720
+  "uptimeS": 720,
+  "prevEnd": { "at": "2026-10-08T19:23:00.512Z", "pid": 45132, "reason": "shutdown" }
 }
