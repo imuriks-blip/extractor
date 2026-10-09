@@ -5,6 +5,7 @@ import Ceh from './Ceh.jsx';
 import Glossary from './Glossary.jsx';
 import Help from './Help.jsx';
 import MirrorStatus from './Mirror.jsx';
+import { ServiceMenu } from './Service.jsx';
 import Project from './Project.jsx';
 import Usage from './Usage.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
@@ -48,7 +49,7 @@ const badLines = (n) => {
   return `${n} битых строк`;
 };
 
-function Header({ route, freshness, name }) {
+function Header({ route, freshness, name, pult }) {
   const read = oldest(freshness?.board?.lastOkAt, freshness?.journals?.lastOkAt);
   const mirror = freshness?.mirror?.label;
   return (
@@ -80,15 +81,17 @@ function Header({ route, freshness, name }) {
               </span><span className="sep">·</span></>
           )}
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
-          {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» (на «Цехе», блок «Служебное») или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
+          {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» (меню «Служебное» в шапке) или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
         </span>
       )}
       {/* ход и итог прохода зеркала — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42;
-          сразу за временем зеркала (EXT-73). Кнопки в шапке нет: «Обновить» — в «Служебном» на «Цехе» (EXT-77) */}
-      {freshness && mirror && <MirrorStatus label={mirror} />}
+          сразу за временем зеркала (EXT-73). Кнопки прохода в строке нет: «Обновить» — в меню «Служебное» (EXT-77, EXT-87) */}
+      {/* на «Расходе» подписи зеркала нет, но меню «Служебное» то же: ход зеркала держит тот же MirrorStatus (EXT-87) */}
+      {((freshness && mirror) || route.name === 'usage') && <MirrorStatus label={mirror} />}
       <ThemeSwitch />
-      {/* «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64) */}
+      {/* «Служебное», «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64, EXT-87) */}
       <span className="tbtns">
+        {pult?.enabled === true && <ServiceMenu />}
         <Glossary />
         <Help />
       </span>
@@ -103,8 +106,10 @@ export default function App() {
   const source = useMemo(() => (route.name === 'usage' ? idleSource : code ? streamSource(`/api/project/${code}`) : cehSource), [code, route.name]);
   const { data, failingSince, error } = useSource(source);
   // счётчик (4.2): N = |а| + |б| по всем проектам — из /api/ceh и в окне проекта; Review не входит
-  const ceh = useSource(code ? cehSource : idleSource);
-  const count = (code ? ceh.data : data)?.waiting?.count;
+  // «Расход» тоже читает /api/ceh: от него нужен pult.enabled для меню «Служебное» (EXT-87) и счётчик в заголовке
+  const ceh = useSource(route.name === 'ceh' ? idleSource : cehSource);
+  const cehData = route.name === 'ceh' ? data : ceh.data;
+  const count = cehData?.waiting?.count;
   const n = Number.isInteger(count) ? count : null;
   const now = useNow(5000);
 
@@ -149,7 +154,7 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <Header route={route} freshness={data?.freshness} name={code ? data?.name : null} />
+      <Header route={route} freshness={data?.freshness} name={code ? data?.name : null} pult={cehData?.pult} />
       {body}
     </div>
   );

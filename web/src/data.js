@@ -73,10 +73,15 @@ export function streamSource(url, fallbackMs = 5000) {
 
 // Простой опрос ручки раз в everyMs без потока событий (экран «Расход»: данные тяжёлые, сервер кэширует их на 15 с)
 export function pollSource(url, everyMs = 30000) {
+  const loads = new Set();
   return {
+    // перечитать сейчас (после «Замерить остаток»); следующий плановый опрос отсчитывается от этого чтения
+    reload() { loads.forEach((f) => f()); },
     subscribe(onData, onError) {
       let stopped = false, ctl = null, timer = null;
       const load = async () => {
+        clearTimeout(timer);
+        ctl?.abort();
         ctl = new AbortController();
         try {
           const r = await fetch(url, { cache: 'no-store', signal: ctl.signal });
@@ -84,12 +89,14 @@ export function pollSource(url, everyMs = 30000) {
           const json = await r.json();
           if (!stopped) onData(json);
         } catch (e) {
+          if (e?.name === 'AbortError') return; // вытеснено новым чтением — оно и назначит следующий опрос
           if (!stopped) onError(e);
         }
         if (!stopped) timer = setTimeout(load, everyMs);
       };
+      loads.add(load);
       load();
-      return () => { stopped = true; clearTimeout(timer); ctl?.abort(); };
+      return () => { stopped = true; loads.delete(load); clearTimeout(timer); ctl?.abort(); };
     },
   };
 }

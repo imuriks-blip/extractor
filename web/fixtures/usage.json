@@ -373,33 +373,24 @@
   ],
   "unplaced": 0,
   "window5h": {
-    "total": 412000000,
-    "median": 128000000,
+    "total": 41200000,
+    "median": 12800000,
     "factor": 3.22,
     "warn": true,
     "enough": true,
     "nonEmptyWindows": 14,
-    "message": "за 5 ч расход выше обычного"
+    "weights": { "in": 1, "out": 5, "cacheWrite": 1.25, "cacheRead": 0.1 },
+    "message": "за 5 ч расход выше обычного: ≈ 41200000 условных токенов против медианы 12800000 (×3.2, порог ×1.5; вес: вывод ×5, чтение кэша ×0,1)"
   },
   "remaining": {
-    "fiveHour": {
-      "utilization": 0.62,
-      "resetsAt": "2026-10-07T16:20:00.000Z",
-      "status": "allowed",
-      "expired": false
-    },
-    "sevenDay": {
-      "utilization": 0.41,
-      "resetsAt": "2026-10-11T09:00:00.000Z",
-      "status": "allowed",
-      "expired": false
-    },
-    "rateLimitType": "five_hour",
-    "status": "allowed",
-    "eventAt": "2026-10-07T13:53:00.000Z",
-    "ageSec": 720,
-    "ageKind": "lowerBound",
-    "source": "mtime stream.jsonl: файл не старше события, возраст — нижняя граница («не моложе N»)"
+    "source": "measure",
+    "at": "2026-10-09T10:51:00.000Z",
+    "ageSec": 300,
+    "ageKind": "exact",
+    "fiveHour": { "utilization": 0.62, "resetsAt": "2026-10-09T13:20:00.000Z", "fresh": true },
+    "sevenDay": { "utilization": 0.41, "resetsAt": "2026-10-11T09:00:00.000Z", "fresh": true }
   },
-  "remainingNote": null
+  "remainingNote": null,
+  "measuring": false,
+  "measures": { "today": { "count": 3, "costUsd": 0.081, "tokens": 40386 } }
 }

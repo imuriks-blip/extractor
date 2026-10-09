@@ -20,12 +20,13 @@ test('шапка: ход и итог прохода (MirrorStatus) без кно
   assert.match(src('App.jsx'), /<MirrorStatus label=\{mirror\} \/>/);
 });
 
-test('«Служебное»: «Обновить» первой строкой, затем «Полный проход зеркала», затем «Пересобрать индекс»', () => {
+test('«Служебное» (меню в шапке, EXT-87): «Обновить» первой строкой, затем «Полный проход зеркала», затем «Пересобрать индекс», затем «Замерить остаток»', () => {
   const s = src('Service.jsx');
   const a = s.indexOf('<RefreshMirror');
   const b = s.indexOf('<FullMirror');
   const c = s.indexOf("'Пересобрать индекс'");
-  assert.ok(a > 0 && b > a && c > b, `порядок: ${a} < ${b} < ${c}`);
+  const d = s.indexOf("'Замерить остаток'");
+  assert.ok(a > 0 && b > a && c > b && d > c, `порядок: ${a} < ${b} < ${c} < ${d}`);
   const refresh = body(src('Mirror.jsx'), 'export function RefreshMirror(');
   assert.match(refresh, /onClick=\{\(\) => press\(\)\}/, 'обычный проход — то же нажатие press() без второго щелчка');
   assert.match(refresh, /'Обновить'/);
@@ -66,8 +67,9 @@ test('строка (а): подсказка «ждёт тебя в дескто�
   for (const f of ['Ceh.jsx', 'Project.jsx']) assert.match(src(f), /waitsInDesktop\(r\) && <span className="mline muted">\{DESKTOP_HINT\}<\/span>/, f);
 });
 
-test('справка: «Обновить» — в «Служебном» на «Цехе», в шапке — ход и итог', () => {
+test('справка: «Обновить» — в меню «Служебное» в шапке, в строке вверху — ход и итог', () => {
   const h = src('help.js');
-  assert.match(h, /\*\*Обновить\*\* — на «Цехе», в блоке «Служебное»/);
+  assert.match(h, /\*\*Обновить\*\* — первый пункт меню «Служебное»/);
+  assert.doesNotMatch(h, /на «Цехе», в блоке «Служебное»|на «Цехе», блок «Служебное»/);
   assert.doesNotMatch(h, /\*\*Обновить\*\* — стоит сразу за временем зеркала/);
 });

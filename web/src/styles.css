@@ -519,7 +519,7 @@ details.sg .of{color:var(--faint)}
 
 /* ===== «Расход» (EXT-84, ПТ12): только существующие значения — 11/12/13px, отступы 4/10/16px, --line, .blk, .ptable, .seg, .big ===== */
 .top .navl{color:var(--accent)}
-.top.nofresh .seg:first-of-type{margin-left:auto}
+.top.nofresh>.seg{margin-left:auto} /* на «Расходе» строки свежести нет: тема и кнопки уходят вправо, как на «Цехе» (EXT-87) */
 .ucol1{display:flex;flex-direction:column;gap:12px;min-width:0}
 .ugrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .uh{display:flex;align-items:baseline;gap:8px;margin:0;padding:7px 10px;font-size:13px;font-weight:600}
@@ -553,7 +553,18 @@ details.sg .of{color:var(--faint)}
 .ubn.warn .h{color:var(--red);font-weight:600;margin-right:6px}
 .ubn.ok{color:var(--green)}
 .urem{font-size:12px}
-.urem.none{color:var(--faint)}
+.urem .urb{font-size:12px}
+/* ===== Меню «Служебное» в шапке (EXT-87): окно под кнопкой, строки — те же .wtb, что были в блоке на «Цехе» ===== */
+.smw{position:relative;display:inline-flex}
+.hbtn.on{background:var(--hover);color:var(--fg)}
+.hbtn.going{color:var(--fg)}
+.smenu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;width:min(440px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 4px 12px var(--shade);font-size:13px}
+.smenu.left{right:auto;left:0}
+.smenu>:first-child{border-top:0}
+@media (max-width:560px){
+  .smw{position:static}
+  .smenu,.smenu.left{left:0;right:0;width:auto}
+}
 @media (max-width:560px){
   .ugrid{gap:8px}
   .utable .u4c{display:none}

@@ -1,9 +1,10 @@
 // Экран «Расход» (EXT-84, ПТ12; спека пульта §6): объём из журналов по дням, проектам, агентам и тредам, предупреждение
-// «за 5 ч выше обычного», остаток — строкой из уже виденного события. Кнопки «Замерить» нет (слово Ивана 07.10).
+// «за 5 ч выше обычного» (объём взвешен по ценам API), остаток с источником и возрастом, «Замерить остаток» (EXT-87).
 // Данные — GET /api/usage, опрос раз в 30 с (usageSource). Разметка и стили — как у соседних экранов (.blk, .ptable, .seg, .alarm).
 import { useState } from 'react';
 import { usageSource, useSource } from './data.js';
-import { PARTS, breakdownRows, dayBars, exact, fmtTokens, noUsage, remainingLine, shares, windowNote, dayLabel } from './usageData.js';
+import { measure, useMeasure } from './measure.js';
+import { PARTS, breakdownRows, dayBars, exact, fmtTokens, measuresLine, noUsage, remainingView, shares, windowNote, dayLabel } from './usageData.js';
 
 const PCLS = { in: 'p-in', out: 'p-out', cacheRead: 'p-cr', cacheWrite: 'p-cw' };
 
@@ -136,13 +137,29 @@ function WindowNote({ w }) {
   return <div className={`ubn ${n.kind}`} role="status" title={n.title}>{n.text}</div>;
 }
 
+// Остаток (EXT-87): число — только свежее, рядом источник и возраст; несвежее — слова и подсказка, где замерить. Кнопка — та же,
+// что пункт меню «Служебное» (measure.js), ответ словами — рядом. Строка «замеры сегодня» — из measures.today.
 function Remaining({ d }) {
-  const r = remainingLine(d);
+  const v = remainingView(d);
+  const m = useMeasure();
+  const measuring = m.busy || d.measuring === true;
+  const count = measuresLine(d);
   return (
-    <div className={`urem${r.has ? '' : ' none'}`} role="status">
-      {r.has && <><span className="muted">Остаток</span>{' '}</>}<span className="num">{r.text}</span>
-      {r.expired && <span className="pamb"> · {r.expired}</span>}
-      {r.note && <span className="faint"> · {r.note}</span>}
+    <div className="urem" role="status">
+      {v.kind === 'ok' ? (
+        <>
+          <span className="muted">Остаток</span>{' '}
+          {v.parts.map((p, i) => <span key={i}>{i > 0 && ' · '}<span className={p.fresh ? 'num' : 'faint'}>{p.text}</span></span>)}
+          <span className="faint"> · {v.source}</span>
+        </>
+      ) : (
+        <><span className={v.kind === 'stale' ? 'pamb' : 'faint'}>{v.text}</span><span className="faint"> · {v.hint}</span></>
+      )}
+      {count && <span className="faint"> · {count}</span>}
+      {' '}
+      <button type="button" className="pbtn urb" disabled={measuring} onClick={() => measure()}
+        title="Одна короткая сессия Claude: узнать, сколько осталось в 5-часовом и недельном окне (до минуты)">{measuring ? 'замеряю…' : 'Замерить остаток'}</button>
+      {m.note && !measuring && <span className={`${m.note.cls} urn`}> {m.note.text}</span>}
     </div>
   );
 }

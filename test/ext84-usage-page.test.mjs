@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { fmtTokens, exact, shares, dayBars, dayLabel, remainingLine, windowNote, ageText, noUsage, breakdownRows } = await import('../web/src/usageData.js');
+const { fmtTokens, exact, shares, dayBars, dayLabel, windowNote, ageText, noUsage, breakdownRows } = await import('../web/src/usageData.js');
 
 test('сокращение чисел: тыс / млн / млрд, три значащие цифры, запятая', () => {
   assert.equal(fmtTokens(0), '0');
@@ -35,25 +35,18 @@ test('столбики по дням: высота от самого больш�
   assert.deepEqual(dayBars(undefined), []);
 });
 
-test('остаток: есть — части строки и пометки; нет — remainingNote дословно', () => {
-  const r = remainingLine({ remaining: { fiveHour: { utilization: 0.62, resetsAt: '2026-10-07T16:20:00.000Z', expired: false }, sevenDay: { utilization: 0.41, expired: true }, ageSec: 720 } });
-  assert.equal(r.has, true);
-  assert.match(r.text, /^5 ч: 62 % · сброс в \d\d:\d\d · 7 дн: 41 % · данные не моложе 12 мин \(событие прогона прораба\)$/);
-  assert.match(r.expired, /7 дн/);
-  assert.match(r.note, /нижняя граница/);
-  assert.match(remainingLine({ remaining: { fiveHour: null, sevenDay: null, ageSec: 20 } }).text, /данные не моложе 0 мин/);
-  const n = remainingLine({ remaining: null, remainingNote: 'остаток не виден (событий лимита нет)' });
-  assert.deepEqual(n, { has: false, text: 'остаток не виден (событий лимита нет)' });
+test('возраст словами: меньше минуты / часы (остаток новой формы — в ext87-usage-page.test.mjs)', () => {
   assert.equal(ageText(30), 'меньше минуты');
   assert.equal(ageText(7200), '2 ч');
+  assert.equal(ageText(90000), '1 дн');
 });
 
-test('плашка 5 ч: warn / в норме / мало данных', () => {
+test('плашка 5 ч: warn / в норме / мало данных (подпись веса — в ext87-usage-page.test.mjs)', () => {
   assert.equal(windowNote({ enough: false }).kind, 'few');
-  const w = windowNote({ enough: true, warn: true, total: 412e6, median: 128e6, factor: 3.22 });
+  const w = windowNote({ enough: true, warn: true, total: 41.2e6, median: 12.8e6, factor: 3.22 });
   assert.equal(w.kind, 'warn');
-  assert.match(w.text, /412 млн против медианы 128 млн \(×3,22/);
-  assert.equal(windowNote({ enough: true, warn: false, total: 96e6, median: 128e6, factor: 0.75 }).kind, 'ok');
+  assert.match(w.text, /41,2 млн условных токенов против медианы 12,8 млн \(×3,22/);
+  assert.equal(windowNote({ enough: true, warn: false, total: 9.6e6, median: 12.8e6, factor: 0.75 }).kind, 'ok');
   assert.equal(windowNote(null).kind, 'none');
 });
 
