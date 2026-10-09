@@ -14,6 +14,10 @@
 //      The random folder name is in both command lines - the label that proves the processes are the probe's.
 //   4. Waits for the "start" line of both and for the vitrina's "start" line in its server.log, writes probe.json
 //      (pids, ppids, port, paths) next to the pulse files and prints it.
+// Stop (the probe does not stop itself): take vitrina.pid and control.pid from probe.json, check that each is node.exe
+// with the random folder name in its command line, then stop each as a tree by pid:
+//   taskkill /T /F /PID <vitrina.pid>    taskkill /T /F /PID <control.pid>
+// never by image name or by a command-line pattern; then delete %TEMP%\ext85-<random>.
 import { spawn } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
 import fs from 'node:fs';
