@@ -202,11 +202,14 @@ test('(в) stream.jsonl прогона в объём не попадает: то
   const runs = tmpDir('usage-runs-');
   fs.mkdirSync(path.join(runs, 'r1'));
   const f = path.join(runs, 'r1', 'stream.jsonl');
-  fs.writeFileSync(f, jl([asst('msg_same', t, us(40, 0, 0, 0)), asst('msg_other', t + 1, us(999, 0, 0, 0))]) + JSON.stringify({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.5, resetsAt: 1791331200 } } } }) + '\n');
+  // EXT-87: остаток новой формы — событие должно быть свежим (30 мин) и окно не сменившимся: файл не старше 2 мин, resetsAt в будущем
+  fs.writeFileSync(f, jl([asst('msg_same', t, us(40, 0, 0, 0)), asst('msg_other', t + 1, us(999, 0, 0, 0))]) + JSON.stringify({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.5, resetsAt: NOW / 1000 + 3600 } } } }) + '\n');
+  fs.utimesSync(f, NOW / 1000 - 120, NOW / 1000 - 120);
   const p = await payload(w, { rateLimit: createRateLimitReader({ dir: runs, now: () => NOW }) });
   assert.equal(p.week.total, 40, 'только журнал треда');
+  assert.equal(p.remaining.source, 'foreman');
   assert.equal(p.remaining.fiveHour.utilization, 0.5);
-  assert.equal(p.remaining.sevenDay, null, 'окна нет в событии — null, не выдумка');
+  assert.deepEqual(p.remaining.sevenDay, { utilization: null, resetsAt: null, fresh: false }, 'окна нет в событии — null, не выдумка');
 });
 
 // окно k (1…) — середина k-го полного 5-часового окна назад от NOW
