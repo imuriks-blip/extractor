@@ -653,6 +653,19 @@ test('EXT-89 pick: A назвал карточку после выбора B —
   assert.equal(await statusOfWord(t, r.id), 'положено');
 });
 
+test('EXT-89 pick: тред чужого проекта без этой карточки — слово никому, статус «выбранный тред чужой»; исправный рядом — тред проекта', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3, { project: 'CAR' })] });
+  const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID3 })).json();
+  assert.match(r.message, /не этой карточки и не этого проекта/);
+  assert.equal(s.pl().comments.length, 2, 'запись на карточке осталась');
+  assert.ok(noRing(s), 'звонка нет никому');
+  assert.equal(await statusOfWord(s, r.id), 'не доставлено: выбранный тред чужой');
+  const h = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3, { project: 'CAR' })] });
+  const ok = (await h.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
+  assert.equal(ok.outcome, 'ok', ok.message);
+  assert.deepEqual((await h.bellGet(SID2)).ids, [ok.id]);
+});
+
 test('EXT-89 §2.6: текст Ивана доходит ждущему без маски витрины; ручки чтения маску применяют', async () => {
   const MAYBE = 'ключ лежит тут: Zq8vK3mP9xLr2TnW';
   const s = await setup({}, { threads: [thread(SID, { card: 'EXT-20' })] });

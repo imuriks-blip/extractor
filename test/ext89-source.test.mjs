@@ -26,6 +26,15 @@ test('Edge с родителем explorer → ok true; образ и цепоч�
   assert.equal(r.reason, undefined);
 });
 
+test('запустивший Edge не виден (родителя нет в таблице, выше только Edge) → launcherGone, ok по-прежнему true; исправный рядом — Edge от explorer без признака, explorer без родителя — тоже без', () => {
+  const gone = classify({ pid: 701, procs: [[700, 999, 'msedge.exe'], [701, 700, 'msedge.exe']] });
+  assert.equal(gone.launcherGone, true);
+  assert.equal(gone.ok, true);
+  assert.equal(classify({ pid: 201, procs: TABLE }).launcherGone, undefined);
+  assert.equal(classify({ pid: 201, procs: [[100, 55, 'explorer.exe'], [200, 100, 'msedge.exe'], [201, 200, 'msedge.exe']] }).launcherGone, undefined);
+  assert.equal(classify({ pid: 801, procs: [[800, 999, 'node.exe'], [801, 800, 'node.exe']] }).launcherGone, undefined, 'не Edge — признак не ставится');
+});
+
 test('образ без учёта регистра: MSEDGE.EXE с родителем explorer → ok true', async () => {
   assert.equal((await source(fromTable(500)).identify({})).ok, true);
 });
