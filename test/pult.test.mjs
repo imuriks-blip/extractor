@@ -45,7 +45,7 @@ const registry = createRegistryReader(regFile);
 // собранный интерфейс: оболочка с заглушкой токена, как её выдаёт сборка Vite (web/index.html)
 const STUB = '<!doctype html><html><head><meta charset="utf-8"><meta name="vitrina-token" content="__VITRINA_TOKEN__"><title>t</title></head><body></body></html>';
 
-async function setup({ off = OFF, enabled = true, words = true, bell = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir, spawn = fakeSpawn() } = {}) {
+async function setup({ off = OFF, enabled = true, words = true, bell = true, handlers, now, mirrorDir, html = STUB, checks, planeRun, data = tmpDir('pult-'), boardRoot = boardDir, spawn = fakeSpawn(), sourceRead } = {}) {
   const web = tmpDir('web-');
   fs.writeFileSync(path.join(web, 'index.html'), html);
   const actionsLog = path.join(data, 'actions.log');
@@ -56,7 +56,7 @@ async function setup({ off = OFF, enabled = true, words = true, bell = true, han
     // флаги и пути — как из config.json; подмены для тестов — отдельным параметром (конфиг защиту не выключит)
     // звонок (ПТ4а) включён: ручка ждущего отвечает (pult.bell = false — 503, свой тест в pult-accept)
     pult: { enabled, words, bell, bellDir: path.join(data, 'bell'), actionsLog, mirrorDir: mirrorDir ?? tmpDir('mirror-'), lock: lockLib, boardRoot },
-    pultSeams: { checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, planeRun, spawn },
+    pultSeams: { checks: checks ?? CHECKS.filter((c) => !off.includes(c.name)), handlers, now, planeRun, spawn, ...(sourceRead ? { sourceRead } : {}) },
   });
   const raw = () => (fs.existsSync(actionsLog) ? fs.readFileSync(actionsLog, 'utf8') : '');
   const lines = () => raw().split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -532,7 +532,9 @@ test('actions.log: id W-ГГММДД-ЧЧММСС-4hex, местное врем�
   assert.ok(asked.at.endsWith(`${sign}${String(Math.floor(Math.abs(off) / 60)).padStart(2, '0')}:${String(Math.abs(off) % 60).padStart(2, '0')}`), 'пояс машины');
   assert.equal(asked.id.slice(2, 8), asked.at.slice(2, 10).replaceAll('-', ''), 'дата в id — местная');
   assert.deepEqual({ card: asked.card, project: asked.project, action: asked.action }, { card: 'EXT-6', project: 'EXT', action: 'ping' });
-  assert.deepEqual(asked.client, { intentId, origin: SELF, secFetchSite: 'same-origin' });
+  const { proc, ...rest } = asked.client; // proc — отметка источника (EXT-89): у inject нет клиентского порта → ok false, no-ports
+  assert.deepEqual(rest, { intentId, origin: SELF, secFetchSite: 'same-origin' });
+  assert.deepEqual([proc.ok, proc.reason], [false, 'no-ports']);
   assert.equal(done.id, asked.id);
   assert.equal(done.step, 'done');
   assert.ok(!raw().includes(token));
@@ -578,7 +580,7 @@ test('GET /api/actions: строки по действию (последний �
   const rows = [
     { id: 'W-261002-100000-aaaa', step: 'asked', at: at(0), action: 'no', card: 'EXT-6', project: 'EXT', text: `ключ ${SECRET}`, client: { intentId: uuid(1) } },
     { id: 'W-261002-100000-aaaa', step: 'done', at: at(0), action: 'no', card: 'EXT-6', project: 'EXT' },
-    { id: 'W-261002-110000-bbbb', step: 'asked', at: at(1), action: 'accept', card: 'CAR-1', project: 'CAR', client: { intentId: uuid(2) } },
+    { id: 'W-261002-110000-bbbb', step: 'asked', at: at(1), action: 'accept', card: 'CAR-1', project: 'CAR', client: { intentId: uuid(2), proc: { ok: false, image: 'curl.exe', chain: ['cmd.exe'], pid: 4242 } } },
   ];
   fs.writeFileSync(actionsLog, rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
   const get = async (q) => app.inject({ method: 'GET', url: `/api/actions${q}`, headers: { host: `127.0.0.1:${PORT}` } });
@@ -589,11 +591,75 @@ test('GET /api/actions: строки по действию (последний �
   assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'bdeal', 'card', 'id', 'project', 'ring', 'ringAt', 'source', 'status', 'text']); // bdeal — EXT-70
   assert.equal(all[0].ringAt, null, 'доставки нет (EXT-65)');
   assert.equal(all[0].ring, null, 'звонка у действия нет');
-  assert.equal(all[0].source, null, 'источник — ПТ1б');
+  // отметка источника (§4.3): наружу — только образ и ok (цепочка и pid остаются в журнале); у строки без отметки — null
+  assert.deepEqual(all[0].source, { image: 'curl.exe', ok: false });
+  assert.equal(all[1].source, null, 'строка без отметки (старая запись)');
   assert.deepEqual((await get('?since=2026-10-01T00:00:00Z&card=EXT-6')).json().map((r) => r.id), ['W-261002-100000-aaaa']);
   assert.deepEqual((await get('?since=2026-10-01T00:00:00Z&project=CAR')).json().map((r) => r.id), ['W-261002-110000-bbbb']);
   assert.deepEqual((await get('?since=2026-10-02T10:30:00%2B03:00')).json().map((r) => r.id), ['W-261002-110000-bbbb']);
   for (const q of ['?card=ext-6', '?project=NOPE', '?since=вчера', '?session=../x']) assert.equal((await get(q)).statusCode, 400, q);
+});
+
+// ---- отметка источника (EXT-89, §4.3): через настоящий POST; таблицы процессов — подменные ----
+const PROCS = [[1, 0, 'System'], [100, 1, 'explorer.exe'], [200, 100, 'msedge.exe'], [300, 100, 'Claude.exe'], [301, 300, 'msedge.exe'], [400, 100, 'node.exe'], [401, 100, 'curl.exe']];
+async function sourceRun(read) {
+  const { app, lines } = await setup({ sourceRead: read });
+  const r = await act(app, await pageToken(app));
+  const asked = lines().find((l) => l.step === 'asked');
+  const rows = (await app.inject({ method: 'GET', url: '/api/actions?since=2020-01-01T00:00:00Z', headers: { host: `127.0.0.1:${PORT}` } })).json();
+  return { r, asked, steps: steps(lines()), source: rows[0].source };
+}
+
+test('источник: Edge с родителем explorer → client.proc.ok true и source {msedge.exe, ok true}; действие прошло', async () => {
+  const s = await sourceRun(async () => ({ pid: 200, procs: PROCS }));
+  assert.equal(s.r.statusCode, 200);
+  assert.deepEqual(s.steps, ['asked', 'done']);
+  assert.equal(s.asked.client.proc.ok, true);
+  assert.deepEqual(s.source, { image: 'msedge.exe', ok: true });
+});
+
+test('источник: Edge с Claude.exe в цепочке, node и curl → ok false, но действие не блокируется (отметка, не замок)', async () => {
+  for (const [pid, image] of [[301, 'msedge.exe'], [400, 'node.exe'], [401, 'curl.exe']]) {
+    const s = await sourceRun(async () => ({ pid, procs: PROCS }));
+    assert.equal(s.r.statusCode, 200, image);
+    assert.deepEqual(s.steps, ['asked', 'done'], image);
+    assert.equal(s.asked.client.proc.ok, false, image);
+    assert.deepEqual(s.source, { image, ok: false }, image);
+  }
+});
+
+test('источник: сбой определения → ok false с причиной в журнале, действие прошло; без портов (inject) настоящий читатель — no-ports', async () => {
+  const s = await sourceRun(async () => { throw new Error('tcp-table'); });
+  assert.equal(s.r.statusCode, 200);
+  assert.deepEqual(s.steps, ['asked', 'done']);
+  assert.equal(s.asked.client.proc.ok, false);
+  assert.equal(s.asked.client.proc.reason, 'tcp-table');
+  assert.deepEqual(s.source, { image: null, ok: false });
+  const { app, lines } = await setup(); // читатель настоящий, у inject нет клиентского порта — помощник не запускается
+  const r = await act(app, await pageToken(app));
+  assert.equal(r.statusCode, 200);
+  assert.equal(lines().find((l) => l.step === 'asked').client.proc.reason, 'no-ports');
+});
+
+test('источник: отказ после определения (429/409/refused) тоже несёт client.proc; повтор по тому же intentId не определяет заново', async () => {
+  let calls = 0;
+  const { app, lines } = await setup({ sourceRead: async () => { calls++; return { pid: 200, procs: PROCS }; } });
+  const token = await pageToken(app);
+  const body = { action: 'ping', intentId: nextIntent() };
+  await act(app, token, { body });
+  await act(app, token, { body });
+  assert.equal(calls, 1);
+  for (let i = 0; i < 29; i++) await act(app, token); // всего 30 действий за минуту — тридцать первое отказ по лимиту
+  const over = await act(app, token);
+  assert.equal(over.statusCode, 429);
+  const refused = lines().filter((l) => l.step === 'refused');
+  assert.equal(refused.length, 1);
+  assert.equal(refused[0].client.proc.ok, true);
+});
+
+test('GET /api/actions: настоящий POST → «Мои слова» получают source по его client.proc', async () => {
+  const s = await sourceRun(async () => ({ pid: 401, procs: PROCS }));
+  assert.equal(s.source.ok, false);
 });
 
 test('GET /api/mirror: из status.json и run.lock, running по правилу пульса (progress моложе 5 мин или живой run.lock)', async () => {
