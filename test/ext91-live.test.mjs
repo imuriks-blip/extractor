@@ -70,13 +70,13 @@ else { const r = real(args); note(); pass(r); }
 `;
 
 // временная доска: формат живой (шапка §1.2, projects.md §1.6), инструмент доски — копия кода, git init, mode: live
-function makeLiveBoard({ mode = 'live', cards = null } = {}) {
+function makeLiveBoard({ mode = 'live', cards = null, codes = ['EXT', 'CAR'] } = {}) {
   const dir = tmpDir('ext91-board-');
   const list = cards ?? [
     { id: 'EXT-7', status: 'review', title: 'Семь' }, { id: 'EXT-8', status: 'review', title: 'Восемь' }, { id: 'EXT-9', status: 'in-progress', title: 'Девять' },
     { id: 'EXT-10', status: 'review', title: 'Десять' }, { id: 'EXT-11', status: 'review', title: 'Одиннадцать' },
   ];
-  makeBoard(dir, { codes: ['EXT', 'CAR'], cards: list });
+  makeBoard(dir, { codes, cards: list });
   fs.writeFileSync(path.join(dir, 'board.config.json'), JSON.stringify({ mode, push: false, tz: 'Europe/Riga' }) + '\n');
   fs.cpSync(TOOLS, path.join(dir, 'tools'), { recursive: true, filter: (s) => !/node_modules|[\\/]test([\\/]|$)/.test(s) });
   for (const c of list) {
@@ -92,8 +92,8 @@ function makeLiveBoard({ mode = 'live', cards = null } = {}) {
   return dir;
 }
 
-async function setup({ mode = 'live', cards = null, seams = {}, slog = null, wrap = null, log = null, boardDir: given = null, bell = false, threads = null } = {}) {
-  const boardDir = given ?? makeLiveBoard({ mode, cards });
+async function setup({ mode = 'live', cards = null, codes = undefined, seams = {}, slog = null, wrap = null, log = null, boardDir: given = null, bell = false, threads = null } = {}) {
+  const boardDir = given ?? makeLiveBoard({ mode, cards, ...(codes ? { codes } : {}) });
   const data = tmpDir('ext91-data-');
   const actionsLog = path.join(data, 'actions.log');
   if (log) fs.writeFileSync(actionsLog, log.map((l) => JSON.stringify(l) + '\n').join(''));
@@ -116,7 +116,7 @@ async function setup({ mode = 'live', cards = null, seams = {}, slog = null, wra
   const app = await buildApp({ port: PORT, board, registry, scan, similar, webDir: web, ...(slog ? { log: slog } : {}), ...(threads ? { threads: threadsApi, journals } : {}),
     pult: { enabled: true, words: true, bell, bellDir: path.join(data, 'bell'), actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
-    pultSeams: { boardScript: path.join(wdir, 'board-wrap.mjs'), boardTimeoutMs: 20000, boardSpawn: (...a) => { spawned.push(a); return realSpawn(...a); }, ...seams } });
+    pultSeams: { boardScript: path.join(wdir, 'board-wrap.mjs'), boardSpawn: (...a) => { spawned.push(a); return realSpawn(...a); }, ...seams } });
   const r = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
   const token = r.body.match(/name="vitrina-token" content="([^"]+)"/)[1];
   const press = (body, intentId = nextIntent()) => app.inject({ method: 'POST', url: '/api/act', payload: JSON.stringify({ intentId, ...body }),
@@ -356,6 +356,48 @@ test('partial: запись легла, status отказал (код 3) → «�
   assert.equal(second.at(-1).result.record, rec, 'номер записи прежний');
 });
 
+test('partial → тред дописал коммент → повторное «Принять» (q новый): запись ищется по ВСЕМУ журналу — второй «принято» не ложится, идёт только status; исправный случай: записи нет — ложится', async () => {
+  const t = await setup({ wrap: { status: 'lock-short' } });
+  fs.writeFileSync(path.join(t.wdir, 'board-wrap.mjs'), WRAPPER.replace('const hang =', "if (cmd === 'status' && cfg.holdLock) fs.writeFileSync(path.join(cfg.root, '.board.lock'), JSON.stringify({ pid: process.pid, as: 'x', cmd: 'x', at: new Date().toISOString(), boot: cfg.boot }));\nconst hang ="));
+  t.setWrap({ status: 'lock-short', holdLock: true, root: t.boardDir, boot: lockLib.bootTime() });
+  const r = await t.press(accept());
+  assert.equal(r.json().outcome, 'partial', JSON.stringify(r.json()));
+  fs.unlinkSync(path.join(t.boardDir, '.board.lock'));
+  t.setWrap({});
+  fs.appendFileSync(path.join(t.boardDir, 'EXT', 'EXT-7.log.md'), logWith('Ещё мысль: а документация?', 'trurl:EXT', 'коммент', '2030-01-01 12:05 +03:00'));
+  gitCommitAll(t.boardDir, 'тред дописал после записи пульта');
+  const q2 = { at: '2030-01-01T09:05:00.000Z', head: 'Ещё мысль: а документация?' };
+  const again = await t.press({ action: 'accept', card: 'EXT-7', q: q2 });
+  assert.equal(again.json().outcome, 'ok', JSON.stringify(again.json()));
+  assert.equal(t.entries('EXT-7').filter((e) => e.kind === 'решение').length, 1, 'второй записи «принято» нет');
+  assert.equal(t.header('EXT-7').status, 'done');
+  assert.deepEqual(t.calls().map((c) => c.cmd), ['log', 'status', 'status'], 'после partial — только status');
+  // исправный случай: прежней записи нет — «принято» ложится
+  const n = await setup();
+  fs.appendFileSync(path.join(n.boardDir, 'EXT', 'EXT-8.log.md'), logWith('Ещё мысль: а документация?', 'trurl:EXT', 'коммент', '2030-01-01 12:05 +03:00'));
+  gitCommitAll(n.boardDir, 'коммент');
+  assert.equal((await n.press({ action: 'accept', card: 'EXT-8', q: q2 })).json().outcome, 'ok');
+  assert.equal(n.entries('EXT-8').filter((e) => e.kind === 'решение').length, 1, 'запись легла');
+});
+
+test('сеть секретов головы вопроса — по коду проекта карточки: 16-значный id флоу после слова-признака на INFRA-карточке не отклоняется; без слова-признака — отказ secret', async () => {
+  const cards = [{ id: 'INFRA-3', status: 'review', title: 'Три' }];
+  const s = await setup({ cards, codes: ['EXT', 'INFRA'] });
+  const FLOW = 'Ab3dEf6hIj9kLm2n';
+  const head = `флоу ${FLOW} обновлён`;
+  fs.writeFileSync(path.join(s.boardDir, 'INFRA', 'INFRA-3.log.md'), logWith(head));
+  gitCommitAll(s.boardDir, 'вопрос с id флоу');
+  const ok = await s.press({ action: 'accept', card: 'INFRA-3', q: { at: Q_AT, head } });
+  assert.equal(ok.json().outcome, 'ok', JSON.stringify(ok.json()));
+  // контроль: тот же id без слова-признака — класс 5, отказ (сеть не отключена)
+  const t = await setup({ cards, codes: ['EXT', 'INFRA'] });
+  const bare = `строка ${FLOW} обновлена`;
+  fs.writeFileSync(path.join(t.boardDir, 'INFRA', 'INFRA-3.log.md'), logWith(bare));
+  gitCommitAll(t.boardDir, 'вопрос без признака');
+  const bad = await t.press({ action: 'accept', card: 'INFRA-3', q: { at: Q_AT, head: bare } });
+  assert.equal(bad.json().refusal, 'secret', JSON.stringify(bad.json()));
+});
+
 test('неясный исход log (код 2 «ошибка board:» после коммита): читается <ID>.log.md, запись с номером есть → идём к status, второй записи нет; записи нет → «не легла», status не зовётся', async () => {
   const s = await setup({ wrap: { log: 'crash-after' } });
   const r = await s.press(accept());
@@ -400,7 +442,7 @@ test('таймаут 60 с (здесь 20 с под нагрузкой, 1,5 с �
   await wait(300);
   assert.equal(alive(Number(fs.readFileSync(path.join(n.wdir, 'pid-log.txt'), 'utf8'))), false);
   // исправный рядом: без зависания тот же таймаут не мешает
-  const ok = await setup({ seams: { boardTimeoutMs: 15000 } });
+  const ok = await setup();
   assert.equal((await ok.press(accept())).json().outcome, 'ok');
   assert.equal(alive(bystander.pid), true, 'посторонний процесс жив');
   } finally { bystander.kill(); }
