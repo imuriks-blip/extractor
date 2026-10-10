@@ -40,6 +40,7 @@ const STUB = '<!doctype html><html><head><meta charset="utf-8"><meta name="vitri
 
 function launcherBoard() {
   const root = tmpDir('mboard-');
+  fs.writeFileSync(path.join(root, 'board.config.json'), '{"mode":"mirror"}'); // режим читается строго (EXT-91)
   fs.mkdirSync(path.join(root, 'tools'));
   fs.writeFileSync(path.join(root, 'tools', 'mirror-hidden.js'), '// заглушка\n');
   return root;

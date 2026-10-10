@@ -8,11 +8,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
+import { createLive } from '../lib/pult/live.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { cleanEnv, classify, parseOutput } from '../lib/pult/board-run.mjs';
 import { priorOpen, markCandidates } from '../lib/pult/accept.mjs';
@@ -379,8 +380,11 @@ test('неясный исход log (код 2 «ошибка board:» после
   assert.equal(n.entries('EXT-7').filter((e) => e.kind === 'решение').length, 1);
 });
 
-test('таймаут 60 с (здесь 1,5 с): процесс снят деревом по своему pid; запись легла до зависания — к status; не легла — error; прочие процессы живы', async () => {
-  const s = await setup({ wrap: { log: 'hang-after' }, seams: { boardTimeoutMs: 1500 } });
+test('таймаут 60 с (здесь 6 с, 1,5 с у зависания до записи): процесс снят деревом по своему pid; запись легла до зависания — к status; не легла — error; прочие процессы живы', async () => {
+  // посторонний долгоживущий процесс, запущенный этим же тестом: снятие по pid его не задевает (в конце снимается по своему pid)
+  const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { windowsHide: true, stdio: 'ignore' });
+  try {
+  const s = await setup({ wrap: { log: 'hang-after' }, seams: { boardTimeoutMs: 6000 } });
   const r = await s.press(accept());
   assert.equal(r.json().outcome, 'ok', JSON.stringify(r.json()));
   const pid = Number(fs.readFileSync(path.join(s.wdir, 'pid-log.txt'), 'utf8'));
@@ -398,6 +402,8 @@ test('таймаут 60 с (здесь 1,5 с): процесс снят дере
   // исправный рядом: без зависания тот же таймаут не мешает
   const ok = await setup({ seams: { boardTimeoutMs: 15000 } });
   assert.equal((await ok.press(accept())).json().outcome, 'ok');
+  assert.equal(alive(bystander.pid), true, 'посторонний процесс жив');
+  } finally { bystander.kill(); }
 });
 
 test('код 1 без строки исхода — неясный; код 2 без «ошибка board:» — вызов не выполнен (error, не неясный)', () => {
@@ -408,6 +414,23 @@ test('код 1 без строки исхода — неясный; код 2 б�
   assert.equal(classify({ code: 1, stdout: 'нет карточки EXT-9\n' }).kind, 'rule');
   assert.equal(classify({ code: 1, stdout: 'похоже на секрет: метка, тело\n' }).kind, 'secret');
   assert.equal(classify({ code: 1, stdout: 'похоже на испорченную кодировку — передай тело файлом\n' }).kind, 'encoding');
+});
+
+test('сеть секретов по всему телу (live.guard): класс 2 — отказ всегда; класс 5 — только подтверждённый вид, иной вид и неподтверждённый — отказ; флаги ровно по найденным подтверждённым', () => {
+  const live = createLive({ board: {}, runner: {}, scan, tmpDir: tmpDir('g-') });
+  const body = (t) => `**Слово Ивана · кнопка витрины · W-1**: «нет»
+
+Причина: ${t}
+
+Кто решил: слово Ивана · кнопка витрины · W-1`;
+  assert.equal(live.guard({ notSecret: ['сеть3'] }, [body(SECRET2)], 'EXT').refused.refusal, 'secret');
+  assert.match(live.guard({ notSecret: [] }, [body(SECRET5)], 'EXT').refused.message, /сеть3/);
+  assert.match(live.guard({ notSecret: ['метка-рядом'] }, [body(SECRET5)], 'EXT').refused.message, /сеть3/);
+  assert.deepEqual(live.guard({ notSecret: ['сеть3'] }, [body(SECRET5)], 'EXT'), { flags: ['--not-secret', 'сеть3'] });
+  assert.deepEqual(live.guard({ notSecret: ['сеть3', 'метка-рядом'] }, [body('обычный текст')], 'EXT'), { flags: [] }, 'подтверждённого вида в теле нет — флага нет');
+  // вторая находка другого вида при подтверждённом первом — отказ (подтверждение не шире текста Ивана)
+  const two = `${SECRET5} и ${'q'.repeat(45)}`;
+  assert.equal(live.guard({ notSecret: ['сеть3'] }, [body(two)], 'EXT').refused?.refusal, 'secret');
 });
 
 // ---------------- свежая сверка по файлам (п.8, п.9) ----------------

@@ -35,6 +35,7 @@ async function server() {
   const web = tmpDir('web-');
   fs.writeFileSync(path.join(web, 'index.html'), '<!doctype html><meta name="vitrina-token" content="__VITRINA_TOKEN__">');
   const boardRoot = tmpDir('mboard-');
+  fs.writeFileSync(path.join(boardRoot, 'board.config.json'), '{"mode":"mirror"}'); // режим читается строго (EXT-91)
   fs.mkdirSync(path.join(boardRoot, 'tools'));
   fs.writeFileSync(path.join(boardRoot, 'tools', 'mirror-hidden.js'), '');
   const calls = [];
