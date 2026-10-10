@@ -68,7 +68,20 @@
       "command": "plane.py",
       "sub": "comment",
       "bodyArg": 0
-    }
+    },
+    {
+      "_comment": "Запись на доску файлами (EXT-91, спека пульта §3.3 п.12): node …/board.mjs [--as v] [--root p] <подкоманда> <карточка> …; тело — из --body, при --body-file и --body - неизвестно. До перехода в mirror такие вызовы отказывают — успешной записью не считаются",
+      "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "new"
+    },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "take" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "status" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "log" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "set" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "resolve" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox take" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox merge", "cardPos": 1 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox drop" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox commit" }
   ],
   "pult": {
     "enabled": false,

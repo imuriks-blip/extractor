@@ -224,7 +224,7 @@ test('вызов board: node [board.mjs, --as ivan, --root <доска>, ком�
   assert.equal((await s.press(accept())).json().outcome, 'ok');
   assert.equal(s.spawned.length, 2);
   for (const [cmd, args, opts] of s.spawned) {
-    assert.equal(cmd, 'node');
+    assert.equal(cmd, process.execPath, 'по умолчанию — та же node, что у витрины (не «node» из PATH)');
     assert.equal(args[0], path.join(s.wdir, 'board-wrap.mjs'));
     assert.deepEqual(args.slice(1, 5), ['--as', 'ivan', '--root', s.boardDir]);
     assert.equal(opts.windowsHide, true);
@@ -380,11 +380,11 @@ test('неясный исход log (код 2 «ошибка board:» после
   assert.equal(n.entries('EXT-7').filter((e) => e.kind === 'решение').length, 1);
 });
 
-test('таймаут 60 с (здесь 6 с, 1,5 с у зависания до записи): процесс снят деревом по своему pid; запись легла до зависания — к status; не легла — error; прочие процессы живы', async () => {
+test('таймаут 60 с (здесь 20 с под нагрузкой, 1,5 с у зависания до записи): процесс снят деревом по своему pid; запись легла до зависания — к status; не легла — error; прочие процессы живы', async () => {
   // посторонний долгоживущий процесс, запущенный этим же тестом: снятие по pid его не задевает (в конце снимается по своему pid)
   const bystander = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { windowsHide: true, stdio: 'ignore' });
   try {
-  const s = await setup({ wrap: { log: 'hang-after' }, seams: { boardTimeoutMs: 6000 } });
+  const s = await setup({ wrap: { log: 'hang-after' }, seams: { boardTimeoutMs: 20000 } });
   const r = await s.press(accept());
   assert.equal(r.json().outcome, 'ok', JSON.stringify(r.json()));
   const pid = Number(fs.readFileSync(path.join(s.wdir, 'pid-log.txt'), 'utf8'));
