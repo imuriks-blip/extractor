@@ -3,7 +3,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { classify, createHelperReader, createSource } from '../lib/pult/source.mjs';
+import { PassThrough } from 'node:stream';
+import Fastify from 'fastify';
+import { registerPult } from '../lib/pult/routes.mjs';
+import { classify, createHelperReader, createSource, pickOwner } from '../lib/pult/source.mjs';
 
 // таблица процессов: [pid, ppid, образ]
 const TABLE = [
@@ -71,7 +74,7 @@ test('время определения (подменные таблицы) — 
 });
 
 // ---- настоящий помощник на настоящем сокете этого же процесса (внешний источник: владелец известен — это мы) ----
-test('настоящий помощник: владелец клиентского конца loopback — этот процесс node, цепочка без Claude; тёплый запрос ≤ 300 мс; закрытие убирает помощника',
+test('настоящий помощник: владелец клиентского конца loopback — этот процесс node, это не Edge (ok false, причина image); тёплый запрос ≤ 300 мс; закрытие убирает помощника',
   { skip: process.platform !== 'win32', timeout: 30000 }, async () => {
     const server = net.createServer((s) => s.on('error', () => {}));
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -80,7 +83,7 @@ test('настоящий помощник: владелец клиентског
     const reader = createHelperReader();
     const src = createSource({ read: reader.read, limitMs: 15000 });
     try {
-      const ports = { clientPort: client.localPort, serverPort: server.address().port };
+      const ports = { clientPort: client.localPort, serverPort: server.address().port, clientAddr: client.localAddress, serverAddr: client.remoteAddress };
       const cold = await src.identify(ports); // первый запрос ждёт запуска помощника — в предел 300 мс не входит
       assert.equal(cold.pid, process.pid);
       assert.equal(cold.image.toLowerCase(), process.platform === 'win32' ? 'node.exe' : '');
@@ -90,7 +93,7 @@ test('настоящий помощник: владелец клиентског
       for (let i = 0; i < 5; i++) warm.push(await src.identify(ports));
       for (const w of warm) { assert.equal(w.pid, process.pid); assert.ok(w.ms <= 300, `ms=${w.ms}`); }
       // порта нет → причина no-socket, действие не страдает
-      const none = await src.identify({ clientPort: 1, serverPort: 2 });
+      const none = await src.identify({ clientPort: 1, serverPort: 2, clientAddr: '127.0.0.1', serverAddr: '127.0.0.1' });
       assert.deepEqual([none.ok, none.reason], [false, 'no-socket']);
       // без портов (inject) → no-ports, помощник не нужен
       assert.equal((await src.identify({})).reason, 'no-ports');
@@ -109,3 +112,39 @@ test('настоящий помощник: владелец клиентског
       server.close();
     }
   });
+
+// ---- Голем, Важно 1: адреса и состояние; подменная таблица сокетов [состояние, laddr, lport, raddr, rport, pid] ----
+const ASK = { clientPort: 50000, serverPort: 4317, clientAddr: '127.0.0.1', serverAddr: '127.0.0.1' };
+
+test('владелец сокета: исправный случай — один адрес, ESTABLISHED → найден (и ::ffff:-вид адреса)', () => {
+  assert.equal(pickOwner([[5, '127.0.0.1', 50000, '127.0.0.1', 4317, 777]], ASK), 777);
+  assert.equal(pickOwner([[5, '127.0.0.1', 50000, '127.0.0.1', 4317, 777]], { ...ASK, clientAddr: '::ffff:127.0.0.1', serverAddr: '::ffff:127.0.0.1' }), 777);
+});
+
+test('владелец сокета: две строки на один local-порт, разные local-адреса (обход bind на 127.0.0.2) → берётся строка с совпавшим адресом', () => {
+  const rows = [[5, '127.0.0.2', 50000, '127.0.0.1', 4317, 666], [5, '127.0.0.1', 50000, '127.0.0.1', 4317, 777]];
+  assert.equal(pickOwner(rows, ASK), 777);
+  assert.equal(pickOwner([...rows].reverse(), ASK), 777);
+  assert.equal(pickOwner([rows[0]], ASK), null, 'совпавшего адреса нет — владельца нет, чужая строка не берётся');
+});
+
+test('владелец сокета: TIME_WAIT (11) и pid 0 не берутся; ESTABLISHED рядом — берётся', () => {
+  assert.equal(pickOwner([[11, '127.0.0.1', 50000, '127.0.0.1', 4317, 0]], ASK), null);
+  assert.equal(pickOwner([[11, '127.0.0.1', 50000, '127.0.0.1', 4317, 555]], ASK), null);
+  assert.equal(pickOwner([[5, '127.0.0.1', 50000, '127.0.0.1', 4317, 0]], ASK), null);
+  assert.equal(pickOwner([[11, '127.0.0.1', 50000, '127.0.0.1', 4317, 555], [5, '127.0.0.1', 50000, '127.0.0.1', 4317, 777]], ASK), 777);
+});
+
+// ---- Голем, Мелочь 3: прогрев только при включённом пульте ----
+test('прогрев помощника: pult.enabled = false → PowerShell не запускается; true → запускается один раз', async () => {
+  for (const [enabled, want] of [[false, 0], [true, 1]]) {
+    let spawned = 0;
+    const helperSpawn = () => { spawned++; const c = new PassThrough(); c.stdout = new PassThrough(); c.stdin = new PassThrough(); c.kill = () => {}; c.unref = () => {}; return c; };
+    const app = Fastify();
+    const api = registerPult(app, { hasCode: () => true, maskRow: (x) => x, pult: { enabled }, seams: { helperSpawn } });
+    api.warmSource();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(spawned, want, `enabled=${enabled}`);
+    await app.close(); // onClose закрывает помощника
+  }
+});

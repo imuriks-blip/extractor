@@ -610,7 +610,6 @@ test('EXT-89 pick: выбранный B закрылся до второго POS
   s.live.cur = [thread(SID)]; // B (SID2) закрылся, остался один A
   const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
   assert.match(r.message, /выбранный тред закрыт/);
-  assert.match(r.message, /выбранный тред закрыт/);
   assert.equal(s.pl().comments.length, 2, 'запись на карточке осталась');
   assert.ok(noRing(s), 'звонка нет никому');
   assert.deepEqual((await s.bellGet(SID)).ids, []);
@@ -671,6 +670,7 @@ test('EXT-89 §2.6: текст Ивана доходит ждущему без �
     assert.ok(!body.includes('Zq8vK3mP9xLr2TnW'), `${url} показал текст без маски`);
   }
   // исправная проверка самой маски: тот же текст через общую маску ответа ручки чтения скрывается
-  const rows = JSON.stringify(await s.get('/api/actions'));
-  assert.ok(rows.includes(ok.id), 'строка слова в ответе чтения есть');
+  const row = (await s.get('/api/actions')).find((x) => x.id === ok.id);
+  assert.ok(row, 'строка слова в ответе чтения есть');
+  assert.match(row.text, /\[скрыто/);
 });
