@@ -1,0 +1,50 @@
+{
+  "shots": [
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\ext91-t6-warnings-1280-light.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\ext91-t6-warnings-1280-dark.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\ext91-t6-warnings-400-light.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\ext91-t6-warnings-400-dark.png"
+  ],
+  "checks": {
+    "1280: нашлась кнопка «да» на выдуманных данных": true,
+    "1280: под исходом две серые строки предупреждений": "записано в доску 14:05 · тред: положено⚠ не отправлено на GitHub: нет связи с удалённым репозиторием⚠ грязное дерево: в доске есть незафиксированные правки",
+    "1280: нет горизонтальной прокрутки": 0,
+    "400: нашлась кнопка «да» на выдуманных данных": true,
+    "400: под исходом две серые строки предупреждений": "записано в доску 14:05 · тред: положено⚠ не отправлено на GitHub: нет связи с удалённым репозиторием⚠ грязное дерево: в доске есть незафиксированные правки",
+    "400: нет горизонтальной прокрутки": 0,
+    "без warnings — строк предупреждений нет, исход есть": null
+  },
+  "fails": [],
+  "intercepted": {
+    "ceh": 4,
+    "mirror": 8,
+    "act": [
+      "yes"
+    ],
+    "other": [
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events"
+    ]
+  },
+  "pid": 12060,
+  "actTotal": 3,
+  "tmpLeft": false
+}

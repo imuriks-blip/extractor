@@ -29,9 +29,11 @@ test('live: в шапке «доска в git» вместо возраста з
 
 test('live: тексты хода записи — «в доску», без «7–8 с» Plane; mirror-тексты не тронуты', () => {
   const p = src('Pult.jsx');
-  assert.match(p, /isLiveMode\(\) \? 'в доску' : 'в Plane'/);
-  assert.match(p, /!isLiveMode\(\) && <span className="faint"> · обычно 7–8 с<\/span>/);
-  assert.match(p, /st\.pull && !isLiveMode\(\)/, 'кнопки «дотянуть» в live нет');
+  assert.match(p, /live \? 'в доску' : 'в Plane'/);
+  assert.match(p, /!live && <span className="faint"> · обычно 7–8 с<\/span>/);
+  assert.match(p, /st\.pull && !live/, 'кнопки «дотянуть» в live нет');
+  assert.doesNotMatch(p, /isLiveMode/, 'режим читается с подпиской (useBoardMode), не разовым чтением');
+  assert.match(p, /useBoardMode\(\) === 'live'/);
 });
 
 test('EXT-92: сторона меню не считается один раз при открытии — положение пересчитывается по наблюдателям, пока меню открыто', () => {
@@ -41,4 +43,12 @@ test('EXT-92: сторона меню не считается один раз п
   assert.match(s, /new MutationObserver\(again\)/);
   assert.match(s, /addEventListener\('resize', again\)/);
   assert.doesNotMatch(src('styles.css'), /\.smenu\.left/);
+});
+
+test('такт 6: warnings ответа пульта — серыми строками под исходом; нет warnings — ничего', () => {
+  const p = src('Pult.jsx');
+  assert.match(p, /Array\.isArray\(b\.warnings\)/);
+  assert.match(p, /st\?\.warnings\?\.length \? <span className="pwarn faint"/);
+  assert.match(p, /<Warns st=\{st\} \/>/);
+  assert.match(src('styles.css'), /\.pwarn\{display:block;font-size:12px/);
 });
