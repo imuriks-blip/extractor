@@ -559,11 +559,10 @@ details.sg .of{color:var(--faint)}
 .hbtn.on{background:var(--hover);color:var(--fg)}
 .hbtn.going{color:var(--fg)}
 .smenu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;width:min(440px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 4px 12px var(--shade);font-size:13px}
-.smenu.left{right:auto;left:0}
 .smenu>:first-child{border-top:0}
 @media (max-width:560px){
   .smw{position:static}
-  .smenu,.smenu.left{left:0;right:0;width:auto}
+  .smenu{left:0;right:0;width:auto}
 }
 @media (max-width:560px){
   .ugrid{gap:8px}

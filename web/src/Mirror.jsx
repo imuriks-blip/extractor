@@ -124,7 +124,9 @@ function press(kind = 'changed', confirm, src = 'button') {
 
 // ---------- ход и итог в шапке ----------
 // label — подпись зеркала из /api/ceh: сменилась (проход закончился или начат Планировщиком) — ход перечитывается
-export default function MirrorStatus({ label }) {
+// live (EXT-91 такт 3, §3.3 п.15): зеркала нет — показывается только ход прохода, начатого до переключения; итога, пометок
+// нажатий и «дотянуть» нет
+export default function MirrorStatus({ label, live = false }) {
   const s = useMirror();
   const resent = useRef(false);
 
@@ -148,13 +150,14 @@ export default function MirrorStatus({ label }) {
 
   // «дотянуть» у «Принять»/«Вернуть» (таблица 1.3) — то же нажатие, что «Обновить»; пока пульт не выключен и проход свободен
   // исход такого нажатия — всегда в шапке (src 'pull', pressPlace)
-  useEffect(() => (s.off ? undefined : setPuller(() => {
+  useEffect(() => (s.off || live ? undefined : setPuller(() => {
     const r = pullAnswer(get().phase);
     if (r === 'started') press('changed', undefined, 'pull');
     return r;
-  })), [s.off]);
+  })), [s.off, live]);
 
   if (s.off) return null;
+  if (live && s.phase !== 'running') return null;
   const inHeader = pressPlace(s) === 'header';
   if (s.phase === 'off') return inHeader ? <span className="mbtn-off faint" role="status">пульт выключен</span> : null;
 
@@ -171,7 +174,7 @@ export default function MirrorStatus({ label }) {
   const runTitle = running
     ? ['зеркало идёт', st?.kind, st?.phase && `фаза ${st.phase}`, Number.isFinite(st?.requests) && `запросов ${st.requests}`, Number.isFinite(st?.rpm) && `${st.rpm}/мин`].filter(Boolean).join(' · ')
     : HINT;
-  const res = !running && phase === 'idle' ? runResult(st) : null;
+  const res = !live && !running && phase === 'idle' ? runResult(st) : null;
   // исход нажатия — здесь или у строки в «Служебном», не в обоих местах (pressPlace)
   const note = inHeader && s.note?.kind !== 'full' ? s.note : null;
   const starting = phase === 'pending' && s.kind !== 'full' && inHeader;

@@ -8,6 +8,7 @@ import { canPull, clear403, postAct, pull, reloadOn403, take403 } from './act.js
 import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { pullNote } from './mirrorData.js';
+import { isLiveMode } from './boardMode.js';
 import { markIsRed } from './pultData.js';
 
 const TEXT_MAX = 500;
@@ -91,9 +92,13 @@ function resume403(key) {
 export function Going({ since, text }) {
   const now = useNow(1000);
   const s = Math.max(0, Math.floor((now - since) / 1000));
-  return <span className="going" role="status">{text}… <span className="num">{s} с</span> <span className="faint">· обычно 7–8 с</span></span>;
+  // live (EXT-91, §3.3 п.16): запись в доску, не в Plane — «7–8 с» про очередь Plane, к ней не относится
+  return <span className="going" role="status">{text}… <span className="num">{s} с</span>{!isLiveMode() && <span className="faint"> · обычно 7–8 с</span>}</span>;
 }
-const goingText = (a) => (a === 'accept' ? 'записываю в Plane' : a === 'reply' ? 'пишу и зову тред' : 'записываю в Plane и зову тред');
+const goingText = (a) => {
+  const where = isLiveMode() ? 'в доску' : 'в Plane';
+  return a === 'accept' ? `записываю ${where}` : a === 'reply' ? 'пишу и зову тред' : `записываю ${where} и зову тред`;
+};
 
 function ReturnForm({ onSend, onCancel, label = 'Причина возврата', placeholder = 'Причина: что доделать', send: sendText = 'вернуть', qline = null, foot = null }) {
   const [text, setText] = useState('');
@@ -302,7 +307,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
         <span className="pamb">отказ:</span> {st.msg}
         {maybe && <> <button type="button" className="pbtn" onClick={() => send(fresh({ ...st.payload, confirm: st.rid }), key)}>это не секрет — отправить</button>
           <button type="button" className="pbtn" onClick={() => { setAct(key, null); setForm(st.payload.action === 'return' ? 'return' : 'reply'); }}>поправить текст</button></>}
-        {st.pull && canPull() && !st.pullNote && <> <button type="button" className="pbtn" onClick={() => {
+        {st.pull && !isLiveMode() && canPull() && !st.pullNote && <> <button type="button" className="pbtn" onClick={() => {
           const r = pull();
           if (r === 'started') setAct(key, null);
           // зеркало занято — отказ не стираем, говорим почему ничего не случилось (п.13 ревью Голема); «ход вверху» — только

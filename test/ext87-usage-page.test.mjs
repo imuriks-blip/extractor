@@ -139,7 +139,7 @@ test('меню «Служебное»: кнопка в шапке рядом с�
 
 test('телефон: меню во всю ширину, кнопка остаётся в той же группе .tbtns', () => {
   const css = src('styles.css');
-  assert.match(css, /@media \(max-width:560px\)\{\s*\.smw\{position:static\}\s*\.smenu,\.smenu\.left\{left:0;right:0;width:auto\}/);
+  assert.match(css, /@media \(max-width:560px\)\{\s*\.smw\{position:static\}\s*\.smenu\{left:0;right:0;width:auto\}/);
 });
 
 test('«Расход»: кнопка замера на экране и общий замер с меню; памятка и подсказки без «блока Служебное на Цехе»', () => {

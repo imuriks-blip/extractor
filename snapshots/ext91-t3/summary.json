@@ -1,0 +1,390 @@
+{
+  "shots": [
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-light-mirror-header.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-light-mirror-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-dark-mirror-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-light-live-header.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-light-live-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-dark-live-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\400-light-mirror-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\400-dark-mirror-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\400-light-live-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\400-dark-live-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\1280-light-live-run-menu.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\800-light-ext92-menu-before-run.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\800-light-ext92-menu-during-run.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\800-dark-ext92-menu-before-run.png",
+    "C:\\projects\\extractor-ext91\\snapshots\\ext91-t3\\800-dark-ext92-menu-during-run.png"
+  ],
+  "checks": {
+    "mirror, шапка: строка зеркала Plane на месте, «доска в git» нет": "в журнале 2 битые строки (первая — строка 7)·журналы и доска · 12:00:02·доска: зеркало Plane от 30.09 21:40",
+    "mirror, меню: Обновить, Полный проход зеркала, Пересобрать индекс, Замерить остаток": [
+      "Обновить",
+      "Полный проход зеркала",
+      "Пересобрать индекс",
+      "Замерить остаток"
+    ],
+    "live, шапка: «доска в git» вместо возраста зеркала": "в журнале 2 битые строки (первая — строка 7)·журналы и доска · 12:00:02·доска в git",
+    "live, меню: только Пересобрать индекс и Замерить остаток": [
+      "Пересобрать индекс",
+      "Замерить остаток"
+    ],
+    "live, меню: слов «зеркал» и «Plane» нет": "Пересобрать индекспересобран · 05.10 15:00 · 2 мин · 1560 журналовЗамерить остатокчитаю состояние…",
+    "400, mirror: меню в пределах окна, без горизонтальной прокрутки": {
+      "x": 16,
+      "y": 181,
+      "w": 368,
+      "h": 199,
+      "r": 384
+    },
+    "400, live: меню в пределах окна, без горизонтальной прокрутки": {
+      "x": 16,
+      "y": 163,
+      "w": 368,
+      "h": 100,
+      "r": 384
+    },
+    "live, проход начат до переключения: ход «зеркало идёт · …» виден, «доска в git» рядом": "в журнале 2 битые строки (первая — строка 7)·журналы и доска · 12:00:02·доска в git зеркало идёт · комменты 12 из 55 · 40 запросов · 23/мин · с 02.10 19:50",
+    "live, идёт проход: пунктов зеркала в меню нет": [
+      "Пересобрать индекс",
+      "Замерить остаток"
+    ],
+    "live, прошлый проход красный: пометки «ошибка» в шапке нет": "в журнале 2 битые строки (первая — строка 7)·журналы и доска · 12:00:02·доска в git",
+    "EXT-92, 1100: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 269,
+        "y": 70,
+        "w": 440,
+        "h": 176,
+        "r": 709
+      },
+      "кнопка": {
+        "x": 623,
+        "y": 41,
+        "w": 86,
+        "h": 25,
+        "r": 709
+      }
+    },
+    "EXT-92, 1000: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 269,
+        "y": 99,
+        "w": 440,
+        "h": 176,
+        "r": 709
+      },
+      "кнопка": {
+        "x": 623,
+        "y": 70,
+        "w": 86,
+        "h": 25,
+        "r": 709
+      }
+    },
+    "EXT-92, 950: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 269,
+        "y": 99,
+        "w": 440,
+        "h": 176,
+        "r": 709
+      },
+      "кнопка": {
+        "x": 623,
+        "y": 70,
+        "w": 86,
+        "h": 25,
+        "r": 709
+      }
+    },
+    "EXT-92, 900: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 269,
+        "y": 99,
+        "w": 440,
+        "h": 176,
+        "r": 709
+      },
+      "кнопка": {
+        "x": 623,
+        "y": 70,
+        "w": 86,
+        "h": 25,
+        "r": 709
+      }
+    },
+    "EXT-92, 850: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 269,
+        "y": 99,
+        "w": 440,
+        "h": 176,
+        "r": 709
+      },
+      "кнопка": {
+        "x": 623,
+        "y": 70,
+        "w": 86,
+        "h": 25,
+        "r": 709
+      }
+    },
+    "EXT-92, 800: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 16,
+        "y": 153,
+        "w": 440,
+        "h": 176,
+        "r": 456
+      },
+      "кнопка": {
+        "x": 16,
+        "y": 124,
+        "w": 86,
+        "h": 25,
+        "r": 102
+      }
+    },
+    "EXT-92, 760: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 16,
+        "y": 153,
+        "w": 440,
+        "h": 176,
+        "r": 456
+      },
+      "кнопка": {
+        "x": 16,
+        "y": 124,
+        "w": 86,
+        "h": 25,
+        "r": 102
+      }
+    },
+    "EXT-92, 720: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 16,
+        "y": 153,
+        "w": 440,
+        "h": 176,
+        "r": 456
+      },
+      "кнопка": {
+        "x": 16,
+        "y": 124,
+        "w": 86,
+        "h": 25,
+        "r": 102
+      }
+    },
+    "EXT-92, 680: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 16,
+        "y": 153,
+        "w": 440,
+        "h": 176,
+        "r": 456
+      },
+      "кнопка": {
+        "x": 16,
+        "y": 124,
+        "w": 86,
+        "h": 25,
+        "r": 102
+      }
+    },
+    "EXT-92, 640: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 16,
+        "y": 153,
+        "w": 440,
+        "h": 176,
+        "r": 456
+      },
+      "кнопка": {
+        "x": 16,
+        "y": 124,
+        "w": 86,
+        "h": 25,
+        "r": 102
+      }
+    },
+    "EXT-92, 600: меню в пределах окна после появления строки хода": {
+      "меню": {
+        "x": 16,
+        "y": 146,
+        "w": 440,
+        "h": 176,
+        "r": 456
+      },
+      "кнопка": {
+        "x": 202,
+        "y": 117,
+        "w": 86,
+        "h": 25,
+        "r": 289
+      }
+    },
+    "EXT-92: нашлась ширина, где кнопки переносятся на вторую строку": 800,
+    "EXT-92, 800, light: меню открыто, ход зеркала в шапке, кнопки на второй строке — меню в окне": {
+      "x": 16,
+      "y": 153,
+      "w": 440,
+      "h": 176,
+      "r": 456
+    },
+    "EXT-92, 680, light: окно сузили при открытом меню — меню в окне": {
+      "x": 16,
+      "y": 153,
+      "w": 440,
+      "h": 176,
+      "r": 456
+    },
+    "EXT-92, 800, dark: меню открыто, ход зеркала в шапке, кнопки на второй строке — меню в окне": {
+      "x": 16,
+      "y": 153,
+      "w": 440,
+      "h": 176,
+      "r": 456
+    },
+    "EXT-92, 680, dark: окно сузили при открытом меню — меню в окне": {
+      "x": 16,
+      "y": 153,
+      "w": 440,
+      "h": 176,
+      "r": 456
+    }
+  },
+  "fails": [],
+  "intercepted": {
+    "ceh": 20,
+    "mirror": 71,
+    "act": [
+      "mirror:changed"
+    ],
+    "other": [
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage",
+      "/api/events",
+      "/api/health",
+      "/api/actions",
+      "/api/worktrees",
+      "/api/events",
+      "/api/usage"
+    ]
+  },
+  "pid": 53744,
+  "actTotal": 13,
+  "tmpLeft": false
+}
