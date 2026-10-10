@@ -59,6 +59,7 @@ function Row({ r, now, rows, pult, local, setLocal }) {
         {word}{r.card && <span className="id">{r.card}</span>}
         {r.text && <> <span className="muted">«{r.text}»</span></>}
         {r.source && r.source.ok === false && <> <span className="tag r" title={`процесс-источник: ${r.source.image ?? 'неизвестен'}; нажато не из браузера`}>не из браузера</span></>}
+        {r.source && r.source.ok === true && r.source.launcherGone && <> <span className="tag" title="Edge, но кто его запустил, уже не видно (родитель закрылся) — разобрать на неделе пульта, твоё ли это нажатие">запустивший не виден</span></>}
       </span>
       <span className="sub">
         {bad ? <span className={bad}>{out}</span> : out}

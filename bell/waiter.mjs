@@ -3,7 +3,7 @@
 // По умолчанию — порт 4317 и папка звонка живой витрины. stdin хука → session_id. Один ждущий на сессию: замок
 // <bellDir>/<sid>.lock {pid, procStart, bootAt, at}; чужой живой — только если pid жив И время старта совпало.
 // Хозяин — ~/.claude/sessions/<pid>.json с sessionId == sid (живость — pid + procStart), раз в 1 с; не найден
-// за 10 с — выход 0; умер — выход 0. STOP в папке звонка — при старте (замок не берётся) и на каждом тике.
+// за 10 с — выход 0; умер — выход 0; procStart хозяина сверяется и на тиках, раз в 30 с (EXT-89). STOP в папке звонка — при старте (замок не берётся) и на каждом тике.
 // Звонит только свободному хозяину (status idle или нет статуса). Порядок звонка (2.2): GET /api/bell/<sid> →
 // строка ring {ids} в bell.log → удалить сигналы прозвоненных → текст в stderr и код 2. Сигналы, чьих id нет
 // в ответе сервера (ни в ids, ни в held), — удалить, строка forged {ids}. Содержимое сигналов не читается. В bell.log — без текста.
@@ -19,6 +19,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const RING_RE = /^(W-[0-9A-Za-z-]+)\.ring$/;
 export const TICK_MS = 1000;
 export const OWNER_WAIT_MS = 10000;
+export const PROC_CHECK_MS = 30000; // время старта хозяина на тиках — раз в 30 с (§2.1)
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULTS = { port: 4317, bellDir: path.join(ROOT, 'data', 'vitrina', 'bell') };
 
@@ -78,7 +79,7 @@ export function httpGet(port, sid, { timeoutMs = 5000 } = {}) {
 export async function runWaiter({ sid, port = DEFAULTS.port, bellDir = DEFAULTS.bellDir, sessionsDir = path.join(os.homedir(), '.claude', 'sessions'),
   pid = process.pid, fs = nodeFs, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), isAlive = pidAlive,
   procStartOf = procStartsWindows, get = (s) => httpGet(port, s), stderr = (s) => process.stderr.write(s),
-  tickMs = TICK_MS, ownerWaitMs = OWNER_WAIT_MS, maxTicks = Infinity }) {
+  tickMs = TICK_MS, ownerWaitMs = OWNER_WAIT_MS, procCheckMs = PROC_CHECK_MS, maxTicks = Infinity }) {
   if (typeof sid !== 'string' || !UUID_RE.test(sid)) return 0;
   sid = sid.toLowerCase();
   const logFile = path.join(bellDir, 'bell.log');
@@ -114,7 +115,8 @@ export async function runWaiter({ sid, port = DEFAULTS.port, bellDir = DEFAULTS.
 
   // хозяин: запись реестра с sessionId == sid и совпавшим временем старта
   const t0 = now();
-  let owner = null; // {pid, file}
+  let owner = null; // {pid, file, status, procStart}
+  let lastProcCheck = 0;
   const findOwner = async () => {
     let names = [];
     try { names = fs.readdirSync(sessionsDir).filter((n) => /^\d+\.json$/.test(n)); } catch { return null; }
@@ -126,7 +128,7 @@ export async function runWaiter({ sid, port = DEFAULTS.port, bellDir = DEFAULTS.
         try { st = (await procStartOf([s.pid])).get(s.pid); } catch { continue; }
         if (st !== s.procStart) continue;
       }
-      return { pid: s.pid, file: path.join(sessionsDir, n), status: s.status };
+      return { pid: s.pid, file: path.join(sessionsDir, n), status: s.status, procStart: typeof s.procStart === 'string' ? s.procStart : null };
     }
     return null;
   };
@@ -143,8 +145,17 @@ export async function runWaiter({ sid, port = DEFAULTS.port, bellDir = DEFAULTS.
         continue;
       }
       status = owner.status;
+      lastProcCheck = now();
     } else {
       if (!isAlive(owner.pid)) { release(); log('owner-gone'); return 0; }
+      // время старта хозяина — и на тиках, раз в procCheckMs (§2.1, EXT-89): pid упавшей сессии мог достаться чужому процессу.
+      // Записи реестра без procStart сверять не с чем; вызов не удался — не знаем, ждём до следующей проверки
+      if (owner.procStart && now() - lastProcCheck >= procCheckMs) {
+        lastProcCheck = now();
+        let st;
+        try { st = (await procStartOf([owner.pid])).get(owner.pid); } catch { st = undefined; }
+        if (st !== undefined && st !== owner.procStart) { release(); log('owner-gone'); return 0; }
+      }
       const s = readJson(fs, owner.file);
       if (s === undefined) { release(); log('owner-gone'); return 0; } // запись реестра исчезла — сессия закрылась
       status = s ? s.status : 'busy'; // запись не читается (заперта, битая) — не знаем, ждём

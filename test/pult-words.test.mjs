@@ -67,6 +67,7 @@ function fakeSpawn() {
   const calls = [];
   const fn = (cmd, args, opts) => {
     calls.push({ cmd, args, opts });
+    fn.onCall?.();
     const ch = new EventEmitter();
     ch.pid = 9000 + calls.length;
     ch.unref = () => {};
@@ -594,4 +595,103 @@ test('Мелочь 7: нажатие, переиспользовавшее пр�
   const third = (await s.press({ action: 'merge', card: 'EXT-22', q: Q, confirm: first.id })).json();
   assert.equal(third.outcome, 'refused', 'подтверждение уже израсходовано');
   assert.equal(s.lines().at(-1).refusal, 'bad-confirm');
+});
+
+// ---------------- EXT-89: выбор Ивана держится до звонка (2.3, 2.8; Важно 1 Голема на ПТ13); текст звонка без маски (2.6) ----------------
+
+const SID3 = uuid(803);
+const PICK_CLOSED = 'не доставлено: выбранный тред закрыт';
+const statusOfWord = async (s, id) => (await s.get('/api/actions')).find((r) => r.id === id)?.ring;
+const noRing = (s) => [SID, SID2, SID3].every((x) => !fs.existsSync(path.join(s.bellDir, x)));
+
+test('EXT-89 pick: выбранный B закрылся до второго POST — слово никому (ни A), запись на карточке остаётся, статус «выбранный тред закрыт»', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2)] });
+  assert.equal((await s.press({ action: 'go', card: 'EXT-20', q: Q })).json().outcome, 'need-confirm');
+  s.live.cur = [thread(SID)]; // B (SID2) закрылся, остался один A
+  const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
+  assert.match(r.message, /выбранный тред закрыт/);
+  assert.equal(s.pl().comments.length, 2, 'запись на карточке осталась');
+  assert.ok(noRing(s), 'звонка нет никому');
+  assert.deepEqual((await s.bellGet(SID)).ids, []);
+  assert.ok(!s.lines().some((l) => l.step === 'ring-queued'));
+  assert.equal(await statusOfWord(s, r.id), PICK_CLOSED);
+});
+
+test('EXT-89 pick: из трёх тредов B закрылся до второго POST — снова не выбор, а «никому» (кандидатов заново не считаем)', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3)] });
+  s.live.cur = [thread(SID), thread(SID3)];
+  const r = (await s.press({ action: 'yes', card: 'EXT-20', q: Q, pick: SID2 })).json();
+  assert.equal(r.outcome, 'ok', r.message);
+  assert.match(r.message, /выбранный тред закрыт/);
+  assert.ok(noRing(s));
+});
+
+test('EXT-89 pick: B закрылся между записью на карточке и звонком — слово никому, статус тот же', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2)] });
+  s.spawn.onCall = () => { s.live.cur = [thread(SID)]; }; // дотяжка карточки идёт после записи, до звонка
+  const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
+  assert.ok(s.spawn.calls.length > 0, 'ход между записью и звонком состоялся');
+  assert.equal(s.pl().comments.length, 2, 'запись легла');
+  assert.match(r.message, /выбранный тред закрыт/);
+  assert.ok(noRing(s));
+  assert.equal(await statusOfWord(s, r.id), PICK_CLOSED);
+});
+
+test('EXT-89 pick: A назвал карточку после выбора B — слово всё равно B; исправный рядом — состав не менялся → B', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2)] });
+  const same = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
+  assert.equal(same.outcome, 'ok', same.message);
+  assert.deepEqual((await s.bellGet(SID2)).ids, [same.id]);
+  assert.deepEqual((await s.bellGet(SID)).ids, []);
+  // A теперь с карточкой EXT-31: по правилам 2–4 он был бы единственным по карточке — выбор Ивана главнее
+  const t = await setup({}, { threads: [thread(SID), thread(SID2)] });
+  t.live.cur = [thread(SID, { card: 'EXT-31' }), thread(SID2)];
+  const r = (await t.press({ action: 'go', card: 'EXT-31', q: Q, pick: SID2 })).json();
+  assert.equal(r.outcome, 'ok', r.message);
+  assert.deepEqual((await t.bellGet(SID2)).ids, [r.id]);
+  assert.deepEqual((await t.bellGet(SID)).ids, []);
+  assert.equal(await statusOfWord(t, r.id), 'положено');
+});
+
+test('EXT-89 pick: тред чужого проекта без этой карточки — слово никому, статус «выбранный тред чужой»; исправный рядом — тред проекта', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3, { project: 'CAR' })] });
+  const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID3 })).json();
+  assert.match(r.message, /не этой карточки и не этого проекта/);
+  assert.equal(s.pl().comments.length, 2, 'запись на карточке осталась');
+  assert.ok(noRing(s), 'звонка нет никому');
+  assert.equal(await statusOfWord(s, r.id), 'не доставлено: выбранный тред чужой');
+  const h = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3, { project: 'CAR' })] });
+  const ok = (await h.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID2 })).json();
+  assert.equal(ok.outcome, 'ok', ok.message);
+  assert.deepEqual((await h.bellGet(SID2)).ids, [ok.id]);
+});
+
+test('EXT-89 pick: живой тред прораба — слово никому, статус «чужой», не «закрыт»', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3, { foreman: true })] });
+  const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID3 })).json();
+  assert.match(r.message, /сессия прораба/);
+  assert.ok(noRing(s));
+  assert.equal(await statusOfWord(s, r.id), 'не доставлено: выбранный тред чужой');
+});
+
+test('EXT-89 §2.6: текст Ивана доходит ждущему без маски витрины; ручки чтения маску применяют', async () => {
+  const MAYBE = 'ключ лежит тут: Zq8vK3mP9xLr2TnW';
+  const s = await setup({}, { threads: [thread(SID, { card: 'EXT-20' })] });
+  const r1 = (await s.press({ action: 'no', card: 'EXT-20', q: Q, text: MAYBE })).json();
+  assert.equal(r1.outcome, 'refused');
+  const ok = (await s.press({ action: 'no', card: 'EXT-20', q: Q, text: MAYBE, confirm: r1.id })).json();
+  assert.equal(ok.outcome, 'ok', ok.message);
+  // ручка ждущего — как есть
+  const bell = await s.bellGet(SID);
+  assert.ok(bell.text.includes('Zq8vK3mP9xLr2TnW'), bell.text);
+  assert.ok(!bell.text.includes('[скрыто'));
+  // ручка чтения — с маской: ни один ответ чтения не несёт ключ
+  for (const url of ['/api/actions', '/api/mirror']) {
+    const body = JSON.stringify(await s.get(url));
+    assert.ok(!body.includes('Zq8vK3mP9xLr2TnW'), `${url} показал текст без маски`);
+  }
+  // исправная проверка самой маски: тот же текст через общую маску ответа ручки чтения скрывается
+  const row = (await s.get('/api/actions')).find((x) => x.id === ok.id);
+  assert.ok(row, 'строка слова в ответе чтения есть');
+  assert.match(row.text, /\[скрыто/);
 });

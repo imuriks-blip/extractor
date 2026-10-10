@@ -297,3 +297,25 @@ test('§1.7: счётчик живых замков сервера — пров�
   assert.equal(await counter.count({ dir }), 1);
   assert.deepEqual(calls.at(-1), [3], 'новая пара — один вызов только за неё');
 });
+
+// ---------------- 2.1: procStart хозяина — и на тиках, раз в 30 с (EXT-89, Важно 2 Голема на ПТ13) ----------------
+
+test('2.1 (EXT-89): тот же pid хозяина, другой procStart на тике — owner-gone за ≤ 35 с, замок снят', async () => {
+  const s = mk();
+  let changedAt = null;
+  s.hooks.onTick = (n) => { if (n === 3) { s.starts[OWNER] = '134000000000009999'; changedAt = s.clock(); } };
+  assert.equal(await runWaiter(s.env), 0);
+  const lived = s.clock() - changedAt;
+  assert.ok(lived <= 35000, `жил ещё ${lived} мс`);
+  assert.deepEqual(s.log().map((l) => l.event), ['start', 'owner-gone']);
+  assert.equal(fs.existsSync(s.lockFile), false);
+});
+
+test('2.1 (EXT-89): исправный — procStart хозяина тот же: ждущий живёт все тики, проверка не чаще раза в 30 с', async () => {
+  const s = mk();
+  assert.equal(await runWaiter(s.env), 0); // maxTicks 60 → конец цикла
+  assert.deepEqual(s.log().map((l) => l.event), ['start'], 'owner-gone не писал');
+  const ownerChecks = s.psCalls.filter((c) => c.length === 1 && c[0] === OWNER).length;
+  // поиск хозяина (1) + проверки на тиках: за 60 с — не больше двух, не десятки
+  assert.ok(ownerChecks >= 2 && ownerChecks <= 4, `проверок procStart хозяина: ${ownerChecks}`);
+});
