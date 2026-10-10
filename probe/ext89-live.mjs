@@ -162,7 +162,7 @@ async function drive() {
     const helper = createHelperReader({ spawn: spySpawn })
     const source = createSource({ read: helper.read, limitMs: 20000 })
     const sock = net.connect({ host: '127.0.0.1', port: PORT }); await new Promise((r) => sock.once('connect', r))
-    const ident = () => source.identify({ clientPort: sock.localPort, serverPort: PORT })
+    const ident = () => source.identify({ clientPort: sock.localPort, serverPort: PORT, clientAddr: sock.localAddress, serverAddr: sock.remoteAddress })
     const cold = await ident()
     const warm = []; for (let i = 0; i < 20; i++) warm.push((await ident()).ms)
     const sw = [...warm].sort((a, b) => a - b)
