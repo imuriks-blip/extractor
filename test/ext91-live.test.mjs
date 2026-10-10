@@ -737,3 +737,15 @@ test('отзыв слова с карточкой в live: звонок снят
   assert.equal(no.json().refusal, 'bell-off');
   assert.equal(n.entries('EXT-9').filter((e) => e.kind === 'решение').length, 1);
 });
+
+test('новая карточка live: строка исхода «ID создана · …» узнаётся сразу (без запасного поиска и шага board read); \b на кириллице не работал', async () => {
+  const s = await setup();
+  const r = await s.press({ action: 'new-card', project: 'EXT', title: 'Совсем иное дело про пробу границы слова', text: 'тело' });
+  assert.equal(r.json().outcome, 'ok', JSON.stringify(r.json()));
+  const mine = s.lines().filter((l) => l.id === r.json().id);
+  assert.ok(mine.some((l) => l.step === 'board' && l.cmd === 'new' && /^EXT-\d+ создана · /.test(l.result.line)), JSON.stringify(mine.map((l) => [l.step, l.cmd])));
+  assert.ok(!mine.some((l) => l.step === 'board' && l.cmd === 'read'), 'запасного поиска быть не должно');
+  // контроль: живая строка board и старое регулярное выражение — вот почему поиск запускался
+  assert.equal(/^([A-Z]{2,6}-\d+) создана\b/.test('EXT-11 создана · backlog · none · 39088df'), false);
+  assert.equal(/^([A-Z]{2,6}-\d+) создана(?![а-яё])/.test('EXT-11 создана · backlog · none · 39088df'), true);
+});

@@ -1,0 +1,17 @@
+{"id":"W-261010-224931-3a67","step":"asked","action":"accept","card":"EXT-9","mode":"mirror"}
+{"id":"W-261010-224931-3a67","step":"done","action":"accept","card":"EXT-9","mode":"mirror","result":{"outcome":"ok","record":"W-261010-224931-3a67","state":"Done","planeAt":"2026-10-10T19:49:32.176Z","pull":"no-index","ms":655}}
+{"id":"W-261010-224933-cbfb","step":"asked","action":"accept","card":"EXT-10","mode":"live"}
+{"id":"W-261010-224933-cbfb","step":"board","action":"accept","card":"EXT-10","mode":"live","cmd":"log","result":{"code":0,"line":"EXT-10 · решение · 22:49 · 7679d38","ms":1190}}
+{"id":"W-261010-224933-cbfb","step":"board","action":"accept","card":"EXT-10","mode":"live","cmd":"status","result":{"code":0,"line":"EXT-10 review → done · d7fd3e8","ms":2015}}
+{"id":"W-261010-224933-cbfb","step":"done","action":"accept","card":"EXT-10","mode":"live","result":{"outcome":"ok","record":"W-261010-224933-cbfb","state":"done","boardAt":"2026-10-10T19:49:37.111Z","ms":3209}}
+{"id":"W-261010-224937-43a0","step":"asked","action":"accept","card":"EXT-7","mode":"live"}
+{"id":"W-261010-224937-43a0","step":"board","action":"accept","card":"EXT-7","mode":"live","cmd":"log","result":{"code":0,"line":"EXT-7 · решение · 22:49 · 71af773","ms":1218}}
+{"id":"W-261010-224937-43a0","step":"board","action":"accept","card":"EXT-7","mode":"live","cmd":"status","result":{"code":0,"line":"EXT-7 review → done · 2646264","ms":1226}}
+{"id":"W-261010-224937-43a0","step":"done","action":"accept","card":"EXT-7","mode":"live","result":{"outcome":"ok","record":"W-261010-224937-43a0","state":"done","boardAt":"2026-10-10T19:49:39.901Z","ms":2448}}
+{"id":"W-261010-224940-1b5b","step":"asked","action":"return","card":"EXT-8","mode":"live"}
+{"id":"W-261010-224940-1b5b","step":"board","action":"return","card":"EXT-8","mode":"live","cmd":"log","result":{"code":0,"line":"EXT-8 · решение · 22:49 · 9a31819","ms":1204}}
+{"id":"W-261010-224940-1b5b","step":"board","action":"return","card":"EXT-8","mode":"live","cmd":"status","result":{"code":0,"line":"EXT-8 review → ready · 5d15bcf","ms":1214}}
+{"id":"W-261010-224940-1b5b","step":"done","action":"return","card":"EXT-8","mode":"live","result":{"outcome":"ok","record":"W-261010-224940-1b5b","state":"ready","boardAt":"2026-10-10T19:49:43.436Z","ring":{"state":"off"},"ms":2421}}
+{"id":"W-261010-224943-6511","step":"asked","action":"new-card","mode":"live"}
+{"id":"W-261010-224943-6511","step":"board","action":"new-card","mode":"live","cmd":"new","result":{"code":0,"line":"EXT-11 создана · backlog · none · 3d38023","ms":1196}}
+{"id":"W-261010-224943-6511","step":"done","action":"new-card","mode":"live","result":{"outcome":"ok","created":"EXT-11","ms":1199}}

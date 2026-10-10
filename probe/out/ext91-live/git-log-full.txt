@@ -1,0 +1,81 @@
+--- 7982ae9 init
+
+
+EXT/EXT-10.log.md
+EXT/EXT-10.md
+EXT/EXT-7.log.md
+EXT/EXT-7.md
+EXT/EXT-8.log.md
+EXT/EXT-8.md
+EXT/EXT-9.log.md
+EXT/EXT-9.md
+board.config.json
+projects.md
+tools/board.mjs
+tools/install-mirror-task.ps1
+tools/lib/git.mjs
+tools/lib/header.mjs
+tools/lib/html2md.mjs
+tools/lib/inbox.mjs
+tools/lib/lock.mjs
+tools/lib/log.mjs
+tools/lib/plane.mjs
+tools/lib/secrets.mjs
+tools/lib/similar.mjs
+tools/lib/state.mjs
+tools/lib/time.mjs
+tools/migrate-map.json
+tools/mirror-hidden.js
+tools/mirror.mjs
+tools/package-lock.json
+tools/package.json
+tools/sync.mjs
+--- ca98765 проба: mode live
+
+
+board.config.json
+--- 7679d38 EXT-10: log решение
+Board-As: ivan
+Board-Via: board log
+
+
+EXT/EXT-10.log.md
+--- d7fd3e8 EXT-10: status review → done
+Board-As: ivan
+Board-Via: board status
+
+
+EXT/EXT-10.log.md
+EXT/EXT-10.md
+--- 71af773 EXT-7: log решение
+Board-As: ivan
+Board-Via: board log
+
+
+EXT/EXT-7.log.md
+--- 2646264 EXT-7: status review → done
+Board-As: ivan
+Board-Via: board status
+
+
+EXT/EXT-7.log.md
+EXT/EXT-7.md
+--- 9a31819 EXT-8: log решение
+Board-As: ivan
+Board-Via: board log
+
+
+EXT/EXT-8.log.md
+--- 5d15bcf EXT-8: status review → ready
+Board-As: ivan
+Board-Via: board status
+
+
+EXT/EXT-8.log.md
+EXT/EXT-8.md
+--- 3d38023 EXT-11: new · backlog
+Board-As: ivan
+Board-Via: board new
+
+
+EXT/EXT-11.md
