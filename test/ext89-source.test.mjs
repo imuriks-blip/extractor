@@ -144,6 +144,28 @@ test('владелец сокета: TIME_WAIT (11) и pid 0 не берутся
   assert.equal(pickOwner([[11, '127.0.0.1', 50000, '127.0.0.1', 4317, 555], [5, '127.0.0.1', 50000, '127.0.0.1', 4317, 777]], ASK), 777);
 });
 
+// ---- Голем, Мелочь 2 повтора ПТ13: помощник, не поднявшийся с первого раза, перезапускается, а не застревает в отказе ----
+test('помощник ответил не «ready» — первый запрос helper-start и убит; второй запрос запускает нового и получает ответ; исправный рядом', async () => {
+  let n = 0; const killed = [];
+  const spawn = () => {
+    const k = ++n;
+    const c = new PassThrough(); c.stdout = new PassThrough(); c.stdin = new PassThrough();
+    c.kill = () => { killed.push(k); }; c.unref = () => {};
+    c.stdin.on('data', (d) => { const [cp] = String(d).trim().split(' ');
+      c.stdout.write(`${JSON.stringify({ socks: [[5, '127.0.0.1', Number(cp), '127.0.0.1', 4317, 201]], procs: TABLE })}\n`); });
+    setImmediate(() => c.stdout.write(k === 1 ? 'мусор\n' : 'ready\n'));
+    return c;
+  };
+  const h = createHelperReader({ spawn, platform: 'win32', startMs: 500, queryMs: 500 });
+  const q = { clientPort: 50000, serverPort: 4317, clientAddr: '127.0.0.1', serverAddr: '127.0.0.1' };
+  await assert.rejects(h.read(q), /helper-start/);
+  assert.deepEqual(killed, [1], 'непригодный помощник убит');
+  const got = await h.read(q);
+  assert.equal(got.pid, 201);
+  assert.equal(n, 2, 'запущен новый помощник');
+  h.close();
+});
+
 // ---- Голем, Мелочь 3: прогрев только при включённом пульте ----
 test('прогрев помощника: pult.enabled = false → PowerShell не запускается; true → запускается один раз', async () => {
   for (const [enabled, want] of [[false, 0], [true, 1]]) {

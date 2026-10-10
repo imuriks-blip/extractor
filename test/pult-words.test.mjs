@@ -666,6 +666,14 @@ test('EXT-89 pick: тред чужого проекта без этой карт
   assert.deepEqual((await h.bellGet(SID2)).ids, [ok.id]);
 });
 
+test('EXT-89 pick: живой тред прораба — слово никому, статус «чужой», не «закрыт»', async () => {
+  const s = await setup({}, { threads: [thread(SID), thread(SID2), thread(SID3, { foreman: true })] });
+  const r = (await s.press({ action: 'go', card: 'EXT-20', q: Q, pick: SID3 })).json();
+  assert.match(r.message, /сессия прораба/);
+  assert.ok(noRing(s));
+  assert.equal(await statusOfWord(s, r.id), 'не доставлено: выбранный тред чужой');
+});
+
 test('EXT-89 §2.6: текст Ивана доходит ждущему без маски витрины; ручки чтения маску применяют', async () => {
   const MAYBE = 'ключ лежит тут: Zq8vK3mP9xLr2TnW';
   const s = await setup({}, { threads: [thread(SID, { card: 'EXT-20' })] });
