@@ -13,7 +13,6 @@
     },
     "ring": "доставлено",
     "ringAt": "2026-10-01T11:58:09+03:00",
-
     "ringTarget": { "title": "EXT · витрина", "by": "row" },
     "bdeal": null,
     "session": "00000000-0000-4000-8000-00000000000a",
@@ -33,7 +32,6 @@
     },
     "ring": "положено",
     "ringAt": null,
-
     "ringTarget": { "title": "EXT · витрина", "by": "row" },
     "bdeal": null,
     "session": "00000000-0000-4000-8000-000000000004"
@@ -52,7 +50,6 @@
     },
     "ring": null,
     "ringAt": null,
-
     "ringTarget": null,
     "bdeal": null,
     "session": "00000000-0000-4000-8000-00000000000b",
@@ -69,7 +66,6 @@
     "source": null,
     "ring": null,
     "ringAt": null,
-
     "ringTarget": null,
     "bdeal": null
   },
@@ -87,7 +83,6 @@
     },
     "ring": null,
     "ringAt": null,
-
     "ringTarget": null,
     "bdeal": null,
     "_comment": "source — отметка процесса-источника, ПТ1б; до неё null. ring — статус звонка (спека пульта 2.8, ПТ4а): положено · доставлено · прочитано · сброшено перезапуском · не доставлено: тред закрыт · звонок выключен; null — у действия звонка нет"

@@ -213,7 +213,7 @@ const Q = { at: '2026-10-03T09:00:00.000Z', head: 'готово — можно �
 const QU = { uuid: '11111111-2222-4333-8444-555555555555', at: '2026-10-11T08:00:00.000Z' };
 
 // writersGit — шов чтения писателей (null — настоящий git); calls — его вызовы; slog — строки server.log
-async function setup({ mode = 'live', threads = [th(S1), th(S2)], writers = null, noRoot = false, prior = null, timeoutMs = null, before = null } = {}) {
+async function setup({ mode = 'live', threads = [th(S1), th(S2)], writers = null, noRoot = false, prior = null, timeoutMs = null, before = null, listHook = null } = {}) {
   const boardDir = makeLiveBoard({ mode });
   before?.(boardDir);
   const data = tmpDir('ext96-data-');
@@ -228,7 +228,7 @@ async function setup({ mode = 'live', threads = [th(S1), th(S2)], writers = null
   const registry = createRegistryReader(path.join(tmpDir('ext96-reg-'), 'registry.json'));
   const calls = [];
   const slog = [];
-  const threadsApi = { list: () => ({ threads, prior: prior ?? new Map(), subagentsCount: 0, unknownStatus: {} }), state: () => ({ processes: { lastOkAt: '2026-10-11T09:00:00.000Z' }, desktop: null }) };
+  const threadsApi = { list: () => (listHook?.(boardDir), { threads, prior: prior ?? new Map(), subagentsCount: 0, unknownStatus: {} }), state: () => ({ processes: { lastOkAt: '2026-10-11T09:00:00.000Z' }, desktop: null }) };
   const journals = { state: () => ({ lastOkAt: null }), sessions: () => [{ sessionId: S1, lines: 3, thread: { q: QU } }] };
   const seams = writers ? { writersGit: (repo, args) => { calls.push({ repo, args }); return writers(calls.length, repo, args); } } : {};
   const app = await buildApp({ port: PORT, board, registry, scan, similar, webDir: web, threads: threadsApi, journals,
@@ -365,4 +365,31 @@ test('временная доска (§3.3 п.18): коммит настоящи
   // после записи витрины (Board-As: ivan, без Board-Session) последним «писателем» остаётся S2
   assert.ok(git(s.boardDir, 'log', '-1', '--format=%(trailers:key=Board-As,valueonly)').includes('ivan'));
   assert.deepEqual(await real(), [S2]);
+});
+
+// ревью Голема на 726a3a6, Важно 1: сбой сбора тредов в writersFor у «Вернуть» (после setStatus) — не ошибка нажатия.
+// До EXT-96 тот же сбой в звонке давал ring.state error при исходе ok; исключение из writersFor не должно уходить из actLive
+const returned = (dir) => /^status: ready/m.test(fs.readFileSync(path.join(dir, 'EXT', 'EXT-8.md'), 'utf8'));
+test('«Вернуть»: threads.list бросает только в вызове writersFor после setStatus → исход ok, статус сменён, writer-skip ERR, звонок по правилам 2–4 (project)', async () => {
+  let thrown = 0;
+  const s = await setup({ threads: [th(S1), th(S4, { project: 'CAR' })], writers: one(S1),
+    listHook: (dir) => { if (!thrown && returned(dir)) { thrown += 1; throw new Error('сбор тредов упал'); } } });
+  const r = await s.press({ action: 'return', card: 'EXT-8', q: Q, text: 'доделай' });
+  const b = r.json();
+  assert.equal(thrown, 1, 'сбой случился ровно в одном вызове — после смены статуса');
+  assert.equal(b.outcome, 'ok', JSON.stringify(b));
+  assert.ok(returned(s.boardDir), 'карточка вернулась (ready)');
+  assert.equal(s.calls.length, 0, 'до git не дошло');
+  assert.deepEqual(s.slog.filter((l) => l.event === 'writer-skip'), [{ event: 'writer-skip', route: 'bell', card: 'EXT-8', code: 'ERR' }]);
+  assert.deepEqual(s.queued(b.id).target, { sessionId: S1, title: 'Тред 01', by: 'project' });
+});
+
+test('«Вернуть»: threads.list бросает во всех вызовах после setStatus → исход ok, ring.state error — как до EXT-96', async () => {
+  const s = await setup({ writers: one(S1), listHook: (dir) => { if (returned(dir)) throw new Error('сбор тредов упал'); } });
+  const r = await s.press({ action: 'return', card: 'EXT-8', q: Q, text: 'доделай' });
+  const b = r.json();
+  assert.equal(b.outcome, 'ok', JSON.stringify(b));
+  assert.ok(returned(s.boardDir));
+  assert.equal(s.lines().find((l) => l.id === b.id && l.step === 'done').result.ring.state, 'error');
+  assert.equal(s.calls.length, 0);
 });
