@@ -8,6 +8,7 @@ import { canPull, clear403, postAct, pull, reloadOn403, take403 } from './act.js
 import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { pullNote } from './mirrorData.js';
+import { useBoardMode } from './boardMode.js';
 import { markIsRed } from './pultData.js';
 
 const TEXT_MAX = 500;
@@ -65,10 +66,11 @@ async function send(payload, key = keyOf(payload)) {
   }
   const outcome = r.status === 200 ? b.outcome : r.status === 409 || r.status === 429 ? 'refused' : 'error';
   const msg = b.message || `ошибка: HTTP ${r.status}`;
-  if (outcome === 'ok') setAct(key, { ...base, phase: 'ok', id: b.id, msg });
-  else if (outcome === 'partial') setAct(key, { ...base, phase: 'partial', id: b.id, msg });
-  else if (outcome === 'refused') setAct(key, { ...base, phase: 'refused', msg, rid: b.id, pull: b.pull === true });
-  else setAct(key, { ...base, phase: 'error', msg });
+  const warnings = Array.isArray(b.warnings) ? b.warnings.filter((w) => typeof w === 'string' && w) : [];
+  if (outcome === 'ok') setAct(key, { ...base, phase: 'ok', id: b.id, msg, warnings });
+  else if (outcome === 'partial') setAct(key, { ...base, phase: 'partial', id: b.id, msg, warnings });
+  else if (outcome === 'refused') setAct(key, { ...base, phase: 'refused', msg, rid: b.id, pull: b.pull === true, warnings });
+  else setAct(key, { ...base, phase: 'error', msg, warnings });
 }
 
 // новое намерение — новый ключ (§1.1 п.3); «повторить» после partial — тоже новый: сервер сам зовёт только state
@@ -87,13 +89,21 @@ function resume403(key) {
 
 /* ---------- вид ---------- */
 
+// строки «⚠» board (§3.3 п.6): серой мелкой подсказкой под исходом; нет предупреждений — ничего
+const Warns = ({ st }) => (st?.warnings?.length ? <span className="pwarn faint" role="note">{st.warnings.map((w) => <span key={w}>{w}</span>)}</span> : null);
+
 // «идёт»: сверка и запись — ~6 запросов к Plane по 1,05 с, 7–8 с на нажатие (1.1 п.10)
-export function Going({ since, text }) {
+export function Going({ since, text, action = null }) {
   const now = useNow(1000);
+  const live = useBoardMode() === 'live'; // с подпиской: смена режима перерисовывает подпись
   const s = Math.max(0, Math.floor((now - since) / 1000));
-  return <span className="going" role="status">{text}… <span className="num">{s} с</span> <span className="faint">· обычно 7–8 с</span></span>;
+  // live (EXT-91, §3.3 п.16): запись в доску, не в Plane — «7–8 с» про очередь Plane, к ней не относится
+  return <span className="going" role="status">{action ? goingText(action, live) : text}… <span className="num">{s} с</span>{!live && <span className="faint"> · обычно 7–8 с</span>}</span>;
 }
-const goingText = (a) => (a === 'accept' ? 'записываю в Plane' : a === 'reply' ? 'пишу и зову тред' : 'записываю в Plane и зову тред');
+const goingText = (a, live) => {
+  const where = live ? 'в доску' : 'в Plane';
+  return a === 'accept' ? `записываю ${where}` : a === 'reply' ? 'пишу и зову тред' : `записываю ${where} и зову тред`;
+};
 
 function ReturnForm({ onSend, onCancel, label = 'Причина возврата', placeholder = 'Причина: что доделать', send: sendText = 'вернуть', qline = null, foot = null }) {
   const [text, setText] = useState('');
@@ -235,6 +245,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
     return () => document.removeEventListener('pointerdown', away);
   }, [menu]);
 
+  const live = useBoardMode() === 'live';
   const st = st0 && st0.phase === 'ok' && Date.now() - st0.at > OK_SHOWN_MS ? null : st0;
   const phase = st?.phase;
   const busy = phase === 'busy';
@@ -247,7 +258,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
 
   // карточка: обычная отметка из данных пришла — нажатие исполнено, кнопок нет, видна она
   if (!thread && markMine && !red) return <div className="pult"><MarkLine card={card} q={q} mark={mark} can={ar} /></div>;
-  if (!thread && phase === 'ok') return <div className="pult"><span className="pmark" role="status">{st.msg}</span></div>;
+  if (!thread && phase === 'ok') return <div className="pult"><span className="pmark" role="status">{st.msg}</span><Warns st={st} /></div>;
   if (!q && !st && !(red && markMine)) return null;
   // строка (а): кнопки неактивны, пока слово в пути — по отметке из данных или по свежему исходу без отметки (§1.7)
   const inFlight = thread && ((markMine && FLIGHT.includes(mark.ring)) || (phase === 'ok' && !markMine));
@@ -281,7 +292,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   };
 
   let note = null;
-  if (busy) note = <Going since={st.since} text={goingText(st.action)} />;
+  if (busy) note = <Going since={st.since} action={st.action} />;
   else if (phase === 'partial') {
     note = (
       <span className="pnote pamb" role="status">
@@ -302,7 +313,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
         <span className="pamb">отказ:</span> {st.msg}
         {maybe && <> <button type="button" className="pbtn" onClick={() => send(fresh({ ...st.payload, confirm: st.rid }), key)}>это не секрет — отправить</button>
           <button type="button" className="pbtn" onClick={() => { setAct(key, null); setForm(st.payload.action === 'return' ? 'return' : 'reply'); }}>поправить текст</button></>}
-        {st.pull && canPull() && !st.pullNote && <> <button type="button" className="pbtn" onClick={() => {
+        {st.pull && !live && canPull() && !st.pullNote && <> <button type="button" className="pbtn" onClick={() => {
           const r = pull();
           if (r === 'started') setAct(key, null);
           // зеркало занято — отказ не стираем, говорим почему ничего не случилось (п.13 ревью Голема); «ход вверху» — только
@@ -319,6 +330,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   } else if (phase === 'ok' && !markMine) {
     note = <span className="pmark" role="status">{st.msg}</span>;
   }
+  if (note && phase !== 'busy' && st?.warnings?.length) note = <>{note}<Warns st={st} /></>;
 
   const canAccept = accept?.can === true;
   // can null — слитость ветки ещё не посчитана проходом читателя git (EXT-57): кнопки нет, серое «проверяю…» из hint сервера

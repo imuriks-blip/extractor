@@ -1,4 +1,6 @@
 {
+  "boardMode": "mirror",
+  "_boardMode": "EXT-91 такт 3 (§3.3 п.15–16): режим доски — mirror | live | null (board.config.json не читается; страница ведёт себя как mirror). live: в меню «Служебное» нет «Обновить» и «Полного прохода зеркала», в шапке «доска в git» вместо возраста зеркала.",
   "pult": { "enabled": true, "words": true, "bell": true, "_note": "EXT-70 (спека пульта §1.7): флаги пульта. enabled — pult.enabled; words — pult.words (кнопки-слова прячутся при false); bell — ДЕЙСТВУЮЩЕЕ состояние звонка, как bell.on в /api/health (флаг pult.bell включён и папка звонка задана), не флаг из конфига (звонковые кнопки прячутся при false). Страница не узнаёт об этом по 503 после нажатия." },
   "waiting": {
     "threads": [

@@ -904,14 +904,19 @@ test('сбой записи done/error после обработчика: исх
   assert.deepEqual(steps(s.lines()), ['asked', 'asked']);
 });
 
-test('mode в строках actions.log — из board.config.json доски; нет файла или режима — mirror', async () => {
+test('mode в строках actions.log — из board.config.json доски; нет файла или режима — отказ board-mode (EXT-91, §3.3 п.1: молчаливого mirror нет)', async () => {
   const live = tmpDir('board-');
   fs.writeFileSync(path.join(live, 'board.config.json'), '{"mode":"live"}');
-  for (const [root, want] of [[boardDir, 'mirror'], [live, 'live'], [tmpDir('board-'), 'mirror']]) {
+  for (const [root, want] of [[boardDir, 'mirror'], [live, 'live']]) {
     const s = await setup({ boardRoot: root });
     await act(s.app, await pageToken(s.app));
     assert.deepEqual(s.lines().map((l) => l.mode), [want, want], root);
   }
+  const none = await setup({ boardRoot: tmpDir('board-') }); // файла нет — прежде отдавал mirror молча
+  const r = await act(none.app, await pageToken(none.app));
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.json().refusal, 'board-mode');
+  assert.deepEqual(none.lines().map((l) => [l.step, l.mode]), [['refused', null]]);
 });
 
 test('GET /api/mirror, правило 4 §5 доски: живой pid той же загрузки, но пульс старше 5 мин — замок мёртвый, running false', async () => {
@@ -938,6 +943,7 @@ const hhmm = (ms) => { const d = new Date(ms); return `${p2(d.getHours())}:${p2(
 // доска с обёрткой скрытого запуска: файл только лежит, его никто не исполняет
 function launcherBoard() {
   const root = tmpDir('mboard-');
+  fs.writeFileSync(path.join(root, 'board.config.json'), '{"mode":"mirror"}'); // режим читается строго (EXT-91): доска без настроек — отказ board-mode
   fs.mkdirSync(path.join(root, 'tools'));
   fs.writeFileSync(path.join(root, 'tools', 'mirror-hidden.js'), '// заглушка: тесты её не запускают\n');
   return root;
@@ -1070,7 +1076,9 @@ test('mirror: сбой запуска (wscript не нашёлся — собы�
     assert.equal(spawn.calls.length, 2);
   }
   const spawn = fakeSpawn();
-  const { app, lines } = await setup({ boardRoot: tmpDir('noboard-'), spawn });
+  const noLauncher = tmpDir('noboard-');
+  fs.writeFileSync(path.join(noLauncher, 'board.config.json'), '{"mode":"mirror"}');
+  const { app, lines } = await setup({ boardRoot: noLauncher, spawn });
   const r = await act(app, await pageToken(app), mirrorBody());
   assert.equal(r.json().message, 'ошибка: NO_LAUNCHER');
   assert.equal(lines()[1].result.code, 'NO_LAUNCHER');

@@ -17,7 +17,7 @@ test('шапка: ход и итог прохода (MirrorStatus) без кно
   const status = body(m, 'export default function MirrorStatus(');
   assert.doesNotMatch(status, /<button/, 'в шапке кнопки прохода нет');
   assert.doesNotMatch(src('App.jsx'), /MirrorButton/);
-  assert.match(src('App.jsx'), /<MirrorStatus label=\{mirror\} \/>/);
+  assert.match(src('App.jsx'), /<MirrorStatus label=\{mirror\} live=\{live\} \/>/);
 });
 
 test('«Служебное» (меню в шапке, EXT-87): «Обновить» первой строкой, затем «Полный проход зеркала», затем «Пересобрать индекс», затем «Замерить остаток»', () => {

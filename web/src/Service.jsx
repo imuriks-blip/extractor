@@ -13,7 +13,7 @@ import { measureMenuLine } from './usageData.js';
 
 const POLL_MS = 3000;
 
-export function ServiceMenu() {
+export function ServiceMenu({ live = false }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
   const btn = useRef(null);
@@ -22,11 +22,38 @@ export function ServiceMenu() {
   const [msg, setMsg] = useState(null); // {cls, text}: итог нажатия «Пересобрать индекс» — отказ словами; пропадает, как только пришли данные
   const resent = useRef(false);
   const m = useMeasure();
-  // меню шире кнопки: у правого края окна — выравнивается по правому краю кнопки, иначе (кнопка перенеслась влево) — по левому
-  const [alignLeft, setAlignLeft] = useState(false);
+  // меню шире кнопки (EXT-92): по умолчанию — по правому краю кнопки; не помещается слева (кнопка перенеслась влево) — сдвигается
+  // вправо ровно до края окна. Положение пересчитывается, пока меню открыто, при любом сдвиге кнопки: смена раскладки шапки
+  // (строка хода зеркала, перенос кнопок), изменение размера окна, смена ширины самого меню. На узком окне (≤560px) меню во всю
+  // ширину шапки — позицию задаёт CSS, inline не ставится
+  const menu = useRef(null);
+  const place = useCallback(() => {
+    const el = menu.current;
+    if (!el || !btn.current || !wrap.current) return;
+    el.style.left = '';
+    el.style.right = '';
+    if (window.matchMedia('(max-width:560px)').matches) return;
+    const w = el.offsetWidth;
+    const vw = document.documentElement.clientWidth;
+    const want = btn.current.getBoundingClientRect().right - w;
+    const abs = Math.max(16, Math.min(want, vw - w - 16));
+    el.style.right = 'auto';
+    el.style.left = `${abs - wrap.current.getBoundingClientRect().left}px`;
+  }, []);
   useLayoutEffect(() => {
-    if (open && btn.current) setAlignLeft(btn.current.getBoundingClientRect().right - 440 >= 0 ? false : true);
-  }, [open]);
+    if (!open) return undefined;
+    place();
+    let raf = 0;
+    const again = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place); };
+    const head = btn.current?.closest('header') ?? document.body;
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(again) : null;
+    ro?.observe(head); ro?.observe(document.documentElement); if (menu.current) ro?.observe(menu.current);
+    // сдвиг кнопки без смены размера шапки (появилась строка хода на той же строке) — по изменению содержимого шапки
+    const mo = new MutationObserver(again);
+    mo.observe(head, { childList: true, subtree: true, characterData: true });
+    window.addEventListener('resize', again);
+    return () => { cancelAnimationFrame(raf); ro?.disconnect(); mo.disconnect(); window.removeEventListener('resize', again); };
+  }, [open, place]);
 
   const check = useCallback(async () => {
     try { const x = await readMirror(); setRi(x.reindex ?? null); return x.reindex ?? null; } catch { return null; }
@@ -100,11 +127,12 @@ export function ServiceMenu() {
   return (
     <span className="smw" ref={wrap}>
       <button ref={btn} type="button" className={`hbtn${open ? ' on' : ''}${running || measuring ? ' going' : ''}`} aria-haspopup="true" aria-expanded={open}
-        title="Обновить зеркало доски, пересобрать индекс, замерить остаток" onClick={() => (open ? close(true) : setOpen(true))}>Служебное</button>
+        title={live ? 'Пересобрать индекс, замерить остаток' : 'Обновить зеркало доски, пересобрать индекс, замерить остаток'} onClick={() => (open ? close(true) : setOpen(true))}>Служебное</button>
       {open && (
-        <div className={`smenu${alignLeft ? ' left' : ''}`} role="group" aria-label="Служебное">
-          <RefreshMirror shown={open} />
-          <FullMirror />
+        <div className="smenu" ref={menu} role="group" aria-label="Служебное">
+          {/* live (EXT-91, §3.3 п.15): доска в git — «Обновить» и «Полный проход зеркала» не нужны */}
+          {!live && <RefreshMirror shown={open} />}
+          {!live && <FullMirror />}
           <div className="wtb">
             <button type="button" className="pbtn" disabled={busy || running} title="Заново прочитать журналы тредов и пересобрать индекс; витрина всё это время показывает прежние данные"
               onClick={() => go({ action: 'reindex', intentId: crypto.randomUUID() })}>{running ? 'идёт…' : 'Пересобрать индекс'}</button>

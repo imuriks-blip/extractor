@@ -1,0 +1,45 @@
+7982ae9 t <t@t>
+  init
+  Board-As: 
+  Board-Session: 
+  Board-Cmd: 
+ca98765 Иван Проба <ivan@probe.local>
+  проба: mode live
+  Board-As: 
+  Board-Session: 
+  Board-Cmd: 
+7679d38 Иван Проба <ivan@probe.local>
+  EXT-10: log решение
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 
+d7fd3e8 Иван Проба <ivan@probe.local>
+  EXT-10: status review → done
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 
+71af773 Иван Проба <ivan@probe.local>
+  EXT-7: log решение
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 
+2646264 Иван Проба <ivan@probe.local>
+  EXT-7: status review → done
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 
+9a31819 Иван Проба <ivan@probe.local>
+  EXT-8: log решение
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 
+5d15bcf Иван Проба <ivan@probe.local>
+  EXT-8: status review → ready
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 
+3d38023 Иван Проба <ivan@probe.local>
+  EXT-11: new · backlog
+  Board-As: ivan
+  Board-Session: 
+  Board-Cmd: 

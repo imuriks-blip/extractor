@@ -11,6 +11,7 @@ import Usage from './Usage.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
 import { dm, hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
+import { setBoardMode } from './boardMode.js';
 
 function parseRoute() {
   if (window.location.hash === '#/usage') return { name: 'usage' };
@@ -49,7 +50,7 @@ const badLines = (n) => {
   return `${n} битых строк`;
 };
 
-function Header({ route, freshness, name, pult }) {
+function Header({ route, freshness, name, pult, live }) {
   const read = oldest(freshness?.board?.lastOkAt, freshness?.journals?.lastOkAt);
   const mirror = freshness?.mirror?.label;
   return (
@@ -81,17 +82,20 @@ function Header({ route, freshness, name, pult }) {
               </span><span className="sep">·</span></>
           )}
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
-          {mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» (меню «Служебное» в шапке) или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
+          {/* live (EXT-91, §3.3 п.15): доска в git — возраста зеркала нет */}
+          {live && <><span className="sep">·</span><span title="Доска лежит в git: записи пульта и тредов сразу в файлах доски, зеркала Plane нет">доска в git</span></>}
+          {!live && mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» (меню «Служебное» в шапке) или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
         </span>
       )}
       {/* ход и итог прохода зеркала — только пока доска живёт зеркалом Plane (есть подпись зеркала); мелочь Голема на EXT-42;
           сразу за временем зеркала (EXT-73). Кнопки прохода в строке нет: «Обновить» — в меню «Служебное» (EXT-77, EXT-87) */}
       {/* на «Расходе» подписи зеркала нет, но меню «Служебное» то же: ход зеркала держит тот же MirrorStatus (EXT-87) */}
-      {((freshness && mirror) || route.name === 'usage') && <MirrorStatus label={mirror} />}
+      {/* live: ход прохода, начатого до переключения, виден до конца; итога и пометок нажатий нет (MirrorStatus live) */}
+      {((freshness && (mirror || live)) || route.name === 'usage') && <MirrorStatus label={mirror} live={live} />}
       <ThemeSwitch />
       {/* «Служебное», «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64, EXT-87) */}
       <span className="tbtns">
-        {pult?.enabled === true && <ServiceMenu />}
+        {pult?.enabled === true && <ServiceMenu live={live} />}
         <Glossary />
         <Help />
       </span>
@@ -112,6 +116,8 @@ export default function App() {
   const count = cehData?.waiting?.count;
   const n = Number.isInteger(count) ? count : null;
   const now = useNow(5000);
+  const boardMode = cehData?.boardMode ?? null; // 'live' | 'mirror' | null (EXT-91 такт 3)
+  useEffect(() => { setBoardMode(boardMode); }, [boardMode]);
 
   // заголовок «(N) Экстрактор · Цех» / «(N) Экстрактор · <КОД>»; N = 0 или ещё не прочитано — без скобок
   useEffect(() => {
@@ -154,7 +160,7 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <Header route={route} freshness={data?.freshness} name={code ? data?.name : null} pult={cehData?.pult} />
+      <Header route={route} freshness={data?.freshness} name={code ? data?.name : null} pult={cehData?.pult} live={boardMode === 'live'} />
       {body}
     </div>
   );
