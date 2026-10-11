@@ -588,8 +588,9 @@ test('GET /api/actions: строки по действию (последний �
   assert.deepEqual(all.map((r) => [r.id, r.status]), [['W-261002-110000-bbbb', 'asked'], ['W-261002-100000-aaaa', 'done']]);
   assert.ok(!JSON.stringify(all).includes(SECRET));
   assert.match(all[1].text, /\[скрыто/);
-  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'bdeal', 'card', 'id', 'project', 'ring', 'ringAt', 'source', 'status', 'text']); // bdeal — EXT-70
+  assert.deepEqual(Object.keys(all[0]).sort(), ['action', 'at', 'bdeal', 'card', 'id', 'project', 'ring', 'ringAt', 'ringTarget', 'source', 'status', 'text']); // bdeal — EXT-70, ringTarget — EXT-96
   assert.equal(all[0].ringAt, null, 'доставки нет (EXT-65)');
+  assert.equal(all[0].ringTarget, null, 'шага ring-queued нет (EXT-96)');
   assert.equal(all[0].ring, null, 'звонка у действия нет');
   // отметка источника (§4.3): наружу — только образ и ok (цепочка и pid остаются в журнале); у строки без отметки — null
   assert.deepEqual(all[0].source, { image: 'curl.exe', ok: false });
