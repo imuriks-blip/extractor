@@ -7,7 +7,7 @@ import { streamSource, useSource } from './data.js';
 import { dm, hm } from './format.js';
 import { useOpen } from './prefs.js';
 import { Ring, WORD } from './Pult.jsx';
-import { RETURN_HINT, canWithdraw, outcomeText, withdrawResult, withdrawRowView, wordRingView } from './pultData.js';
+import { RETURN_HINT, canWithdraw, outcomeText, ringTargetNote, withdrawResult, withdrawRowView, wordRingView } from './pultData.js';
 import { Summary } from './Summary.jsx';
 import { WT_CONFIRM_MS, WT_URL, cleanupBody, finalAnswer, firstAnswer, pickedPaths, wtCounts, wtRows } from './worktreesData.js';
 
@@ -49,6 +49,7 @@ function Row({ r, now, rows, pult, local, setLocal }) {
   const out = isW ? wv.text : outcomeText(r);
   const bad = isW ? (wv.cls === 'bad' ? 'pbad' : wv.cls === 'amb' ? 'pamb' : null) : r.status === 'refused' ? 'pamb' : r.status === 'error' ? 'pbad' : null;
   const rv = !isW && r.status === 'done' ? wordRingView(r) : null;
+  const rt = !isW && r.status === 'done' ? ringTargetNote(r.ringTarget) : null; // EXT-96: кому положено — у by writer
   // исход нажатия, пока опрос не принёс withdrawnBy (после — говорит сама строка)
   const lc = local && !r.withdrawnBy ? local : null;
   const clsOf = { off: 'w2 off', bad: 'pbad', amb: 'pamb' };
@@ -64,6 +65,7 @@ function Row({ r, now, rows, pult, local, setLocal }) {
       <span className="sub">
         {bad ? <span className={bad}>{out}</span> : out}
         {r.status === 'done' && !isW && lc?.phase !== 'ok' && (rv ? (rv.cls === 'ring' ? <> · тред: <Ring ring={r.ring} /></> : <> · {rv.text.startsWith('отозвано') ? '' : 'тред: '}<span className={clsOf[rv.cls]}>{rv.text}</span></>) : r.action === 'reply' && !r.card ? ' · в журнале треда' : '')}
+        {rt && <> · <span className="faint">{rt}</span></>}
         {!isW && lc?.phase !== 'ok' && canWithdraw(r, pult) && <WithdrawBtn r={r} local={lc} setLocal={setLocal} />}
         {lc?.phase === 'ok' && <> · <span className={lc.late ? 'pbad' : 'pmark'} role="status">{lc.late ? lc.text : `отозвано${lc.by ? ` · ${lc.by}` : ''}${r.action === 'return' ? ` · ${RETURN_HINT}` : ''}`}</span></>}
         {lc?.phase === 'partial' && <> · <span className="pamb" role="status">{lc.text}</span></>}

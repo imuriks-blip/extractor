@@ -39,6 +39,11 @@ export function canWithdraw(r, pult) {
   return isPartialWithdraw(r);
 }
 
+// EXT-96 (§1.7, §2.3 «Где видна метка»): подпись под статусом слова в «Моих словах» — у by writer обязательно; прочие by — без подписи
+export const ringTargetNote = (t) => (t && t.by === 'writer' ? `тред «${t.title ?? ''}» · последним писал на карточку` : null);
+// confirm.target у Б-слова — справка, не выбор: второй щелчок читает git заново
+export const confirmTargetNote = (t) => (t && t.by === 'writer' ? `сейчас последним писал тред «${t.title ?? ''}» — звонок выберет при втором щелчке` : null);
+
 // Статус звонка слова — {text, cls: off|bad|amb|ring}: cls ring — обычный статус 2.8 (рисует Ring), остальные — своя подпись
 export function wordRingView(r) {
   const by = r?.withdrawnBy;

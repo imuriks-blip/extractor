@@ -9,7 +9,7 @@ import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { pullNote } from './mirrorData.js';
 import { useBoardMode } from './boardMode.js';
-import { markIsRed } from './pultData.js';
+import { confirmTargetNote, markIsRed } from './pultData.js';
 
 const TEXT_MAX = 500;
 const CONFIRM_MS = 5 * 60_000; // второй щелчок — не дольше 5 мин после первого (1.1 п.7)
@@ -203,6 +203,7 @@ function Confirm({ st, onGo, onCancel }) {
               ))}
             </dd></>
         )}
+        {confirmTargetNote(c.target) && <><dt>кому</dt><dd>{confirmTargetNote(c.target)}</dd></>}
         {c.mirrorAt && <><dt>зеркало</dt><dd>от {dm(c.mirrorAt)}</dd></>}
       </dl>
       <span className="row">
