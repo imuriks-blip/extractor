@@ -734,6 +734,18 @@
       "lastOkAt": "2026-09-30T21:40:00+03:00",
       "label": "доска: зеркало Plane от 30.09 21:40"
     },
+    "boardSync": {
+      "_boardSync": "строка отправки доски на GitHub (EXT-99, §2.12): level grey|yellow|red (null — режим не live), why — причина по таблице §2.12 (ok, pending, behind, net, push-off, inbox, unread, conflict, dirty, hold, rebase; unknown — нет origin/main); текст пишет страница",
+      "level": "grey",
+      "why": "pending",
+      "lastOkAt": "2026-10-01T11:58:40.120Z",
+      "ahead": 2,
+      "oldestAheadAt": "2026-10-01T11:59:10.000Z",
+      "errorSince": null,
+      "conflictIds": [],
+      "inboxBlocked": 0,
+      "by": "extractor"
+    },
     "backup": {
       "_stale": "суточная копия журнала действий (EXT-50): true — удачной копии нет больше 48 ч, последняя попытка неудачна или журнал стал короче (изменился в начале)",
       "lastOkAt": "2026-10-04T00:05:12.480Z",

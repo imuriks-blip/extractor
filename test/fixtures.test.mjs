@@ -1,6 +1,7 @@
 // Образцы ответов для вёрстки (web/fixtures, спека 1.6) не расходятся с ключами настоящих ручек.
 // Заготовки В1 (null / пустой список) явно перечислены в PENDING с тактом, который их наполняет:
 // у них образец показывает целевую форму, а настоящая ручка — пока пустоту. Ключи с «_» в образце — пояснения.
+import { createBoardSync } from '../lib/board-sync.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -158,7 +159,10 @@ ${tbl('branch', 'commit')}
 ## Цех
 
 ${tbl('backlog', 'fallback')}`);
-  const app = await buildApp({ port: 4317, board, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }) });
+  // EXT-99 (§2.12): состояние тихой отправки доски — настоящий модуль на той же временной доске (флаг выключен, sync не зовётся)
+  const boardSync = createBoardSync({ root: dir, git: createGitRead(), lock: { pidAlive: () => false, otherBoot: () => false }, scan: () => [], run: () => { throw new Error('sync не зовётся'); } });
+  await boardSync.tick();
+  const app = await buildApp({ port: 4317, board, boardSync, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }) });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
   return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health'), glossary: await get('/api/glossary') };
 }

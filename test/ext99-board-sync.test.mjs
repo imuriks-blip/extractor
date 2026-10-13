@@ -587,6 +587,20 @@ test('процесс: висит дольше таймаута (2 с) со св�
   } finally { killOwn(child); killOwn(h.pid); }
 });
 
+test('процесс: на таймауте exit от taskkill (код 1) приходит раньше конца снятия → исход всё равно {code: null, timedOut: true}', async () => {
+  const { EventEmitter } = await import('node:events');
+  const child = Object.assign(new EventEmitter(), { pid: 777, kill() {} });
+  // снятие деревом: процесс умирает с кодом 1 (так кончает taskkill /F) до того, как taskkill вернулся
+  const kill = async () => { child.emit('exit', 1); await sleep(50); };
+  const res = await createSyncRun({ root: 'C:/нет', spawn: () => child, kill, timeoutMs: 100 }).start('quiet').done;
+  assert.deepEqual([res.code, res.timedOut], [null, true]);
+  // исправный случай: свой конец до таймаута — код как есть
+  const c2 = Object.assign(new EventEmitter(), { pid: 778, kill() {} });
+  const p2 = createSyncRun({ root: 'C:/нет', spawn: () => c2, kill, timeoutMs: 5000 }).start('quiet').done;
+  c2.emit('exit', 1);
+  assert.equal((await p2).code, 1);
+});
+
 test('процесс: таймаут, отсчитанный заново (rearm), не снимает живой вызов; без rearm — снял бы', async () => {
   const f = fakeSync({ ms: 2500, code: 0 });
   const h = createSyncRun({ root: f.dir, timeoutMs: 1500 }).start('quiet');
