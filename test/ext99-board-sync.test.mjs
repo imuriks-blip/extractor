@@ -443,7 +443,8 @@ test('коды 4, 6, 7 (conflict, dirty, hold) → красные по табл�
 test('ahead: в файле 0, а в origin/main..HEAD 3 коммита → ahead 3 и pending; старейший 25 мин — жёлтое behind', async () => {
   const dir = syncBoard();
   writeState(dir, { lastOk: iso(T0 - 30 * MIN), ahead: 0 });
-  commitAt(dir, T0 - 25 * MIN); commitAt(dir, T0 - 2 * MIN); commitAt(dir, T0 - 10 * MIN);
+  // старейший по автору — не первый и не последний в выводе log (порядок log — по дате коммиттера)
+  commitAt(dir, T0 - 10 * MIN); commitAt(dir, T0 - 25 * MIN); commitAt(dir, T0 - 2 * MIN);
   const h = harness(dir, { cfg: { enabled: false } });
   await h.tick();
   assert.equal(h.bs.status().ahead, 3);
@@ -527,7 +528,8 @@ const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'cfg.json'), 'utf8'));
 const mark = (o) => fs.appendFileSync(path.join(dir, 'marks.log'), JSON.stringify({ pid: process.pid, ...o }) + '\\n');
 mark({ ev: 'start', argv: process.argv.slice(2), env: Object.keys(process.env) });
 if (cfg.child) {
-  const c = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', 'ext99-child-' + cfg.tag], { stdio: 'ignore', windowsHide: true });
+  // ребёнок отсоединён (как git-remote-http у git): со смертью родителя сам не уходит — снимает только дерево по pid
+  const c = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', 'ext99-child-' + cfg.tag], { stdio: 'ignore', windowsHide: true, detached: true });
   fs.writeFileSync(path.join(dir, 'child.pid'), String(c.pid));
 }
 setTimeout(() => { mark({ ev: 'end', code: cfg.code ?? 0 }); process.exit(cfg.code ?? 0); }, cfg.ms ?? 0);
