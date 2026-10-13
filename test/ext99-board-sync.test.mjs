@@ -532,7 +532,10 @@ if (cfg.child) {
   const c = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', 'ext99-child-' + cfg.tag], { stdio: 'ignore', windowsHide: true, detached: true });
   fs.writeFileSync(path.join(dir, 'child.pid'), String(c.pid));
 }
-setTimeout(() => { mark({ ev: 'end', code: cfg.code ?? 0 }); process.exit(cfg.code ?? 0); }, cfg.ms ?? 0);
+const finish = () => { mark({ ev: 'end', code: cfg.code ?? 0 }); process.exit(cfg.code ?? 0); };
+// wait — конец по файлу release (тест сам решает, когда sync «доработал»: время старта node под нагрузкой не мерило)
+if (cfg.wait) setInterval(() => { if (fs.existsSync(path.join(dir, 'release'))) finish(); }, 50);
+else setTimeout(finish, cfg.ms ?? 0);
 `;
 function fakeSync(cfg) {
   const dir = tmpDir('ext99-fake-');
@@ -602,15 +605,24 @@ test('процесс: на таймауте exit от taskkill (код 1) при
 });
 
 test('процесс: таймаут, отсчитанный заново (rearm), не снимает живой вызов; без rearm — снял бы', async () => {
-  const f = fakeSync({ ms: 2500, code: 0 });
-  const h = createSyncRun({ root: f.dir, timeoutMs: 1500 }).start('quiet');
-  await sleep(1000);
-  h.rearm();
-  const res = await h.done;
-  assert.equal(res.code, 0, 'дожил до своего конца');
-  const f2 = fakeSync({ ms: 2500, code: 0 });
-  const res2 = await createSyncRun({ root: f2.dir, timeoutMs: 1500 }).start('quiet').done;
-  assert.equal(res2.timedOut, true, 'исправный случай: без rearm — таймаут');
+  // таймаут 3 с; rearm не раньше 2 с от запуска (R); sync кончается в R + 1,5 с — позже исходного срока, раньше нового
+  const once = async (withRearm) => {
+    const f = fakeSync({ wait: true, code: 0 });
+    const t0 = Date.now();
+    const h = createSyncRun({ root: f.dir, timeoutMs: 3000 }).start('quiet');
+    try {
+      assert.ok(await until(() => f.marks().some((m) => m.ev === 'start'), 20000), 'подменный sync запустился');
+      if (Date.now() - t0 < 2000) await sleep(2000 - (Date.now() - t0));
+      if (withRearm) h.rearm();
+      await sleep(1500);
+      fs.writeFileSync(path.join(f.dir, 'tools', 'release'), '');
+      return await h.done;
+    } finally { killOwn(h.pid); }
+  };
+  const a = await once(true);
+  assert.equal(a.code, 0, 'с rearm — дожил до своего конца');
+  const b = await once(false);
+  assert.equal(b.timedOut, true, 'исправный случай: без rearm — таймаут');
 });
 
 test('процесс: не запустился → code SPAWN', async () => {
