@@ -107,6 +107,16 @@
       "safeIgnored": ["node_modules/", "web/node_modules/", "dist/", "web/dist/", ".venv/", "__pycache__/"]
     }
   },
+  "boardSync": {
+    "_comment": "Тихая отправка доски на GitHub (EXT-99, спека витрины §2.12): enabled — витрина сама зовёт sync.mjs --by extractor (по умолчанию выключено); quietS — тишина после смены HEAD; periodMin — не реже раза в N мин бодрствования; wakeDelayS — вызов после пробуждения; timeoutS — предел вызова; yellowMin, redMin — пороги строки в шапке",
+    "enabled": false,
+    "quietS": 60,
+    "periodMin": 15,
+    "wakeDelayS": 60,
+    "timeoutS": 300,
+    "yellowMin": 20,
+    "redMin": 60
+  },
   "backup": {
     "dir": "data/vitrina/backup/",
     "keep": 14
