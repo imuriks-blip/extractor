@@ -390,6 +390,26 @@ test('блокировка и rebase-merge сняты → отложенный �
   assert.equal(h.calls.length, 1);
 });
 
+test('отложенная «тишина»: к снятию rebase ahead = 0 (хук отправил) → вызова нет; исправный рядом — ahead > 0 → один вызов', async () => {
+  for (const pushed of [true, false]) {
+    const dir = syncBoard();
+    const h = harness(dir);
+    await h.tick();
+    fs.mkdirSync(path.join(dir, '.git', 'rebase-merge'));
+    ownLock(dir, { at: iso(h.now) });
+    commitAt(dir, T0);
+    await h.step(1);
+    await h.advance(90); // срок «тишины» прошёл при перебазировании — повод отложен при ahead 1
+    assert.equal(h.calls.length, 0);
+    if (pushed) pushOrigin(dir); // хук отправил, пока висел rebase; .board-sync.json не менялся
+    fs.rmSync(path.join(dir, '.git', 'rebase-merge'), { recursive: true });
+    fs.rmSync(path.join(dir, '.board.lock'));
+    await h.step();
+    await h.advance(60);
+    assert.equal(h.calls.length, pushed ? 0 : 1, pushed ? 'ahead 0 — отложенная тишина не зовёт' : 'ahead 1 — один вызов');
+  }
+});
+
 // --- сбой sync и состояние ---
 
 test('сбой sync: код 5 и lastError → board-sync {code: 5}, жёлтое net; через 60 мин бодрствования — красное', async () => {
