@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen, useStored } from './prefs.js';
 import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
-import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop } from './format.js';
+import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
@@ -22,6 +22,13 @@ const STATE = {
   stale: ['old', 'устарело'],
 };
 const STATE_WORD = { waiting: 'ждёт тебя', busy: 'работает', idle: 'свободен' };
+
+// Кнопки окна «следующий шаг» под вопросом (EXT-107 Р1): серые чипы без нажатия — ответить за Ивана витрина не может (И-1 (а))
+export function StepChips({ actions }) {
+  const chips = stepChips(actions);
+  if (!chips.length) return null;
+  return <span className="mline">{chips.map((c, i) => <span key={i} className="tag" title={c.title}>{c.text}</span>)}</span>;
+}
 
 // Свежесть нескольких читателей одной строкой: самое старое lastOkAt, самый ранний failingSince.
 export function mergeFresh(...list) {
@@ -180,7 +187,8 @@ function Waiting({ w, now, stale, pult, threads, order }) {
               <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                 {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
               </span>
-              <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+              <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+                {r.kind === 'nextStep' && <StepChips actions={r.actions} />}
                 {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
               {defer}

@@ -76,6 +76,20 @@ export function oldest(...isos) {
 
 // строка (а) «Тред ждёт ответа», которой ответить можно только в окне десктопа (EXT-77; спека пульта §2.4: при waiting Иван
 // видит «тред ждёт тебя в десктопе: ответь там»): вид ожидания из waitingFor десктопа — askUserQuestion, permission или
-// незнакомый «?». «Ответить» у таких строк нет; у вопроса в чате (question) подсказки нет
+// незнакомый «?». «Ответить» у таких строк нет; у вопроса в чате (question) подсказки нет. Вопрос окна «следующий шаг»
+// (nextStep, EXT-107 Р1) — тоже с подсказкой: ответ и правда в окне десктопа
 export const DESKTOP_HINT = 'ждёт тебя в десктопе — ответь там';
 export const waitsInDesktop = (r) => typeof r?.kind === 'string' && r.kind !== 'question';
+
+// Чипы кнопок окна «следующий шаг» (EXT-107 Р1, И-1 вариант (а)): только показ, без нажатия. Ответ (элемент без action) —
+// подпись label, в подсказке — что уйдёт треду: message, а нет его — сам label. Действие приложения (элемент с action) —
+// «действие: <action>», label не показывается (приложение его не использует); это кнопка десктопа, не ответ треду.
+export function stepChips(actions) {
+  const out = [];
+  for (const a of Array.isArray(actions) ? actions : []) {
+    if (!a || typeof a !== 'object') continue;
+    if (typeof a.action === 'string' && a.action) out.push({ text: `действие: ${a.action}`, title: 'действие приложения — кнопка в окне десктопа, не ответ треду' });
+    else if (typeof a.label === 'string' && a.label) out.push({ text: a.label, title: typeof a.message === 'string' && a.message ? a.message : a.label });
+  }
+  return out;
+}
