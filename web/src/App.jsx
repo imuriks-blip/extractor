@@ -12,6 +12,7 @@ import { cehSource, idleSource, streamSource, useNow, useSource } from './data.j
 import { dm, hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
 import { setBoardMode } from './boardMode.js';
+import { boardSyncLine } from './boardSyncText.js';
 
 function parseRoute() {
   if (window.location.hash === '#/usage') return { name: 'usage' };
@@ -53,6 +54,7 @@ const badLines = (n) => {
 function Header({ route, freshness, name, pult, live }) {
   const read = oldest(freshness?.board?.lastOkAt, freshness?.journals?.lastOkAt);
   const mirror = freshness?.mirror?.label;
+  const sync = boardSyncLine(freshness?.boardSync);
   return (
     <header className={route.name === 'usage' ? 'top nofresh' : 'top'}>
       <b>Экстрактор</b><span className="sep">/</span>
@@ -84,6 +86,8 @@ function Header({ route, freshness, name, pult, live }) {
           <span title="Когда кабина последний раз прочитала журналы и доску">журналы и доска · {read ? hms(read) : '—'}</span>
           {/* live (EXT-91, §3.3 п.15): доска в git — возраста зеркала нет */}
           {live && <><span className="sep">·</span><span title="Доска лежит в git: записи пульта и тредов сразу в файлах доски, зеркала Plane нет">доска в git</span></>}
+          {/* EXT-99 (§2.12): отправка доски на GitHub — уровень и причину считает сервер (freshness.boardSync), здесь только текст */}
+          {live && sync && <><span className="sep">·</span><span className={sync.cls || undefined} title={sync.title}>{sync.text}</span></>}
           {!live && mirror && <><span className="sep">·</span><span title="Зеркало доски целиком обновляется кнопкой «Обновить» (меню «Служебное» в шапке) или проходом дирижёра; после «Принять»/«Вернуть» подтягивается одна карточка — время свежее, а остальная доска может быть старой">{mirror}</span></>}
         </span>
       )}

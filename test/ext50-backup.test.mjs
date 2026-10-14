@@ -702,7 +702,7 @@ test('/api/health → backup {lastOkAt, lastFile, lastError, count, journalBad};
   assert.deepEqual(h.backup, { lastOkAt: s.clock.d.toISOString(), lastFile: 'actions-2026-10-02.log', lastError: null, count: 1, journalBad: null });
   const ceh = await get('/api/ceh');
   assert.deepEqual(ceh.freshness.backup, { lastOkAt: s.clock.d.toISOString(), stale: false, journalBad: null });
-  assert.deepEqual(Object.keys(ceh.freshness).sort(), ['backup', 'board', 'journals', 'mirror']);
+  assert.deepEqual(Object.keys(ceh.freshness).sort(), ['backup', 'board', 'boardSync', 'journals', 'mirror']); // boardSync — EXT-99, §2.12
   assert.equal('backup' in (await get('/api/project/EXT')).freshness, false, 'backup — только в /api/ceh');
   // порча: ручки её показывают
   const c = corruptor();

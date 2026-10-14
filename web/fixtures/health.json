@@ -100,5 +100,16 @@
   "pult": { "enabled": false },
   "rss": 61234176,
   "uptimeS": 720,
-  "prevEnd": { "at": "2026-10-08T19:23:00.512Z", "pid": 45132, "reason": "shutdown" }
+  "prevEnd": { "at": "2026-10-08T19:23:00.512Z", "pid": 45132, "reason": "shutdown" },
+  "_boardSync": "тихая отправка доски (EXT-99, §2.12): on — флаг boardSync.enabled; mode, push — board.config.json; lastOkAt, lastError (без учётных данных, маска строгой сетью, 120 знаков), errorSince — .board-sync.json; by — кто отправил последним (.board-sync.log); ahead, oldestAheadAt — по git; conflict — номера карточек, conflictOther — прочие пути; dirty, hold, inboxBlocked — числа файлов; running, last, next — свои вызовы; readError — код ошибки чтения",
+  "boardSync": {
+    "on": true, "mode": "live", "push": true,
+    "lastOkAt": "2026-10-08T19:20:11.300Z", "by": "extractor", "ahead": 1, "oldestAheadAt": "2026-10-08T19:22:40.000Z",
+    "lastError": null, "errorSince": null, "conflict": [], "conflictOther": 0, "dirty": 0, "hold": 0, "inboxBlocked": 0,
+    "level": "grey", "why": "pending",
+    "running": { "pid": 51220, "since": "2026-10-08T19:23:41.000Z", "reason": "quiet" },
+    "last": { "at": "2026-10-08T19:20:11.900Z", "reason": "period", "code": 0, "ms": 3120 },
+    "next": { "at": "2026-10-08T19:35:11.900Z", "reason": "period" },
+    "readError": null
+  }
 }
