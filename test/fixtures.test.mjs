@@ -35,7 +35,7 @@ const PENDING = {
 const BY_KIND = ['feed'];
 // словари с ключом-путём (не фиксированные ключи) — сверяется только, что это объект
 // словари «значение → число» дрейфа разбора (EXT-53) — ключи меняются, сверяется только то, что это словарь
-const DRIFT_DICT = ['noteStatus', 'noteNoId', 'noteForeignId', 'resultStatus', 'launchName', 'originKind', 'turnTool'].map((k) => `readers.journals.drift.${k}`); // turnTool — EXT-107 Р1
+const DRIFT_DICT = ['noteStatus', 'noteNoId', 'noteForeignId', 'resultStatus', 'launchName', 'originKind', 'turnTool', 'turnOrigin'].map((k) => `readers.journals.drift.${k}`); // turnTool — EXT-107 Р1, turnOrigin — EXT-109
 const DICT = ['gitCalls', 'readers.journals.unknown', 'readers.processes.unknownStatus', 'readers.processes.unknownWaitingFor', ...DRIFT_DICT];
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const keys = (o) => Object.keys(o).filter((k) => !k.startsWith('_')).sort();
