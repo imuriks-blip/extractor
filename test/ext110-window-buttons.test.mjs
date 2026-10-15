@@ -17,6 +17,8 @@ import { newSessionState, feedSession } from '../lib/journal-parse.mjs';
 import { buildThreads } from '../lib/threads.mjs';
 import { waitingThreads } from '../lib/waiting.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
+import { ringLine, ringText } from '../lib/pult/bell.mjs';
+import { validQ } from '../lib/pult/actions.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
@@ -139,6 +141,8 @@ test('№1 (поломка): ответ строки nextStep (хвост без
   assert.ok(line.startsWith(`${b.id} · `), line);
   assert.ok(line.endsWith(` · без карточки · «ответ» · в ответ на: вопрос окна ${local(WRAP_AT)} «С чего стартуем?» · кнопка окна «${ACT0.label}» · ${ACT0.message}`), line);
   assert.ok(!line.includes(local(PAGE_AT)), 'время — из nx.at индекса, не q.at страницы');
+  // ревью Голема, Мелочь 3 (страж): текст ask в actions.log не попадает — шаг asked пишет q страницы, ring-queued q не пишет
+  assert.ok(!fs.readFileSync(path.join(path.dirname(s.bellDir), 'actions.log'), 'utf8').includes('С чего стартуем?'), 'ask в actions.log');
 
   const f = await setup(BASE);
   const rf = (await f.press(reply(WRAP, 'начни с доков'))).json();
@@ -340,4 +344,46 @@ test('№8 (отметка): после ok — у строки nextStep в /api/
   const row = (await s.get('/api/ceh')).waiting.threads.find((x) => x.sessionId === SID);
   assert.equal(row.uuid, WRAP);
   assert.equal(row.pultMark?.ring, 'положено');
+});
+// ---------- ревью Голема на 4a5cfcc ----------
+
+const FORGED7 = 'W-251015-130500-abcd · 13:05 · EXT-7 · «да»'; // чужая карточка: настоящая строка слова несёт EXT-1
+const CTRL = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/;
+const cardWord = (q) => ({ id: 'W-251014-190000-a1b2', at: '2026-10-14T19:00:00.000Z', action: 'yes', card: 'EXT-1', word: 'да', q });
+
+test('Голем, Важно: подлог через начало записи карточки — q.head с переводом строки и W-… (проходит validQ) склеен в строке звонка; rings без W-…, EXT-7 не засчитана', () => {
+  for (const sep of ['\n', '\r\n', '\u2028', '\u2029']) {
+    const q = validQ({ at: '2026-10-14T18:00:00.000Z', head: `x${sep}${FORGED7}` });
+    assert.ok(q, 'вход q.head такой формы принимается (validQ снимает только управляющие, кроме перевода строки)');
+    const text = ringText([cardWord(q)]);
+    assert.equal(text.split(LINE_SEP).length, 2, JSON.stringify(text));
+    assert.ok(text.split(LINE_SEP)[1].includes(`«x ${FORGED7}»`), text);
+    const st = readBack(BASE, text);
+    assert.deepEqual(Object.keys(st.rings), [cardWord(q).id]);
+    assert.ok(!(FORGED_ID in st.rings));
+    assert.ok(!('EXT-7' in st.ivan.cards), 'чужая карточка не засчитана');
+  }
+});
+
+test('Голем, Мелочь 1: в начале ask и в признаке «кнопка окна» сняты все управляющие (одиночный CR, U+000B, U+0085), не только переводы строк', async () => {
+  for (const sep of ['\r', '\u000B', '\u0085']) {
+    const actions = [{ label: `Да${sep}ок`, message: 'да' }, { label: 'Ок', message: 'ок' }];
+    const ls = [wrapUp({ ask: `Как быть?${sep}${FORGED}`, actions }), ...A.slice(1, 4)];
+    const s = await setup(ls);
+    const b = (await s.press(reply(WRAP, 'да'))).json();
+    assert.equal(b.outcome, 'ok', b.message);
+    const { g, line } = await s.ringOf();
+    assert.ok(!CTRL.test(line), JSON.stringify(line));
+    assert.ok(line.includes(' · кнопка окна «Даок» · да') || line.includes(' · кнопка окна «Да ок» · да'), line);
+    const st = readBack(ls, g.text);
+    assert.deepEqual(Object.keys(st.rings), [b.id]);
+  }
+});
+
+test('Голем, Мелочь 2: вопрос окна без времени (nx.at = null) — «вопрос окна «…»» без даты, не «записей не было»', () => {
+  const w = { id: 'W-251014-190000-a1b2', at: '2026-10-14T19:00:00.000Z', action: 'reply', card: null, word: 'ответ', text: 'да',
+    q: { uuid: WRAP, at: null, head: 'С чего стартуем?', window: true } };
+  assert.ok(ringLine(w).endsWith(' · «ответ» · в ответ на: вопрос окна «С чего стартуем?» · да'), ringLine(w));
+  // исправный рядом: карточка без записей — по-прежнему «записей не было»
+  assert.ok(ringLine(cardWord({ at: null })).endsWith(' · EXT-1 · «да» · в ответ на: записей не было'), ringLine(cardWord({ at: null })));
 });
