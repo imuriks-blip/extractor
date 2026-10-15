@@ -343,7 +343,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   const wordsShown = words && q && phase !== 'partial' && phase !== 'net' && !markPartial;
   const off = busy || confirming || inFlight;
   const wordBtn = (w) => (
-    <button key={w.action + (w.text ?? '')} type="button" className={w.main || (words.main === w.action && !w.text) ? 'pbtn pmain' : 'pbtn'} disabled={off && !(w.action === 'reply' && form === 'reply')}
+    <button key={w.action + (w.text ?? '')} type="button" className={w.main || (words.main === w.action && !w.text) ? 'pbtn pmain' : 'pbtn'} disabled={off && !(w.action === 'reply' && !w.text && form === 'reply')}
       aria-expanded={w.action === 'reply' && !w.text ? form === 'reply' : confirming && st.action === w.action ? true : undefined}
       title={w.title ?? (w.action === 'take' ? 'ручки «В работу» ещё нет' : undefined)}
       onClick={() => onWord(w)}>{labelOf(w)}{w.tail && <span className="mline faint">{w.tail}</span>}</button>

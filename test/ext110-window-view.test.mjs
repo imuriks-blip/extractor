@@ -16,8 +16,8 @@ import { HELP } from '../web/src/help.js';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const src = (f) => fs.readFileSync(path.join(ROOT, '..', 'web', 'src', f), 'utf8');
 const call = (f, ...a) => { assert.equal(typeof f, 'function', 'функции ещё нет'); return f(...a); };
-// Стражи (№2, №3, №6) зелёные и до правки: там этих функций нет, и берётся прежний смысл — кнопки только у question
-// (Ceh.jsx:169 и :180 на 4a5cfcc), у nextStep кнопок нет вовсе. После правки стражи зовут настоящие функции format.js
+// Стражи (№2, №3, №6) зелёные против копии прежнего смысла (OLD): функций ещё нет — стражи берут OLD, переписанный с Ceh.jsx
+// (:169 и :180 до ПТ16б: кнопки только у question, у nextStep кнопок нет вовсе); после правки — настоящие функции format.js
 const OLD = {
   canReplyRow: (r, { wordsOn, bell, tc }) => !!(wordsOn && r.kind === 'question' && r.uuid && (bell === true || tc)),
   replyWords: (r) => (r.kind === 'question' ? [{ action: 'reply' }, ...(r.card ? [{ action: 'reply', text: `го ${r.card}`, label: `го ${r.card}` }] : [])] : []),
@@ -133,7 +133,8 @@ test('4 (в пути): «положено», «доставлено» — все
   assert.match(p, /export const FLIGHT = \['положено', 'доставлено'\];/);
   assert.match(p, /const inFlight = thread && \(\(markMine && FLIGHT\.includes\(mark\.ring\)\) \|\| \(phase === 'ok' && !markMine\)\);/);
   assert.match(p, /const off = busy \|\| confirming \|\| inFlight;/);
-  assert.match(p, /disabled=\{off && !\(w\.action === 'reply' && form === 'reply'\)\}/);
+  // исключение — только «Ответить» без текста при открытой форме; чипы окна (reply с text) в пути неактивны и при открытой форме
+  assert.match(p, /disabled=\{off && !\(w\.action === 'reply' && !w\.text && form === 'reply'\)\}/);
   // чипы-ответы и «Ответить» — слова одного ряда btns (одна кнопка wordBtn), не отдельный вид
   assert.deepEqual(call(fmt.replyWords, ROW).map((x) => x.action), ['reply', 'reply', 'reply']);
   assert.match(cehReply(), /mark=\{r\.pultMark\}/);
@@ -171,4 +172,10 @@ test('8 (памятка): «Ждёт меня» :16–:17 — текст спе�
   const all = items.join('\n');
   assert.doesNotMatch(all, /Отвечать — в самом треде/);
   assert.doesNotMatch(all, /кнопки под ним — подсказка/);
+});
+
+test('дозапрос Голема п.1: подпись без label — пустой, из пробелов или управляющих — первые 24 знака message (как признак в звонке)', () => {
+  const msg = 'начни с документации проекта целиком';
+  const w = call(fmt.stepWords, ['', '  ', '\u0007'].map((label, i) => ({ label, message: msg + i, send: msg + i })));
+  assert.deepEqual(w.map((x) => x.label), [0, 1, 2].map(() => [...msg].slice(0, 24).join('')));
 });

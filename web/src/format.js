@@ -133,7 +133,8 @@ export function stepWords(actions) {
     const send = sendOf(a);
     if (send === null || seen.has(send)) continue;
     seen.add(send);
-    const label = typeof a.label === 'string' && a.label ? a.label
+    // label пустой без управляющих и пробелов — как нет его (то же правило, что признак «кнопка окна» на сервере, words.mjs)
+    const label = typeof a.label === 'string' && a.label.replace(/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/g, '').trim() ? a.label
       : [...(typeof a.message === 'string' ? a.message : send).replace(NL, ' ')].slice(0, WORD_LABEL_MAX).join('');
     const flat = [...send.replace(NL, ' ')];
     const tail = send === label ? null : `→ ${flat.length > TAIL_MAX ? `${flat.slice(0, TAIL_MAX - 1).join('')}…` : flat.join('')}`;

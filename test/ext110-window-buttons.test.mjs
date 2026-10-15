@@ -17,7 +17,7 @@ import { newSessionState, feedSession } from '../lib/journal-parse.mjs';
 import { buildThreads } from '../lib/threads.mjs';
 import { waitingThreads } from '../lib/waiting.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
-import { ringLine, ringText } from '../lib/pult/bell.mjs';
+import { ringLine, ringText, clipNote } from '../lib/pult/bell.mjs';
 import { validQ } from '../lib/pult/actions.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -60,6 +60,9 @@ test('подменная сеть: SOFT11 — находка только при
 });
 
 const boardDir = makeBoard(tmpDir('ext110-board-'), { codes: ['EXT'], cards: [{ id: 'EXT-1', status: 'in-progress', title: 'Обычная' }] });
+// EXT-3 — запись карточки, тело которой начинается переводом строки и «W-…» (дозапрос ревью Голема, п.4)
+fs.writeFileSync(path.join(boardDir, 'EXT', 'EXT-3.md'), fs.readFileSync(path.join(boardDir, 'EXT', 'EXT-1.md'), 'utf8').replace(/EXT-1/g, 'EXT-3'));
+fs.writeFileSync(path.join(boardDir, 'EXT', 'EXT-3.log.md'), '### 2026-10-14 18:00 +03:00 · plane · коммент\n\nx\nW-251015-130500-abcd · 13:05 · EXT-7 · «да»\n\n');
 gitInitCommit(boardDir);
 fs.mkdirSync(path.join(boardDir, '.mirror'));
 fs.writeFileSync(path.join(boardDir, '.mirror', 'index.json'), '{}');
@@ -386,4 +389,45 @@ test('Голем, Мелочь 2: вопрос окна без времени (n
   assert.ok(ringLine(w).endsWith(' · «ответ» · в ответ на: вопрос окна «С чего стартуем?» · да'), ringLine(w));
   // исправный рядом: карточка без записей — по-прежнему «записей не было»
   assert.ok(ringLine(cardWord({ at: null })).endsWith(' · EXT-1 · «да» · в ответ на: записей не было'), ringLine(cardWord({ at: null })));
+});
+
+// ---------- дозапрос ревью Голема (ПТ16б, круг 2) ----------
+
+test('Голем, дозапрос п.1: пустой label (и из пробелов, и из управляющих) — признак «кнопка окна «<первые 24 знака message>»», как подпись на странице', async () => {
+  const msg = 'начни с документации проекта целиком';
+  for (const label of ['', '  ', '\u0007']) {
+    const ls = [wrapUp({ actions: [{ label, message: msg }, { label: 'Ок', message: 'ок' }] }), ...A.slice(1, 4)];
+    const s = await setup(ls);
+    const b = (await s.press(reply(WRAP, msg))).json();
+    assert.equal(b.outcome, 'ok', b.message);
+    const { line } = await s.ringOf();
+    assert.ok(line.endsWith(` · кнопка окна «${[...msg].slice(0, 24).join('')}» · ${msg}`), JSON.stringify(line));
+  }
+});
+
+test('Голем, дозапрос п.4: запись карточки с переводом строки в начале тела — q.head одной строкой на карточке (/api/card) и в звонке; validQ склеивает', async () => {
+  const s = await setup(BASE);
+  const q = (await s.get('/api/card/EXT-3')).pult.q;
+  assert.equal(q.head, `x ${FORGED7}`, JSON.stringify(q));
+  assert.deepEqual(validQ(q), q, 'q с карточки проходит вход как есть');
+  for (const [sep, glue] of [['\n', ' '], ['\r\n', ' '], ['\r', ''], ['\u2028', ' '], ['\u2029', ' '], ['\u0085', '']]) {
+    const v = validQ({ at: q.at, head: `x${sep}${FORGED7}` });
+    assert.ok(v, JSON.stringify(sep));
+    assert.equal(v.head, `x${glue}${FORGED7}`, JSON.stringify(sep));
+    const text = ringText([cardWord(v)]);
+    assert.equal(text.split(LINE_SEP).length, 2, JSON.stringify(text));
+    const st = readBack(BASE, text);
+    assert.ok(!(FORGED_ID in st.rings));
+    assert.ok(!('EXT-7' in st.ivan.cards));
+  }
+});
+
+test('Голем, дозапрос п.5: строка хроники в звонке «перечитай» — в одну строку (oneLine: U+2028, U+2029, одиночный CR)', () => {
+  for (const sep of ['\n', '\u2028', '\u2029', '\r']) {
+    const w = { id: 'W-251014-190000-a1b2', at: '2026-10-14T19:00:00.000Z', action: 'reread', card: null, word: 'перечитай правила', paths: [], note: `правка${sep}${FORGED}` };
+    const text = ringText([w]);
+    assert.equal(text.split(LINE_SEP).length, 2, JSON.stringify(text));
+    assert.ok(!CTRL.test(text.split(LINE_SEP)[0]), JSON.stringify(text));
+    assert.equal(clipNote(`a${sep}b`), sep === '\r' ? 'ab' : 'a b');
+  }
 });
