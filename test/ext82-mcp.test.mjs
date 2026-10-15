@@ -222,6 +222,31 @@ test('health: читатели, зеркало, звонок, очередь Pla
   await Promise.all([s.stop(), s2.stop()]); await f.close(); await f2.close();
 });
 
+// EXT-107 Р5б: режим доски — поле boardMode в /api/health (тот же boardMode(pult.boardRoot), что ceh.boardMode и Р5).
+// live — строк зеркала и очереди Plane нет, вместо них одна строка о доске; mirror и неясный режим (null, поля нет) — как было
+test('EXT-107 Р5б: health в live — «Доска: в git — зеркало Plane не нужно» вместо строк зеркала и очереди Plane; mirror и неясный — как было', async () => {
+  const mirrorState = { running: false, lastOk: new Date(Date.now() - 3 * 3600000).toISOString(), lastFullOk: new Date(Date.now() - 6 * 86400000).toISOString() };
+  const run = async (health) => {
+    const f = await fakeVitrina((p) => (p === '/api/health' ? health : p === '/api/mirror' ? mirrorState : undefined));
+    const s = startServer({ url: f.url });
+    const t = (await s.callTool('health')).content[0].text;
+    await s.stop(); await f.close();
+    return t;
+  };
+  const base = { readers: {}, bell: { on: true, waiters: 0, queued: 0 } };
+  // live: витрина Р5 отдаёт planeQueue null, а /api/mirror по-прежнему отвечает (.mirror/status.json может лежать)
+  const live = await run({ ...base, boardMode: 'live', planeQueue: null });
+  assert.ok(live.includes('Доска: в git — зеркало Plane не нужно'), live);
+  assert.ok(!live.includes('Зеркало:') && !live.includes('Очередь Plane'), live);
+  assert.ok(live.includes('Звонок: вкл'), live);
+  // исправный ряд: mirror и неясный режим — строки зеркала и очереди на месте, строки о доске в git нет
+  for (const mode of ['mirror', null, undefined]) {
+    const t = await run({ ...base, ...(mode === undefined ? {} : { boardMode: mode }), planeQueue: { running: 0, queued: 4 } });
+    assert.ok(t.includes('Зеркало: 3ч назад, полное 6д назад, идёт нет') && t.includes('Очередь Plane: идёт 0, ждёт 4'), `mode=${mode}: ${t}`);
+    assert.ok(!t.includes('Доска: в git'), `mode=${mode}`);
+  }
+});
+
 test('витрина не запущена — одна строка на каждый инструмент; код ответа витрины — строка с isError', async () => {
   const f = await fakeVitrina(() => ({}));
   const port = f.port;

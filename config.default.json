@@ -29,6 +29,7 @@
     "staleMin": 15,
     "runSilentMin": 30,
     "memoryWarnPct": 80,
+    "compactShowH": 12,
     "collisionWindowH": 12,
     "foremanStartMin": 10
   },
@@ -125,6 +126,7 @@
   "indexWriteEveryS": 60,
   "rulesReread": {
     "files": [
+      "unorbis/_meta/agents/trurl.md",
       "CLAUDE.md",
       "unorbis/_meta/Субагенты Claude Code.md",
       "~/.claude/CLAUDE.md"

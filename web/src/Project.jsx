@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen } from './prefs.js';
 import { ageShort, hm, minutes, plural, DESKTOP_HINT, waitsInDesktop } from './format.js';
-import { Mark, Stale, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
+import { Mark, Stale, StepChips, Thread, mergeFresh, staleText, useShowMore } from './Ceh.jsx';
 import { Summary } from './Summary.jsx';
 import CardPanel from './CardPanel.jsx';
 import { PultMark } from './Pult.jsx';
@@ -165,9 +165,10 @@ function WRowBody({ r, now, sel, onOpen, noAge = false }) {
     return (
       <div className="prow" title={r.title}>
         <span className="src"><span className="k">тред</span></span>
-        <span>
+        <span title={r.recap || undefined}>
           {r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
           {r.projectBy === 'cards' && <span className="faint"> · по карточкам</span>}
+          {r.kind === 'nextStep' && <StepChips actions={r.actions} />}
           {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}
         </span>
         {age}

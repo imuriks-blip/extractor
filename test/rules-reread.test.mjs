@@ -174,14 +174,15 @@ test('EXT-54 тред без проекта (правило (3)) — без «С
 
 // Набор файлов «перечитаны» (дозапрос после ревью Голема): «~/» — от домашней папки, остальное — от vault_root;
 // любой неразрешимый элемент выключает функцию целиком, с причиной (журнал сервера и /api/health).
-test('EXT-54 набор: три файла по умолчанию разрешаются; «~/CLAUDE.md» совпадает с путём, который пишет Read', async () => {
+// EXT-107 Р3 (И-4 (а)): набор — 4 файла, первым паспорт Трурля unorbis/_meta/agents/trurl.md
+test('EXT-54 набор: четыре файла по умолчанию разрешаются; «~/CLAUDE.md» совпадает с путём, который пишет Read', async () => {
   const { resolveReread } = await import('../lib/rules-reread.mjs');
   const def = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'config.default.json'), 'utf8')).rulesReread.files;
   const r = resolveReread(def, { vaultRoot: VAULT, home: HOME });
   assert.equal(r.off, null);
   const { pathKey } = await import('../lib/journal-parse.mjs');
-  // пути — как в file_path вызовов Read журнала 2fea3135 (03.10, строки 10997, 10999, 10618)
-  assert.deepEqual(r.files.map(pathKey).sort(), [RULES_MD, `${HOME}\\.claude\\CLAUDE.md`, PROTO].map(pathKey).sort());
+  // пути — как в file_path вызовов Read журнала 2fea3135 (03.10, строки 10997, 10999, 10618); паспорт — в той же форме
+  assert.deepEqual(r.files.map(pathKey).sort(), [`${VAULT}\\unorbis\\_meta\\agents\\trurl.md`, RULES_MD, `${HOME}\\.claude\\CLAUDE.md`, PROTO].map(pathKey).sort());
 });
 
 test('EXT-54 набор: пустой путь, нестроковый элемент, неразрешимый «~/» или относительный без vault_root — функция выключена с причиной', async () => {

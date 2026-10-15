@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen, useStored } from './prefs.js';
 import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
-import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop } from './format.js';
+import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine, foremanLabel } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
@@ -22,6 +22,13 @@ const STATE = {
   stale: ['old', 'устарело'],
 };
 const STATE_WORD = { waiting: 'ждёт тебя', busy: 'работает', idle: 'свободен' };
+
+// Кнопки окна «следующий шаг» под вопросом (EXT-107 Р1): серые чипы без нажатия — ответить за Ивана витрина не может (И-1 (а))
+export function StepChips({ actions }) {
+  const chips = stepChips(actions);
+  if (!chips.length) return null;
+  return <span className="mline">{chips.map((c, i) => <span key={i} className="tag" title={c.title}>{c.text}</span>)}</span>;
+}
 
 // Свежесть нескольких читателей одной строкой: самое старое lastOkAt, самый ранний failingSince.
 export function mergeFresh(...list) {
@@ -180,7 +187,8 @@ function Waiting({ w, now, stale, pult, threads, order }) {
               <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                 {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
               </span>
-              <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+              <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+                {r.kind === 'nextStep' && <StepChips actions={r.actions} />}
                 {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
               {defer}
@@ -381,9 +389,10 @@ export function Mark({ m, now, sid }) {
 }
 
 // EXT-49: память треда — «память N %» серым; с порога — жёлтым «пора сделать снимок…»; окна модели нет — «N тыс.»
-const timesWord = (n) => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'раза' : 'раз');
-function Memory({ m }) {
+// EXT-107 Р2: рядом — событие «тред сжат» (compactLine): свежее — обычным цветом, позже — бледное «сжат N раз»
+function Memory({ m, now }) {
   if (!m) return null;
+  const c = compactLine(m, now);
   const k = Math.round(m.tokens / 1000);
   const size = m.pct == null ? `память ${k > 0 ? k : 'меньше 1'} тыс.` : `память ${m.pct} %`;
   return (
@@ -391,7 +400,7 @@ function Memory({ m }) {
       {m.warn
         ? <span className="mem-warn">{size} — пора сделать снимок и открыть новый тред</span>
         : <span>{size}</span>}
-      {m.compactions > 0 && <span className="faint">сжат {m.compactions} {timesWord(m.compactions)}</span>}
+      {c && <span className={c.faint ? 'faint' : undefined}>{c.text}</span>}
     </div>
   );
 }
@@ -406,6 +415,8 @@ export function Thread({ t, now }) {
           {showCode && <span className="mono">{t.project}</span>}{t.title || 'без названия'}
           {t.project && t.projectBy === 'cards' && <span className="by-in"> · по карточкам</span>}
           {!t.project && <span className="faint"> · проект не определён</span>}
+          {/* EXT-107 Р4: тред прораба — окна нет, ему отвечает дирижёр */}
+          {foremanLabel(t) && <span className="faint"> · {foremanLabel(t)}</span>}
         </span>
         <span className={`st ${cls}`}>{word}</span>
       </div>
@@ -421,7 +432,7 @@ export function Thread({ t, now }) {
               {t.rulesReread && <span className="faint">правила перечитаны {dm(t.rulesReread)}</span>}
             </>}
       </div>
-      <Memory m={t.memory} />
+      <Memory m={t.memory} now={now} />
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
       {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} sid={t.sessionId} />)}
     </div>

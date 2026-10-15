@@ -44,6 +44,7 @@
         "resultStatus": {},
         "launchName": {},
         "originKind": {},
+        "turnTool": {},
         "agentLaunchErrors": 2,
         "orphanAgentJournals": 0
       },
@@ -97,6 +98,7 @@
   },
   "bell": { "on": false, "waiters": null, "queued": 0 },
   "planeQueue": { "running": 0, "queued": 0 },
+  "boardMode": "mirror",
   "pult": { "enabled": false },
   "rss": 61234176,
   "uptimeS": 720,

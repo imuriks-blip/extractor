@@ -145,7 +145,7 @@ test('читатель: drift в state() — счётчики сессий и ж
   const ok = tree(launch(), { [AG]: [agentLine(T0)] });
   const r2 = createJournalReader({ root: ok.root, indexDir: tmpDir('index-'), now: () => new Date(T0) });
   await r2.refresh();
-  assert.deepEqual(r2.state().drift, { noteStatus: {}, noteNoId: {}, noteForeignId: {}, resultStatus: {}, launchName: {}, originKind: {}, agentLaunchErrors: 0, orphanAgentJournals: 0 });
+  assert.deepEqual(r2.state().drift, { noteStatus: {}, noteNoId: {}, noteForeignId: {}, resultStatus: {}, launchName: {}, originKind: {}, turnTool: {}, agentLaunchErrors: 0, orphanAgentJournals: 0 }); // turnTool — EXT-107 Р1
 });
 
 test('читатель: журнал субагента, чей вызов Agent ещё без результата (toolUseId из .meta.json среди ждущих), — не «без запуска»', async () => {

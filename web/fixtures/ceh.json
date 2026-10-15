@@ -463,7 +463,8 @@
           "model": "claude-opus-5-5",
           "at": "2026-10-01T08:58:40.000Z",
           "compactions": 0,
-          "warn": false
+          "warn": false,
+          "lastCompact": null
         }
       },
       {
@@ -490,7 +491,14 @@
           "model": "claude-opus-5-5",
           "at": "2026-10-01T08:59:10.000Z",
           "compactions": 2,
-          "warn": true
+          "warn": true,
+          "lastCompact": {
+            "at": "2026-10-01T08:40:00.000Z",
+            "trigger": "auto",
+            "pre": 998347,
+            "post": 22172,
+            "durationMs": 190681
+          }
         }
       },
       {
@@ -576,7 +584,8 @@
           "model": "claude-opus-5-5",
           "at": "2026-10-01T08:59:55.000Z",
           "compactions": 2,
-          "warn": false
+          "warn": false,
+          "lastCompact": null
         }
       },
       {
@@ -650,7 +659,8 @@
           "model": "claude-haiku-4-5-20251001",
           "at": "2026-10-01T08:57:00.000Z",
           "compactions": 0,
-          "warn": false
+          "warn": false,
+          "lastCompact": null
         }
       },
       {
@@ -711,7 +721,8 @@
           "model": "claude-opus-5-5",
           "at": "2026-10-01T08:40:00.000Z",
           "compactions": 1,
-          "warn": false
+          "warn": false,
+          "lastCompact": null
         }
       }
     ],
