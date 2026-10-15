@@ -126,6 +126,7 @@
   "indexWriteEveryS": 60,
   "rulesReread": {
     "files": [
+      "unorbis/_meta/agents/trurl.md",
       "CLAUDE.md",
       "unorbis/_meta/Субагенты Claude Code.md",
       "~/.claude/CLAUDE.md"
