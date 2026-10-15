@@ -165,6 +165,8 @@ test('4 (по имени, после первой строки user): то же 
   const ls = F.map(clone);
   ls[0].customTitle = 'EXT · Тарантога · EXT-92';
   ls[1].agentName = 'EXT · Тарантога · EXT-92';
+  // EXT-109: у треда с окном строка Ивана без turnOrigin sdk (sdk — ТЗ сессии без окна, словом Ивана с такта EXT-109 не считается)
+  delete ls[4].turnOrigin;
   const moved = [ls[2], ls[3], ls[4], ls[0], ls[1], ls[5]]; // имя — после первой строки user (тред с окном переименован)
   const r = await workers({ [SID]: moved }, [proc(SID)]);
   assert.equal(r.row(SID).foreman, undefined);
@@ -179,6 +181,7 @@ test('4 (не то имя): «EXT · Терминус · EXT-92» до перв�
   const ls = F.map(clone);
   ls[0].customTitle = 'EXT · Терминус · EXT-92';
   ls[1].agentName = 'EXT · Терминус · EXT-92';
+  delete ls[4].turnOrigin; // EXT-109: строка без sdk — иначе её отсекает разрешающий список, а не признак прораба
   const r = await workers({ [SID]: ls }, [proc(SID)]);
   assert.equal(r.row(SID).foreman, undefined);
   assert.equal(r.sess(SID).ivan.count, 1);

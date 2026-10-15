@@ -45,6 +45,7 @@
         "launchName": {},
         "originKind": {},
         "turnTool": {},
+        "turnOrigin": {},
         "agentLaunchErrors": 2,
         "orphanAgentJournals": 0
       },
