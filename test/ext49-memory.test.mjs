@@ -48,14 +48,14 @@ const CW = { 'claude-opus-5-5': 1000000 };
 
 test('обычный ответ: tokens — сумма трёх полей usage (output не входит), модель и время ответа', async () => {
   const mem = await memOfLines([user({ m: 0 }), asst({ m: 1, inp: 5, cc: 1000, cr: 2000, out: 777 }), user({ m: 2 }), asst({ m: 3, inp: 3, cc: 20000, cr: 359997 })]);
-  assert.deepEqual(mem, { tokens: 380000, model: 'claude-opus-5-5', at: at(3), compactions: 0 });
+  assert.deepEqual(mem, { tokens: 380000, model: 'claude-opus-5-5', at: at(3), compactions: 0, lastCompact: null });
 });
 
 test('процент и порог: 790 000 из 1 000 000 — 79 %, не жёлтое; 800 000 — 80 %, жёлтое; 380 000 — 38 %', () => {
   const o = { contextWindow: CW, warnPct: 80 };
   const m = (tokens) => memoryOf({ tokens, model: 'claude-opus-5-5', at: at(0), compactions: 0 }, o);
-  assert.deepEqual(m(790000), { tokens: 790000, window: 1000000, pct: 79, model: 'claude-opus-5-5', at: at(0), compactions: 0, warn: false });
-  assert.deepEqual(m(800000), { tokens: 800000, window: 1000000, pct: 80, model: 'claude-opus-5-5', at: at(0), compactions: 0, warn: true });
+  assert.deepEqual(m(790000), { tokens: 790000, window: 1000000, pct: 79, model: 'claude-opus-5-5', at: at(0), compactions: 0, warn: false, lastCompact: null });
+  assert.deepEqual(m(800000), { tokens: 800000, window: 1000000, pct: 80, model: 'claude-opus-5-5', at: at(0), compactions: 0, warn: true, lastCompact: null });
   assert.equal(m(799999).pct, 79, 'процент — целая часть: 79,9999 % — ещё 79 и не жёлтое');
   assert.equal(m(799999).warn, false);
   assert.deepEqual([m(380000).pct, m(380000).warn], [38, false]);
@@ -70,9 +70,9 @@ test('строка субагента (isSidechain) с большим usage не
 test('после compact_boundary без ответа — postTokens и время сжатия; после ответа — снова usage', async () => {
   const before = [asst({ m: 1, cr: 760000 }), compact({ m: 2, pre: 762435, post: 12258 })];
   const a = await memOfLines(before);
-  assert.deepEqual(a, { tokens: 12258, model: 'claude-opus-5-5', at: at(2), compactions: 1 });
+  assert.deepEqual(a, { tokens: 12258, model: 'claude-opus-5-5', at: at(2), compactions: 1, lastCompact: { at: at(2), trigger: 'manual', pre: 762435, post: 12258, durationMs: null } });
   const b = await memOfLines([...before, user({ m: 3 }), asst({ m: 4, cc: 30000, cr: 12000 })]);
-  assert.deepEqual(b, { tokens: 42000, model: 'claude-opus-5-5', at: at(4), compactions: 1 });
+  assert.deepEqual(b, { tokens: 42000, model: 'claude-opus-5-5', at: at(4), compactions: 1, lastCompact: { at: at(2), trigger: 'manual', pre: 762435, post: 12258, durationMs: null } });
 });
 
 test('копия цепочки после /compact (те же uuid, EXT-41) не возвращает прежний usage', async () => {
@@ -103,7 +103,7 @@ test('сжатие, перенесённое в журнал продолжен�
 
 test('неизвестная модель — тысячи без процента и без порога', () => {
   const mem = memoryOf({ tokens: 950000, model: 'claude-haiku-4-5-20251001', at: at(0), compactions: 0 }, { contextWindow: CW, warnPct: 80 });
-  assert.deepEqual(mem, { tokens: 950000, window: null, pct: null, model: 'claude-haiku-4-5-20251001', at: at(0), compactions: 0, warn: false });
+  assert.deepEqual(mem, { tokens: 950000, window: null, pct: null, model: 'claude-haiku-4-5-20251001', at: at(0), compactions: 0, warn: false, lastCompact: null });
 });
 
 test('окно — самое длинное совпадение начала имени модели', () => {
@@ -123,7 +123,7 @@ test('журнал без usage — memory: null и у треда, и в выж�
 
 test('строка с нулевым usage (<synthetic> — ошибка API, не чтение модели) не перебивает прежний ответ', async () => {
   const mem = await memOfLines([asst({ m: 1, cr: 400000 }), asst({ m: 2, model: '<synthetic>', out: 0 })]);
-  assert.deepEqual(mem, { tokens: 400000, model: 'claude-opus-5-5', at: at(1), compactions: 0 });
+  assert.deepEqual(mem, { tokens: 400000, model: 'claude-opus-5-5', at: at(1), compactions: 0, lastCompact: null });
 });
 
 test('хвост дописан — пересчёт по одному хвосту, без перечитывания с начала; итог как у прохода целиком', async () => {
@@ -136,7 +136,7 @@ test('хвост дописан — пересчёт по одному хвос�
   fs.appendFileSync(t.file, tail.map((l) => l + '\n').join(''));
   await r.refresh();
   assert.equal(r.state().lastPassLines, tail.length, 'дочитан только хвост');
-  assert.deepEqual(r.sessions()[0].memory, { tokens: 11000, model: 'claude-opus-5-5', at: at(4), compactions: 1 });
+  assert.deepEqual(r.sessions()[0].memory, { tokens: 11000, model: 'claude-opus-5-5', at: at(4), compactions: 1, lastCompact: { at: at(4), trigger: 'manual', pre: 700000, post: 11000, durationMs: null } });
   assert.deepEqual(r.sessions()[0].memory, await memOfLines([...head, ...tail]));
 });
 
@@ -147,15 +147,15 @@ test('у треда «Кто работает» — memory {tokens, window, pct,
   const sess = (sessionId, memory) => ({ sessionId, ivan: { cards: {} }, boardWrites: [], runs: [], thread: { lastAt: at(5) }, memory });
   const w = buildThreads({ procs, sessions: [sess(SID, { tokens: 820000, model: 'claude-opus-5-5', at: at(5), compactions: 2 }), sess(OLD, null)], board, now, contextWindow: CW, memoryWarnPct: 80 });
   const bySid = Object.fromEntries(w.threads.map((t) => [t.sessionId, t.memory]));
-  assert.deepEqual(bySid[SID], { tokens: 820000, window: 1000000, pct: 82, model: 'claude-opus-5-5', at: at(5), compactions: 2, warn: true });
+  assert.deepEqual(bySid[SID], { tokens: 820000, window: 1000000, pct: 82, model: 'claude-opus-5-5', at: at(5), compactions: 2, warn: true, lastCompact: null });
   assert.equal(bySid[OLD], null);
 });
 
 test('Sonnet 5.5 из умолчаний: окно 1 000 000; 820 000 — 82 %, жёлтое; 500 000 — 50 %, не жёлтое', () => {
   const o = { contextWindow: DEFAULTS.contextWindow, warnPct: 80 };
   const m = (tokens) => memoryOf({ tokens, model: 'claude-sonnet-5-5', at: at(0), compactions: 0 }, o);
-  assert.deepEqual(m(820000), { tokens: 820000, window: 1000000, pct: 82, model: 'claude-sonnet-5-5', at: at(0), compactions: 0, warn: true });
-  assert.deepEqual(m(500000), { tokens: 500000, window: 1000000, pct: 50, model: 'claude-sonnet-5-5', at: at(0), compactions: 0, warn: false });
+  assert.deepEqual(m(820000), { tokens: 820000, window: 1000000, pct: 82, model: 'claude-sonnet-5-5', at: at(0), compactions: 0, warn: true, lastCompact: null });
+  assert.deepEqual(m(500000), { tokens: 500000, window: 1000000, pct: 50, model: 'claude-sonnet-5-5', at: at(0), compactions: 0, warn: false, lastCompact: null });
 });
 
 test('настройки: contextWindow и thresholds.memoryWarnPct в умолчаниях; объект contextWindow живого config.json сливается по ключам', () => {

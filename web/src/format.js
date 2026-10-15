@@ -78,6 +78,24 @@ export function oldest(...isos) {
 // видит «тред ждёт тебя в десктопе: ответь там»): вид ожидания из waitingFor десктопа — askUserQuestion, permission или
 // незнакомый «?». «Ответить» у таких строк нет; у вопроса в чате (question) подсказки нет. Вопрос окна «следующий шаг»
 // (nextStep, EXT-107 Р1) — тоже с подсказкой: ответ и правда в окне десктопа
+// Событие «тред сжат» в строке памяти треда (EXT-107 Р2): пока у памяти есть lastCompact (сервер держит его
+// thresholds.compactShowH часов) — «сжат ЧЧ:ММ · 800 тыс. → 16 тыс. · вручную» («· сам» при auto) обычным цветом;
+// без preTokens или postTokens — без чисел, без trigger — без способа. Позже — прежнее бледное «сжат N раз»; сжатий нет — null.
+// Тысячи — целая часть без округления (800 537 — «800 тыс.»), как процент памяти.
+const kTok = (n) => { const k = Math.floor(n / 1000); return `${k > 0 ? k : 'меньше 1'} тыс.`; };
+const HOW = { manual: 'вручную', auto: 'сам' };
+export function compactLine(m, now = Date.now()) {
+  const c = m?.lastCompact;
+  if (c?.at) {
+    const parts = [`сжат ${hm(c.at, now)}`];
+    if (Number.isFinite(c.pre) && Number.isFinite(c.post)) parts.push(`${kTok(c.pre)} → ${kTok(c.post)}`);
+    if (HOW[c.trigger]) parts.push(HOW[c.trigger]);
+    return { text: parts.join(' · '), faint: false };
+  }
+  const n = m?.compactions ?? 0;
+  return n > 0 ? { text: `сжат ${plural(n, ['раз', 'раза', 'раз'])}`, faint: true } : null;
+}
+
 export const DESKTOP_HINT = 'ждёт тебя в десктопе — ответь там';
 export const waitsInDesktop = (r) => typeof r?.kind === 'string' && r.kind !== 'question';
 

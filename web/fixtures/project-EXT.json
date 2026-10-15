@@ -221,7 +221,14 @@
           "model": "claude-opus-5-5",
           "at": "2026-10-01T08:59:55.000Z",
           "compactions": 2,
-          "warn": false
+          "warn": false,
+          "lastCompact": {
+            "at": "2026-10-01T08:40:00.000Z",
+            "trigger": "auto",
+            "pre": 998347,
+            "post": 22172,
+            "durationMs": 190681
+          }
         }
       },
       {

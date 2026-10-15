@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen, useStored } from './prefs.js';
 import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
-import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips } from './format.js';
+import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
@@ -389,9 +389,10 @@ export function Mark({ m, now, sid }) {
 }
 
 // EXT-49: память треда — «память N %» серым; с порога — жёлтым «пора сделать снимок…»; окна модели нет — «N тыс.»
-const timesWord = (n) => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'раза' : 'раз');
-function Memory({ m }) {
+// EXT-107 Р2: рядом — событие «тред сжат» (compactLine): свежее — обычным цветом, позже — бледное «сжат N раз»
+function Memory({ m, now }) {
   if (!m) return null;
+  const c = compactLine(m, now);
   const k = Math.round(m.tokens / 1000);
   const size = m.pct == null ? `память ${k > 0 ? k : 'меньше 1'} тыс.` : `память ${m.pct} %`;
   return (
@@ -399,7 +400,7 @@ function Memory({ m }) {
       {m.warn
         ? <span className="mem-warn">{size} — пора сделать снимок и открыть новый тред</span>
         : <span>{size}</span>}
-      {m.compactions > 0 && <span className="faint">сжат {m.compactions} {timesWord(m.compactions)}</span>}
+      {c && <span className={c.faint ? 'faint' : undefined}>{c.text}</span>}
     </div>
   );
 }
@@ -429,7 +430,7 @@ export function Thread({ t, now }) {
               {t.rulesReread && <span className="faint">правила перечитаны {dm(t.rulesReread)}</span>}
             </>}
       </div>
-      <Memory m={t.memory} />
+      <Memory m={t.memory} now={now} />
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
       {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} sid={t.sessionId} />)}
     </div>
