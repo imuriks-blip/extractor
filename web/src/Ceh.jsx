@@ -172,7 +172,7 @@ function Waiting({ w, now, stale, pult, threads, order }) {
             const defer = r.key && !r.keyTemp && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={`тред ${r.title || ''}`.trim()} /><DeferNote rowKey={r.key} /></>;
             if (canReply) {
               return (
-                <div className="wrow pr stack" key={r.key}>
+                <div className={r.kind === 'nextStep' ? 'wrow pr stack win' : 'wrow pr stack'} key={r.key}>
                   <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                     {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
                   </span>

@@ -519,6 +519,16 @@ details.sg .of{color:var(--faint)}
   }
 }
 
+/* Вопрос окна «следующий шаг» с кнопками-ответами (EXT-110): кнопки с хвостом «→ …» широкие — на любой ширине шире 560
+   они второй строкой от вертикали текста, как в узкой колонке выше (EXT-80); текст вопроса — во всю ширину. До 560 — .stack выше */
+@media (min-width:561px){
+  .wrow.pr.win{grid-template-columns:150px auto auto minmax(0,1fr) 64px;row-gap:3px}
+  .wrow.pr.win>.tt{grid-area:1/2/2/5}
+  .wrow.pr.win>.age{grid-area:1/5}
+  .wrow.pr.win .pbtns{grid-area:2/2}
+  .wrow.pr.win>.dfr{grid-area:2/3}
+}
+
 /* ===== «Расход» (EXT-84, ПТ12): только существующие значения — 11/12/13px, отступы 4/10/16px, --line, .blk, .ptable, .seg, .big ===== */
 .top .navl{color:var(--accent)}
 .top.nofresh>.seg{margin-left:auto} /* на «Расходе» строки свежести нет: тема и кнопки уходят вправо, как на «Цехе» (EXT-87) */
