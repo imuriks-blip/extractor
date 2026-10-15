@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen, useStored } from './prefs.js';
 import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
-import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine, foremanLabel } from './format.js';
+import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine, foremanLabel, canReplyRow, replyWords } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
@@ -23,9 +23,10 @@ const STATE = {
 };
 const STATE_WORD = { waiting: 'ждёт тебя', busy: 'работает', idle: 'свободен' };
 
-// Кнопки окна «следующий шаг» под вопросом (EXT-107 Р1): серые чипы без нажатия — ответить за Ивана витрина не может (И-1 (а))
-export function StepChips({ actions }) {
-  const chips = stepChips(actions);
+// Кнопки окна «следующий шаг» под вопросом (EXT-107 Р1): серые чипы без нажатия. buttons (EXT-110, «Цех» при кнопках ответа):
+// ответы с send уже кнопки пульта — серыми остаются действия приложения и ответы без send; без параметра — все (окно проекта)
+export function StepChips({ actions, buttons = false }) {
+  const chips = stepChips(actions, { buttons });
   if (!chips.length) return null;
   return <span className="mline">{chips.map((c, i) => <span key={i} className="tag" title={c.title}>{c.text}</span>)}</span>;
 }
@@ -163,10 +164,11 @@ function Waiting({ w, now, stale, pult, threads, order }) {
       {w.threads.length > 0 && (
         <Group id="threads" title="Тред ждёт ответа" count={w.threads.length}>
           {w.threads.map((r) => {
-            // ответ треду из строки (а): только вид question с номером сообщения; «го <ID>» — при поле card строки (§1.7, EXT-70).
+            // ответ треду из строки (а): вид question или nextStep с номером сообщения (EXT-110); «го <ID>» — при поле card строки
+            // и только у question (§1.7, EXT-70; Д-1); у nextStep — кнопки-ответы окна и «Ответить» (replyWords, дубли по send сняты).
             // card у ответа — карточка треда из «Кто работает» или ничего, не поле card строки
             const tc = cardOf.get(r.sessionId) || undefined;
-            const canReply = wordsOn && r.kind === 'question' && r.uuid && (pult.bell === true || tc);
+            const canReply = canReplyRow(r, { wordsOn, bell: pult.bell, tc });
             const defer = r.key && !r.keyTemp && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={`тред ${r.title || ''}`.trim()} /><DeferNote rowKey={r.key} /></>;
             if (canReply) {
               return (
@@ -174,10 +176,12 @@ function Waiting({ w, now, stale, pult, threads, order }) {
                   <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                     {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
                   </span>
-                  <span className="tt">{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}</span>
+                  <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+                    {r.kind === 'nextStep' && <StepChips actions={r.actions} buttons />}</span>
                   <span className="age num">{ageShort(r.since, now)}</span>
-                  <Pult card={null} q={{ uuid: r.uuid, at: r.since }} ar={false} mark={r.pultMark} thread={{ session: r.sessionId, card: tc, key: `${r.sessionId}|${r.uuid}` }}
-                    words={{ btns: [{ action: 'reply' }, ...(r.card ? [{ action: 'reply', text: `го ${r.card}`, label: `го ${r.card}` }] : [])] }} />
+                  <Pult card={null} q={{ uuid: r.uuid, at: r.since }} ar={false} mark={r.pultMark}
+                    thread={{ session: r.sessionId, card: tc, key: `${r.sessionId}|${r.uuid}`, window: r.kind === 'nextStep' }}
+                    words={{ btns: replyWords(r) }} />
                   {defer}
                 </div>
               );

@@ -9,7 +9,7 @@ import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { pullNote } from './mirrorData.js';
 import { useBoardMode } from './boardMode.js';
-import { confirmTargetNote, markIsRed } from './pultData.js';
+import { confirmTargetNote, markIsRed, wordBody } from './pultData.js';
 
 const TEXT_MAX = 500;
 const CONFIRM_MS = 5 * 60_000; // второй щелчок — не дольше 5 мин после первого (1.1 п.7)
@@ -217,12 +217,15 @@ function Confirm({ st, onGo, onCancel }) {
   );
 }
 
-// описание слов: {btns: ['merge', 'no'], more: ['yes', 'go'], main: 'merge'}; слово — действие из WORD или {action, text, label}
+// описание слов: {btns: ['merge', 'no'], more: ['yes', 'go'], main: 'merge'}; слово — действие из WORD или {action, text, label};
+// у кнопки окна «следующий шаг» (EXT-110 п.1, format.js stepWords) ещё main (pmain у слова с текстом), title (= что уйдёт треду)
+// и tail («→ <начало текста>» под подписью)
 const NAME = { reply: 'Ответить' };
 const labelOf = (w) => w.label ?? NAME[w.action] ?? WORD[w.action];
 const asWord = (w) => (typeof w === 'string' ? { action: w } : w);
 
-// card — номер (ключ состояния и поле card); thread — {session, card?, key} у строки (а): ответ ровно этому треду;
+// card — номер (ключ состояния и поле card); thread — {session, card?, key, window?} у строки (а): ответ ровно этому треду,
+// window — вопрос окна «следующий шаг» (форма «в ответ на: вопрос окна», EXT-110 п.6);
 // ar — «Принять»/«Вернуть» (строки (в), панель в Review); words — {btns, more, main}; mark — отметка из данных
 export default function Pult({ card, q, accept, mark, ar = true, words = null, thread = null }) {
   const key = thread ? thread.key : card;
@@ -264,13 +267,10 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   // строка (а): кнопки неактивны, пока слово в пути — по отметке из данных или по свежему исходу без отметки (§1.7)
   const inFlight = thread && ((markMine && FLIGHT.includes(mark.ring)) || (phase === 'ok' && !markMine));
 
-  const base = (action) => (thread
-    ? { action, session: thread.session, ...(thread.card ? { card: thread.card } : {}), q }
-    : { action, card, q });
   const press = (action, text) => {
     setForm(null);
     setMenu(false);
-    send(fresh({ ...base(action), ...(text != null ? { text } : {}) }), key);
+    send(fresh(wordBody({ thread, card, q, action, text })), key);
   };
   const close = () => { backFocus.current = true; setForm(null); };
   // клавиши меню «ещё ▾» — как у «Отложить» (Defer.jsx): стрелки, Home/End, Esc — закрыть и вернуть фокус на кнопку
@@ -343,10 +343,10 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   const wordsShown = words && q && phase !== 'partial' && phase !== 'net' && !markPartial;
   const off = busy || confirming || inFlight;
   const wordBtn = (w) => (
-    <button key={w.action + (w.text ?? '')} type="button" className={words.main === w.action && !w.text ? 'pbtn pmain' : 'pbtn'} disabled={off && !(w.action === 'reply' && form === 'reply')}
+    <button key={w.action + (w.text ?? '')} type="button" className={w.main || (words.main === w.action && !w.text) ? 'pbtn pmain' : 'pbtn'} disabled={off && !(w.action === 'reply' && !w.text && form === 'reply')}
       aria-expanded={w.action === 'reply' && !w.text ? form === 'reply' : confirming && st.action === w.action ? true : undefined}
-      title={w.action === 'take' ? 'ручки «В работу» ещё нет' : undefined}
-      onClick={() => onWord(w)}>{labelOf(w)}</button>
+      title={w.title ?? (w.action === 'take' ? 'ручки «В работу» ещё нет' : undefined)}
+      onClick={() => onWord(w)}>{labelOf(w)}{w.tail && <span className="mline faint">{w.tail}</span>}</button>
   );
   const nothing = !arShown && !wordsShown && !hint && !note && !markMine;
   if (nothing) return null;
@@ -385,7 +385,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
       {form === 'reply' && !busy && (
         <ReturnForm label="Ответ" placeholder="Ответ" send="отправить"
           qline={thread
-            ? `в ответ на: вопрос треда${thread.card ? ` · запись ляжет на ${thread.card}` : ' · тред без карточки — на доску не ляжет, след в «Моих словах»'}`
+            ? `в ответ на: вопрос ${thread.window ? 'окна' : 'треда'}${thread.card ? ` · запись ляжет на ${thread.card}` : ' · тред без карточки — на доску не ляжет, след в «Моих словах»'}`
             : `в ответ на: ${q?.at ? `${hm(q.at)} «${q.head ?? ''}»` : 'записей не было'}`}
           foot="Свободный ответ не заменяет «да» на слияние, выкатку, базу — тред переспросит в чате."
           onSend={(t) => press('reply', t)} onCancel={close} />
