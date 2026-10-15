@@ -111,3 +111,10 @@ export function stepChips(actions) {
   }
   return out;
 }
+
+// Метка треда прораба (EXT-107 Р4): серая «прораб · без окна», если семья известна — ещё «· от <название треда-дирижёра>»
+// (foremanFrom). Обычный тред — null.
+export function foremanLabel(t) {
+  if (t?.foreman !== true) return null;
+  return typeof t.foremanFrom === 'string' && t.foremanFrom ? `прораб · без окна · от ${t.foremanFrom}` : 'прораб · без окна';
+}

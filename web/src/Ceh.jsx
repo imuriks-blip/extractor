@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useOpen, useStored } from './prefs.js';
 import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
-import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine } from './format.js';
+import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine, foremanLabel } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
@@ -415,6 +415,8 @@ export function Thread({ t, now }) {
           {showCode && <span className="mono">{t.project}</span>}{t.title || 'без названия'}
           {t.project && t.projectBy === 'cards' && <span className="by-in"> · по карточкам</span>}
           {!t.project && <span className="faint"> · проект не определён</span>}
+          {/* EXT-107 Р4: тред прораба — окна нет, ему отвечает дирижёр */}
+          {foremanLabel(t) && <span className="faint"> · {foremanLabel(t)}</span>}
         </span>
         <span className={`st ${cls}`}>{word}</span>
       </div>
