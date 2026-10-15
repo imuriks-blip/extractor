@@ -145,6 +145,9 @@ export function createTools({ base = DEFAULT_URL, env = process.env, fetchImpl =
     const bell = b ? `Звонок: ${b.on ? 'вкл' : 'выкл'}, ждущих ${b.waiters ?? '?'}, слов в очереди ${b.queued ?? '?'}` : 'Звонок: нет данных';
     const q = h?.planeQueue;
     const plane = q && Number.isFinite(q.running) && Number.isFinite(q.queued) ? `Очередь Plane: идёт ${q.running}, ждёт ${q.queued}` : 'Очередь Plane: нет данных';
+    // EXT-107 Р5б: доска в git (boardMode live из /api/health) — зеркала и очереди Plane нет; вместо двух строк одна, в той же
+    // форме «Что: состояние», чтобы ответ прямо говорил режим. Режим mirror или неясный (null, поля нет) — как было
+    if (h?.boardMode === 'live') return clip([readers, ...errRows, 'Доска: в git — зеркало Plane не нужно', bell], LIMITS.healthChars);
     return clip([readers, ...errRows, mirror, bell, plane], LIMITS.healthChars);
   }
 

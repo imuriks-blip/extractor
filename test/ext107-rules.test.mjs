@@ -148,6 +148,8 @@ test('Р3 №3: тред без проекта — без пометки и бе
 test('Р3 №4: vault_root нет — путь паспорта (элемент 0) не разрешился: набор выключен, причина в /api/health', async () => {
   const rr = resolveReread(DEF, { vaultRoot: null, home: HOME });
   assert.deepEqual(rr, { files: [], off: 'NO_VAULT_ROOT', item: 0 });
+  // Р5б (ревью Голема): не разрешился именно паспорт — элемент набора по номеру item, а не «первый какой-то»
+  assert.equal(DEF[rr.item], 'unorbis/_meta/agents/trurl.md');
   const journals = createJournalReader({ root: tmpDir('ext107r3-j-'), indexDir: tmpDir('ext107r3-i-'), reread: rr.files, rereadOff: rr.off });
   const bdir = tmpDir('ext107r3-board-');
   makeBoard(bdir, { codes: ['EXT'] });

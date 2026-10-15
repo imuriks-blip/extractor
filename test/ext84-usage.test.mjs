@@ -167,6 +167,21 @@ test('прораб — сессия из семьи запуска (по жур�
   assert.equal(r2.usageRecords(0).find((x) => x.sessionId === 'foreman1').agent, 'foreman');
 });
 
+// EXT-107 Р5б: признак прораба у «Расхода» — тот же, что в buildWorkers (Р4): семья по запуску ИЛИ foremanTitle
+// (имя «<КОД> · Тарантога · <КОД>-N» до первой строки user). Здесь семьи по запуску нет — только имя.
+test('EXT-107 Р5б: прораб по имени (foremanTitle, без запуска в журналах) — подпись «прораб»; то же имя после первой строки user — главная сессия', async () => {
+  const w = world();
+  const t = NOW - H;
+  const title = (sid, ms) => ({ type: 'custom-title', customTitle: 'EXT · Тарантога · EXT-92', sessionId: sid, timestamp: iso(ms) });
+  const user = (sid, ms) => ({ type: 'user', uuid: `cccccccc-0000-4000-8000-${String(++seq).padStart(12, '0')}`, timestamp: iso(ms), sessionId: sid, version: '2.1.0', message: { role: 'user', content: 'Твоё задание — в файле' } });
+  w.session('foremanByName', [title('foremanByName', t), user('foremanByName', t + 1000), asst('fn1', t + 2000, us(0, 0, 0, 41), { sessionId: 'foremanByName' })]);
+  w.session('renamedLater', [user('renamedLater', t), title('renamedLater', t + 1000), asst('rl1', t + 2000, us(0, 0, 0, 7), { sessionId: 'renamedLater' })]);
+  const p = await payload(w);
+  const ag = Object.fromEntries(p.byAgent.week.map((x) => [x.agent, x.total]));
+  assert.deepEqual(ag, { foreman: 41, main: 7 });
+  assert.equal(p.byAgent.week.find((x) => x.agent === 'foreman').label, 'прораб');
+});
+
 test('остаток: событие в прогоне — поля, возраст на момент ответа; нет события и пустая папка — null и строка', async () => {
   const runs = tmpDir('usage-runs-');
   const mk = (name, lines, mtimeS) => { const d = path.join(runs, name); fs.mkdirSync(d); const f = path.join(d, 'stream.jsonl'); fs.writeFileSync(f, lines.map((l) => `${l}\n`).join('')); fs.utimesSync(f, mtimeS, mtimeS); };

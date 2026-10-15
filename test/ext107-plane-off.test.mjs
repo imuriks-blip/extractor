@@ -116,6 +116,19 @@ test('Р5 №2: live, пульт включён — /api/health → planeQueue =
   await s.app.close();
 });
 
+// ---------- Р5б: режим доски в /api/health — для MCP health (тот же источник, что ceh.boardMode) ----------
+
+test('Р5б: /api/health → boardMode = режим доски (live, mirror; без board.config.json — null), пульт включён и выключен', async () => {
+  for (const [mode, pultOn] of [['live', true], ['live', false], ['mirror', true], [null, true]]) {
+    const s = await setup({ mode, pultOn });
+    const h = await s.get('/api/health');
+    assert.ok('boardMode' in h, `поле есть: mode=${mode}`);
+    assert.equal(h.boardMode, mode, `mode=${mode} pult=${pultOn}`);
+    assert.equal(h.boardMode, (await s.get('/api/ceh')).boardMode, 'тот же источник, что ceh.boardMode');
+    await s.app.close();
+  }
+});
+
 // ---------- №2а: экран — меню «Служебное» без зеркала, ход зеркала вне прохода скрыт ----------
 
 test('Р5 №2а: экран — в live меню «Служебное» без пунктов зеркала (Service.jsx), ход зеркала только у идущего прохода (Mirror.jsx)', () => {
