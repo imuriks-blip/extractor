@@ -98,8 +98,7 @@ export function lifePipe(tag = 'p') {
   return `\\\\.\\pipe\\vitrina-test-${tag}-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
 }
 
-// код для `node -e` (CommonJS): держать канал-метку и отвечать своим pid; любой присланный байт — выйти самому
-export const lifeCode = (pipe) => `require('net').createServer((s) => { s.on('error', () => {}); s.on('data', () => process.exit(0)); s.write(String(process.pid)); }).listen(${JSON.stringify(pipe)});`;
+// держатель метки (test/fake-claude.mjs, FAKE_SYNC в ext99): слушает канал, отвечает своим pid, по любому байту выходит сам
 
 // канал-метка отвечает: держатель жив. Нет канала — ошибка сразу (ENOENT); канал есть, но занят — считается живым
 export function pipeAlive(pipe, ms = 5000) {
