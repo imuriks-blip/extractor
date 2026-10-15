@@ -179,3 +179,21 @@ test('дозапрос Голема п.1: подпись без label — пус
   const w = call(fmt.stepWords, ['', '  ', '\u0007'].map((label, i) => ({ label, message: msg + i, send: msg + i })));
   assert.deepEqual(w.map((x) => x.label), [0, 1, 2].map(() => [...msg].slice(0, 24).join('')));
 });
+
+test('9 (вёрстка, находка дирижёра 15.10): на ширине шире 560 кнопки окна — второй строкой под текстом вопроса, не колонкой справа', () => {
+  const c = cehReply();
+  // класс win — только у вида nextStep; question (кнопки «го»/«Ответить») — прежний «wrow pr stack»
+  assert.match(c, /<div className=\{r\.kind === 'nextStep' \? 'wrow pr stack win' : 'wrow pr stack'\} key=\{r\.key\}>/);
+  const css = src('styles.css');
+  const i = css.indexOf('.wrow.pr.win{');
+  assert.ok(i > 0, 'правила .wrow.pr.win нет');
+  const head = css.slice(css.lastIndexOf('@media', i), i);
+  assert.match(head, /^@media \(min-width:561px\)\{\s*$/, 'правило .win — только шире 560 (до 560 — .stack)');
+  const blk = css.slice(i, css.indexOf('\n}', i));
+  assert.match(blk, /\.wrow\.pr\.win\{grid-template-columns:150px auto auto minmax\(0,1fr\) 64px;/);
+  assert.match(blk, /\.wrow\.pr\.win>\.tt\{grid-area:1\/2\/2\/5\}/, 'текст вопроса — во всю ширину первой строки');
+  assert.match(blk, /\.wrow\.pr\.win \.pbtns\{grid-area:2\/2\}/, 'кнопки — второй строкой');
+  assert.match(blk, /\.wrow\.pr\.win>\.dfr\{grid-area:2\/3\}/);
+  assert.match(blk, /\.wrow\.pr\.win>\.age\{grid-area:1\/5\}/);
+  assert.equal(css.split('.win').length - 1, 5, '.win — только в этом блоке: прочие строки «Ждёт меня» без изменений');
+});
