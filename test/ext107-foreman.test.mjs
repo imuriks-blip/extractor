@@ -223,6 +223,19 @@ test('6 (ТЗ): журнал прораба — ivan.count 0, ivan.cards пус�
   assert.equal(t.card, 'EXT-91');
 });
 
+// EXT-109 (Важно 1 Голема): у живой ТЗ-строки turnOrigin sdk — её отсекает и разрешающий список, и защита прораба по
+// имени (countIvan: foremanTitle) остаётся без стража. Журнал без поля (старые версии CLI) — держит только имя.
+test('6 (ТЗ без turnOrigin): журнал прораба, ТЗ без поля — ivan.count 0, ivan.cards пуст, ivan.firstAt null (держит имя)', async () => {
+  const ls = F.map(clone);
+  delete ls[4].turnOrigin;
+  const r = await workers({ [SID]: ls }, [proc(SID)]);
+  const s = r.sess(SID);
+  assert.equal(r.row(SID).foreman, true);
+  assert.equal(s.ivan.count, 0);
+  assert.deepEqual(s.ivan.cards, {});
+  assert.equal(s.ivan.firstAt, null);
+});
+
 test('словарь агентов: прораб не субагент — в WHO его нет', () => {
   assert.equal(Object.values(WHO).includes('Тарантога'), false);
 });
