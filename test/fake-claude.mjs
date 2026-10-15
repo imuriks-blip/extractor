@@ -25,8 +25,20 @@ const event = { type: 'rate_limit_event', rate_limit_info: { status: 'allowed', 
 const result = (extra = {}) => ({ type: 'result', subtype: 'success', is_error: false, result: 'ок', total_cost_usd: 0.0123, usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 300, cache_creation_input_tokens: 4 }, ...extra });
 
 if (mode === 'hang') {
-  const g = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
-  if (process.env.FAKE_PIDS) fs.writeFileSync(process.env.FAKE_PIDS, JSON.stringify({ child: process.pid, grandchild: g.pid }));
+  // FAKE_GPIPE (EXT-112): внук держит канал-метку теста (живость и уборка — по ней, не по pid); pids пишутся, когда
+  // метка уже отвечает, — файл pids значит «внук был жив», и проверка «снят» не проходит даром
+  const gpipe = process.env.FAKE_GPIPE;
+  const code = gpipe ? `require('net').createServer((s) => { s.on('error', () => {}); s.on('data', () => process.exit(0)); s.write(String(process.pid)); }).listen(${JSON.stringify(gpipe)});` : 'setInterval(() => {}, 1000)';
+  // внук отсоединён (EXT-112): иначе libuv держит его в задании родителя, и он умирает со снятием одного ребёнка —
+  // проверка «снят деревом» не отличала бы taskkill /T от снятия одного процесса
+  const g = spawn(process.execPath, ['-e', code], { stdio: 'ignore', detached: true, windowsHide: true });
+  const writePids = () => { if (process.env.FAKE_PIDS) fs.writeFileSync(process.env.FAKE_PIDS, JSON.stringify({ child: process.pid, grandchild: g.pid })); };
+  if (!gpipe) writePids();
+  else {
+    const net = await import('node:net');
+    const probe = () => { const c = net.connect(gpipe); c.once('connect', () => { c.destroy(); writePids(); }); c.once('error', () => { c.destroy(); setTimeout(probe, 50); }); };
+    probe();
+  }
   setInterval(() => {}, 1000);
 } else if (mode === 'noevent') {
   send({ type: 'system', subtype: 'init' });

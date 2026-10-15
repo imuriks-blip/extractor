@@ -17,7 +17,7 @@ import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
 import { CHECKS } from '../lib/pult/guard.mjs';
-import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit } from './helpers.mjs';
+import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, lifePipe, pipeAlive, pipeExit, untilPipeGone, exited, untilExit } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { scan } = await import(new URL(`file:///${BOARD_LIB}/secrets.mjs`).href);
@@ -29,7 +29,6 @@ const H = 3600000;
 const T0 = Date.parse('2026-10-09T12:00:00.000Z');
 const p2 = (n) => String(n).padStart(2, '0');
 const hhmm = (ms) => `${p2(new Date(ms).getHours())}:${p2(new Date(ms).getMinutes())}`;
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readJson = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 
@@ -38,19 +37,23 @@ function rig({ mode = 'ok', ceilingMs = 60000, clock = { t: T0 }, env = {}, find
   const dir = path.join(tmpDir('measure-'), 'measure');
   const out = path.join(tmpDir('fake-out-'), 'run.json');
   const pids = path.join(path.dirname(out), 'pids.json');
+  const gpipe = lifePipe('ext87'); // метка внука в режиме hang (EXT-112)
   const launches = [];
   const logLines = [];
   const m = createMeasure({
     dir, ceilingMs, now: () => clock.t,
-    env: { PATH: process.env.PATH, FAKE_MODE: mode, FAKE_OUT: out, FAKE_PIDS: pids, ...env },
+    env: { PATH: process.env.PATH, FAKE_MODE: mode, FAKE_OUT: out, FAKE_PIDS: pids, FAKE_GPIPE: gpipe, ...env },
     findBin: findBin ?? (() => FAKE),
-    launch: (bin, args, opts) => { launches.push({ bin, args, opts }); return spawn(process.execPath, [bin, ...args], opts); },
+    launch: (bin, args, opts) => { const child = spawn(process.execPath, [bin, ...args], opts); launches.push({ bin, args, opts, child }); return child; },
     log: log ?? { write: (ev, f) => logLines.push({ ev, ...f }) },
   });
-  const killLeft = () => { // свои хвосты: pid, записанные самим подменным бинарником этого теста
-    try { const p = readJson(pids); for (const pid of [p.grandchild, p.child]) if (alive(pid)) { try { process.kill(pid, 'SIGKILL'); } catch { /* ушёл */ } } } catch { /* не зависал */ }
+  // свои хвосты (EXT-112): ребёнок — своим ChildProcess, внук — байтом в свой канал-метку; ни pid, ни сигнала по номеру
+  // (прежнее «жив по pid → SIGKILL по pid» под нагрузкой снимало чужой процесс, получивший тот же pid)
+  const killLeft = async () => {
+    for (const { child } of launches) if (!exited(child)) child.kill();
+    await pipeExit(gpipe);
   };
-  return { m, dir, out, pids, launches, logLines, clock, killLeft, run: () => readJson(out) };
+  return { m, dir, out, pids, gpipe, launches, logLines, clock, killLeft, run: () => readJson(out) };
 }
 
 test('удача: запуск — константа, окружение без переменных десктопа, настройки гасят хуки; показанное число = событию в потоке; last.json и log.jsonl', async () => {
@@ -188,18 +191,18 @@ test('потолок: зависший замер снят деревом по �
     assert.ok(Date.now() - t0 < 30000);
     assert.equal(res.outcome, 'error');
     assert.match(res.message, /превышен потолок/);
-    for (let i = 0; i < 200 && !fs.existsSync(r.pids); i++) await sleep(50); // подменный бинарник мог записать pids уже после снятия
-    const p = readJson(r.pids);
-    assert.ok(Number.isInteger(p.child) && Number.isInteger(p.grandchild));
-    await sleep(300);
-    assert.equal(alive(p.child), false, 'процесс замера снят');
-    assert.equal(alive(p.grandchild), false, 'потомок снят вместе с деревом — сирот нет');
+    // pids пишутся, когда метка внука уже отвечает: файл есть — внук был жив до снятия (EXT-112)
+    assert.ok(fs.existsSync(r.pids), 'внук поднялся до потолка');
+    // снят — по событию, не по паузе: снятый taskkill процесс под нагрузкой уходит не сразу, а pid раздаётся заново;
+    // срок 15 с — только ожидание события: без снятия деревом внук живёт вечно, и проверка падает
+    assert.ok(await untilExit(r.launches[0].child), 'процесс замера снят');
+    assert.ok(await untilPipeGone(r.gpipe), 'потомок снят вместе с деревом — сирот нет');
     assert.equal(fs.existsSync(path.join(r.dir, 'last.json')), false);
     const row = fs.readFileSync(path.join(r.dir, 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).at(-1);
     assert.equal(row.ok, false);
     // после снятия замер свободен: идущего нет
     assert.equal(r.m.running(), false);
-  } finally { r.killLeft(); }
+  } finally { await r.killLeft(); }
   const quick = rig({ mode: 'ok', ceilingMs: 6000 });
   assert.equal((await quick.m.act({})).outcome, 'ok');
 });
@@ -208,18 +211,19 @@ test('остановка витрины (stop) снимает идущий за�
   const r = rig({ mode: 'hang', ceilingMs: 60000 });
   try {
     const pending = r.m.act({});
-    for (let i = 0; i < 100 && !fs.existsSync(r.pids); i++) await sleep(50);
-    const p = readJson(r.pids);
+    // ждать события «внук поднял метку» (pids пишутся после), а не 5 с: старт двух node под полным прогоном — секунды
+    for (let i = 0; i < 300 && !fs.existsSync(r.pids); i++) await sleep(50);
+    assert.ok(fs.existsSync(r.pids), 'зависший замер поднял внука');
+    const child = r.launches[0].child;
     assert.equal(r.m.running(), true);
-    assert.ok(alive(p.child) && alive(p.grandchild), 'до остановки оба живы');
+    assert.ok(!exited(child) && await pipeAlive(r.gpipe), 'до остановки оба живы');
     await r.m.stop();
     const res = await pending;
     assert.equal(res.outcome, 'error');
-    await sleep(300);
-    assert.equal(alive(p.child), false);
-    assert.equal(alive(p.grandchild), false);
+    assert.ok(await untilExit(child), 'процесс замера снят');
+    assert.ok(await untilPipeGone(r.gpipe), 'внук снят деревом — сирот нет');
     assert.equal(r.m.running(), false);
-  } finally { r.killLeft(); }
+  } finally { await r.killLeft(); }
 });
 
 test('поиск программы в двух местах: наибольшая версия (числом, не строкой) из пакета десктопа и профиля; нигде нет — null', () => {

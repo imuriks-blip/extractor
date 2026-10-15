@@ -2,6 +2,8 @@
 // Ожидаемые значения в тестах берутся из того, что положено сюда, а не из кода под тестом.
 import fs from 'node:fs';
 import os from 'node:os';
+import net from 'node:net';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -82,6 +84,84 @@ export function gitCommitAll(dir, msg = 'next') {
   git(dir, '-c', 'core.autocrlf=false', 'add', '.');
   git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.autocrlf=false', 'commit', '-q', '-m', msg);
   return git(dir, 'rev-parse', 'HEAD').trim();
+}
+
+// ---- EXT-112: свои процессы в тестах — без pid ----
+// pid Windows раздаёт заново, а снятый taskkill процесс под нагрузкой ещё секунды «жив» по сигналу 0: проверка
+// «process.kill(pid, 0) через 300 мс» под полным прогоном лжёт в обе стороны, а снятие «если жив — убить по pid»
+// задевает чужой процесс, получивший тот же pid (так падали git init / git add соседних тестов кодом 1 без вывода).
+// Свой процесс опознаётся иначе: прямой ребёнок — по своему ChildProcess (событие exit), внук — по каналу-метке.
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// имя канала-метки: своё на каждый вызов (pid теста + случайный хвост) — чужой процесс его не держит
+export function lifePipe(tag = 'p') {
+  return `\\\\.\\pipe\\vitrina-test-${tag}-${process.pid}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+// код для `node -e` (CommonJS): держать канал-метку и отвечать своим pid; любой присланный байт — выйти самому
+export const lifeCode = (pipe) => `require('net').createServer((s) => { s.on('error', () => {}); s.on('data', () => process.exit(0)); s.write(String(process.pid)); }).listen(${JSON.stringify(pipe)});`;
+
+// канал-метка отвечает: держатель жив. Нет канала — ошибка сразу (ENOENT); канал есть, но занят — считается живым
+export function pipeAlive(pipe, ms = 5000) {
+  return new Promise((resolve) => {
+    const c = net.connect(pipe);
+    const end = (v) => { clearTimeout(t); c.destroy(); resolve(v); };
+    const t = setTimeout(() => end(true), ms);
+    c.once('connect', () => end(true));
+    c.once('error', () => end(false));
+  });
+}
+
+// уборка внука по метке: он выходит сам по байту в канал — ни pid, ни taskkill (чужой процесс задеть нечем)
+export function pipeExit(pipe, ms = 5000) {
+  return new Promise((resolve) => {
+    const c = net.connect(pipe);
+    const end = () => { clearTimeout(t); c.destroy(); resolve(); };
+    const t = setTimeout(end, ms);
+    c.once('connect', () => c.write('x'));
+    c.once('error', end);
+    c.once('close', end);
+  });
+}
+
+// ждать условия (в том числе асинхронного) до срока: событие, а не время
+export async function untilAsync(fn, ms = 15000, step = 50) {
+  const t = Date.now();
+  while (Date.now() - t < ms) { if (await fn()) return true; await sleepMs(step); }
+  return !!(await fn());
+}
+
+// канал-метка пропал до срока — держатель снят
+export const untilPipeGone = (pipe, ms = 15000) => untilAsync(async () => !(await pipeAlive(pipe)), ms);
+
+// свой прямой ребёнок завершился: по его ChildProcess (pid не участвует)
+export const exited = (child) => child.exitCode !== null || child.signalCode !== null;
+export function untilExit(child, ms = 15000) {
+  if (exited(child)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const t = setTimeout(() => { child.off('exit', on); resolve(exited(child)); }, ms);
+    const on = () => { clearTimeout(t); resolve(true); };
+    child.once('exit', on);
+  });
+}
+
+// ---- EXT-112: сервер витрины на свободном порту ----
+// Порт выбирает ОС (listen 0 → закрыть). Между выбором и listen витрины порт может занять другой процесс: исходящие
+// соединения берут порты того же динамического диапазона (EACCES / EADDRINUSE), чужой слушатель — PORT_FOREIGN,
+// витрина параллельного теста — ALREADY_RUNNING. Условие теста «порт свободен» тогда не выполнено — новый порт.
+const PORT_RACE = new Set(['EACCES', 'EADDRINUSE', 'PORT_FOREIGN', 'ALREADY_RUNNING']);
+export function freePort() {
+  return new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.once('error', reject);
+    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); });
+  });
+}
+export async function onFreePort(start, tries = 5) {
+  for (let i = 1; ; i++) {
+    const port = await freePort();
+    try { return { port, s: await start(port) }; } catch (e) { if (i >= tries || !PORT_RACE.has(e?.code)) throw e; }
+  }
 }
 
 // fs-обёртка со счётчиком чтений: проверка «чтения файла не было» (гейт п.1).
