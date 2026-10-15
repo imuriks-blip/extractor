@@ -109,9 +109,13 @@ test('2 (ещё поломка): auto — тост ровно один; повт
 });
 
 test('2: сервер подаёт строки сжатия в цикл тостов (start.mjs) отдельно от «Ждёт меня»', () => {
-  const s = src('lib', 'start.mjs');
-  assert.match(s, /compactToastRows\(/);
-  assert.match(s, /thresholds\.compactShowH|compactShowH/);
+  // по коду, не по комментариям (ревью Голема, Мелочь 1): строки «Кто работает» того же расчёта — в цикл тостов;
+  // срок — config.thresholds → buildWorkers → buildThreads({ compactShowH: th.compactShowH })
+  const code = (f) => src('lib', f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const s = code('start.mjs');
+  assert.match(s, /\.\.\.compactToastRows\(\s*c\.workers\?\.threads\s*\)/);
+  assert.match(s, /buildWorkers\(\{[^;]*?thresholds: config\.thresholds \?\? \{\}/);
+  assert.match(code('waiting.mjs'), /buildThreads\(\{[^;]*?compactShowH: th\.compactShowH \}\)/);
 });
 
 // ---------- 3: исправный ----------
@@ -155,7 +159,8 @@ test('1а: compactShowH — умолчание 12 в config.default.json; 24 —
   assert.equal(DEFAULTS.thresholds.compactShowH, 12);
   const late = atMs(MAN[1]) + 13 * HOUR;
   assert.equal(run(MAN, { now: late, compactShowH: 24 }).memory.lastCompact?.at, MAN[1].timestamp);
-  assert.equal(run(MAN, { now: atMs(MAN[1]) + 11 * HOUR, compactShowH: 'x' }).memory.lastCompact?.at, MAN[1].timestamp);
+  // нечисловое или ≤ 0 — умолчание 12 ч: сжатие 11 ч назад держится (без «> 0» срок 0 или −1 его бы снял — ревью Голема, Важно 1)
+  for (const h of ['x', 0, -1]) assert.equal(run(MAN, { now: atMs(MAN[1]) + 11 * HOUR, compactShowH: h }).memory.lastCompact?.at, MAN[1].timestamp, `compactShowH ${h}`);
 });
 
 // ---------- 4: край ----------
