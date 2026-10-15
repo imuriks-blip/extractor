@@ -93,3 +93,13 @@ export function cardMainMark(waiting, id) {
   return waiting?.yes?.find((r) => r.id === id)?.mark
     ?? waiting?.deferred?.find((d) => d.group === 'yes' && d.card === id)?.mark ?? undefined;
 }
+
+// Тело нажатия кнопки-слова (Pult.jsx, base; EXT-110 гейт ПТ16б №1): у строки (а) — тред и вопрос строки, card — карточка треда
+// из «Кто работает» или ничего (не поле card строки); у карточки — номер и q записи; text — только если есть. intentId
+// добавляет вызывающий (fresh)
+export function wordBody({ thread, card, q, action, text }) {
+  const t = text != null ? { text } : {};
+  return thread
+    ? { action, session: thread.session, ...(thread.card ? { card: thread.card } : {}), q, ...t }
+    : { action, card, q, ...t };
+}

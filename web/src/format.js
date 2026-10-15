@@ -77,7 +77,8 @@ export function oldest(...isos) {
 // строка (а) «Тред ждёт ответа», которой ответить можно только в окне десктопа (EXT-77; спека пульта §2.4: при waiting Иван
 // видит «тред ждёт тебя в десктопе: ответь там»): вид ожидания из waitingFor десктопа — askUserQuestion, permission или
 // незнакомый «?». «Ответить» у таких строк нет; у вопроса в чате (question) подсказки нет. Вопрос окна «следующий шаг»
-// (nextStep, EXT-107 Р1) — тоже с подсказкой: ответ и правда в окне десктопа
+// (nextStep, EXT-107 Р1) — с подсказкой, только когда кнопок ответа нет (canReplyRow ложно; EXT-110 п.7): ветка с кнопками
+// в Ceh.jsx подсказку не рисует
 // Событие «тред сжат» в строке памяти треда (EXT-107 Р2): пока у памяти есть lastCompact (сервер держит его
 // thresholds.compactShowH часов) — «сжат ЧЧ:ММ · 800 тыс. → 16 тыс. · вручную» («· сам» при auto) обычным цветом;
 // без preTokens или postTokens — без чисел, без trigger — без способа. Позже — прежнее бледное «сжат N раз»; сжатий нет — null.
@@ -99,17 +100,59 @@ export function compactLine(m, now = Date.now()) {
 export const DESKTOP_HINT = 'ждёт тебя в десктопе — ответь там';
 export const waitsInDesktop = (r) => typeof r?.kind === 'string' && r.kind !== 'question';
 
-// Чипы кнопок окна «следующий шаг» (EXT-107 Р1, И-1 вариант (а)): только показ, без нажатия. Ответ (элемент без action) —
-// подпись label, в подсказке — что уйдёт треду: message, а нет его — сам label. Действие приложения (элемент с action) —
-// «действие: <action>», label не показывается (приложение его не использует); это кнопка десктопа, не ответ треду.
-export function stepChips(actions) {
+// Действие приложения — элемент окна с полем action (в том числе action: ''), то же правило, что у сервера (words.mjs,
+// windowText: a.action !== undefined; EXT-110, Мелочь 4 ревью Голема). Кнопкой «ответ треду» оно не становится никогда.
+const isAppAction = (a) => a.action !== undefined;
+// кнопка «ответ треду» из элемента окна (EXT-110 п.1): только ответ (без action) с полем send — его ставит сервер (app.mjs, collect)
+const sendOf = (a) => (a && typeof a === 'object' && !isAppAction(a) && typeof a.send === 'string' && a.send ? a.send : null);
+
+// Чипы кнопок окна «следующий шаг» (EXT-107 Р1): серые, без нажатия. Ответ (элемент без action) — подпись label, в подсказке —
+// что уйдёт треду: message, а нет его — сам label. Действие приложения — «действие: <action>», label не показывается
+// (приложение его не использует); это кнопка десктопа, не ответ треду. {buttons: true} (EXT-110, «Цех» при кнопках): ответы
+// с send — кнопки (stepWords), чипами остаются только действия и ответы без send. Без параметра — все чипы (окно проекта).
+export function stepChips(actions, { buttons = false } = {}) {
   const out = [];
   for (const a of Array.isArray(actions) ? actions : []) {
     if (!a || typeof a !== 'object') continue;
-    if (typeof a.action === 'string' && a.action) out.push({ text: `действие: ${a.action}`, title: 'действие приложения — кнопка в окне десктопа, не ответ треду' });
+    if (isAppAction(a)) out.push({ text: typeof a.action === 'string' && a.action ? `действие: ${a.action}` : 'действие приложения', title: 'действие приложения — кнопка в окне десктопа, не ответ треду' });
+    else if (buttons && sendOf(a) !== null) continue;
     else if (typeof a.label === 'string' && a.label) out.push({ text: a.label, title: typeof a.message === 'string' && a.message ? a.message : a.label });
   }
   return out;
+}
+
+// Кнопки-ответы окна «следующий шаг» (EXT-110 п.1) — слова пульта {action: 'reply', text: send, label, title, tail?, main?}.
+// Подпись — label, без него — первые 24 знака message; title — ровно send; при send ≠ подписи — хвост «→ <начало send>»:
+// 40 знаков (кодовые точки), переводы строк — пробелом, длиннее — 39 и «…». Дубли по send снимаются здесь (ключ слова в
+// Pult.jsx — action + text): кнопкой становится первый, остальные не рисуются ни кнопкой, ни чипом. Первая — главная (pmain).
+const WORD_LABEL_MAX = 24, TAIL_MAX = 40;
+const NL = /\r\n|[\r\n]/g;
+export function stepWords(actions) {
+  const out = [], seen = new Set();
+  for (const a of Array.isArray(actions) ? actions : []) {
+    const send = sendOf(a);
+    if (send === null || seen.has(send)) continue;
+    seen.add(send);
+    const label = typeof a.label === 'string' && a.label ? a.label
+      : [...(typeof a.message === 'string' ? a.message : send).replace(NL, ' ')].slice(0, WORD_LABEL_MAX).join('');
+    const flat = [...send.replace(NL, ' ')];
+    const tail = send === label ? null : `→ ${flat.length > TAIL_MAX ? `${flat.slice(0, TAIL_MAX - 1).join('')}…` : flat.join('')}`;
+    out.push({ action: 'reply', text: send, label, title: send, ...(tail ? { tail } : {}), ...(out.length ? {} : { main: true }) });
+  }
+  return out;
+}
+
+// Слова ответа строки (а) (§1.7, EXT-70; EXT-110 п.6): у question — «Ответить» и «го <ID>» при поле card строки; у nextStep —
+// кнопки-ответы окна, затем «Ответить»; «го <ID>» нет (Д-1).
+export function replyWords(r) {
+  if (r?.kind === 'nextStep') return [...stepWords(r.actions), { action: 'reply' }];
+  return [{ action: 'reply' }, ...(r?.card ? [{ action: 'reply', text: `го ${r.card}`, label: `го ${r.card}` }] : [])];
+}
+
+// Кнопки ответа у строки (а) (§1.7; EXT-110 п.1 «Когда»): вид question или nextStep, pult.words, у строки есть uuid (у keyTemp —
+// нет) и звонок включён либо у треда есть карточка (tc — из «Кто работает»). Иначе прежний вид: чипы и DESKTOP_HINT.
+export function canReplyRow(r, { wordsOn, bell, tc }) {
+  return !!(wordsOn && (r?.kind === 'question' || r?.kind === 'nextStep') && r.uuid && (bell === true || tc));
 }
 
 // Метка треда прораба (EXT-107 Р4): серая «прораб · без окна», если семья известна — ещё «· от <название треда-дирижёра>»
