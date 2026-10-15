@@ -334,3 +334,29 @@ test('ручка: карточка проекта треда в тексте ask
   const none = buildWaiting({ threads: waitingThreads({ threads: [{ sessionId: SID_A, title: 't', project: 'CAR', projectBy: 'title', state: 'waiting', waitingKind: 'nextStep' }], sessions: sess, now: NOW }), board: brd, now: NOW }).threads[0];
   assert.equal(none.card, undefined, 'номер чужого проекта — поля нет');
 });
+
+// ---------- дозапрос Голема: снятие держится условием «ДРУГОЙ message.id», sidechain не заменяет ----------
+
+test('4 (не снятие): строка главного треда с ТЕМ ЖЕ message.id, что у wrap_up, и tool_use — вопрос не снимается', () => {
+  const same = { type: 'assistant', isSidechain: false, uuid: 'abababab-0000-4000-8000-000000000001', timestamp: '2026-10-14T18:55:27.000Z', sessionId: SID_A,
+    message: { id: A[0].message.id, role: 'assistant', stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'toolu_same', name: 'Bash', input: { command: 'ls' } }] } };
+  const r = run([...A.slice(0, 4), same]);
+  assert.equal(r.state, 'waiting');
+  assert.equal(r.rows[0].kind, 'nextStep');
+  assert.equal(r.rows[0].key, `${SID_A}|${A[0].uuid}`);
+  // исправный рядом: тот же вызов с другим message.id — снимает
+  const other = { ...same, message: { ...same.message, id: 'msg_other' } };
+  assert.equal(run([...A.slice(0, 4), other]).rows.length, 0);
+});
+
+test('4 (не снятие): новый wrap_up в строке с isSidechain: true не заменяет прежний вопрос', () => {
+  const side = clone(B[0]);
+  side.sessionId = SID_A;
+  side.isSidechain = true;
+  const r = run([...A.slice(0, 4), side], { sid: SID_A });
+  assert.equal(r.rows[0].text, 'Трурль: С чего стартуем?');
+  assert.equal(r.rows[0].key, `${SID_A}|${A[0].uuid}`);
+  // исправный рядом: тот же wrap_up в главном треде — заменяет
+  const main = { ...side, isSidechain: false };
+  assert.equal(run([...A.slice(0, 4), main], { sid: SID_A }).rows[0].key, `${SID_A}|${B[0].uuid}`);
+});
