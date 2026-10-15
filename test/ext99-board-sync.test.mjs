@@ -14,7 +14,7 @@ import { createBoardSync, createSyncRun, syncLevel, boardSyncConfig, BOARD_SYNC_
 import { createGitRead } from '../lib/git-read.mjs';
 import { startServer } from '../lib/start.mjs';
 import { boardSyncLine } from '../web/src/boardSyncText.js';
-import { BOARD_LIB, tmpDir, projectsMd, gitInitCommit, git } from './helpers.mjs';
+import { BOARD_LIB, tmpDir, projectsMd, gitInitCommit, git, lifePipe, pipeAlive, pipeExit, untilPipeGone, exited, untilExit, onFreePort } from './helpers.mjs';
 
 const lockLib = await import(pathToFileURL(path.join(BOARD_LIB, 'lock.mjs')).href);
 const { scan } = await import(pathToFileURL(path.join(BOARD_LIB, 'secrets.mjs')).href);
@@ -26,8 +26,10 @@ const iso = (ms) => new Date(ms).toISOString();
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
 const until = async (fn, ms = 8000) => { const t = Date.now(); while (Date.now() - t < ms) { if (fn()) return true; await new Promise((r) => setTimeout(r, 50)); } return !!fn(); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-const killOwn = (pid) => { if (pid && alive(pid)) { try { execFileSync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true, stdio: 'ignore' }); } catch { /* уже нет */ } } };
+// свои процессы (EXT-112): запуск sync — через шов spawn, жив/снят — по своему ChildProcess; внуки — по каналу-метке.
+// Прежнее «жив по pid → taskkill /T по pid» под полным прогоном снимало чужое дерево, получившее тот же pid.
+const spawnKept = (kids) => (...a) => { const c = spawn(...a); kids.push(c); return c; };
+const dropKids = async (kids, pipes = []) => { for (const c of kids) if (!exited(c)) c.kill(); for (const p of pipes) await pipeExit(p); };
 
 // временная доска: mode/push по тесту, голый origin в своей временной папке, состояние отправки — вне git
 // origin — ссылка refs/remotes/origin/main без сети (для ahead довольно; push по пути через sh.exe под нагрузкой — секунды);
@@ -543,14 +545,21 @@ const FAKE_SYNC = `import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import net from 'node:net';
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const cfg = JSON.parse(fs.readFileSync(path.join(dir, 'cfg.json'), 'utf8'));
 const mark = (o) => fs.appendFileSync(path.join(dir, 'marks.log'), JSON.stringify({ pid: process.pid, ...o }) + '\\n');
 mark({ ev: 'start', argv: process.argv.slice(2), env: Object.keys(process.env) });
+// канал-метка теста (EXT-112): держатель отвечает pid, по любому байту выходит сам — живость и уборка без pid
+const life = (p) => "require('net').createServer((s) => { s.on('error', () => {}); s.on('data', () => process.exit(0)); s.write(String(process.pid)); }).listen(" + JSON.stringify(p) + ");";
+if (cfg.selfPipe) net.createServer((s) => { s.on('error', () => {}); s.on('data', () => process.exit(0)); s.write(String(process.pid)); }).listen(cfg.selfPipe);
 if (cfg.child) {
   // ребёнок отсоединён (как git-remote-http у git): со смертью родителя сам не уходит — снимает только дерево по pid
-  const c = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', 'ext99-child-' + cfg.tag], { stdio: 'ignore', windowsHide: true, detached: true });
-  fs.writeFileSync(path.join(dir, 'child.pid'), String(c.pid));
+  const c = spawn(process.execPath, ['-e', cfg.pipe ? life(cfg.pipe) : 'setInterval(() => {}, 1000)', 'ext99-child-' + cfg.tag], { stdio: 'ignore', windowsHide: true, detached: true });
+  const put = () => fs.writeFileSync(path.join(dir, 'child.pid'), String(c.pid));
+  // с меткой child.pid пишется, когда метка уже отвечает: файл есть — ребёнок был жив
+  const probe = () => { const k = net.connect(cfg.pipe); k.once('connect', () => { k.destroy(); put(); }); k.once('error', () => { k.destroy(); setTimeout(probe, 50); }); };
+  if (cfg.pipe) probe(); else put();
 }
 const finish = () => { mark({ ev: 'end', code: cfg.code ?? 0 }); process.exit(cfg.code ?? 0); };
 // wait — конец по файлу release (тест сам решает, когда sync «доработал»: время старта node под нагрузкой не мерило)
@@ -595,19 +604,26 @@ test('процесс: код выхода 7 приходит событием ex
   assert.equal(typeof res.ms, 'number');
 });
 
-test('процесс: висит дольше таймаута (2 с) со своим ребёнком → оба сняты деревом по pid, {code: null, timedOut: true}', async () => {
-  const f = fakeSync({ child: true, tag: `t${process.pid}`, ms: 600000 });
-  const h = createSyncRun({ root: f.dir, timeoutMs: 2000 }).start('quiet');
-  let child = null;
+// таймаут 5 с (было 2 с, EXT-112): до него должны подняться два node — sync и его ребёнок с меткой; под полным прогоном
+// это бывает дольше 2 с. Проверка та же — висящий дольше таймаута снят деревом; без /T ребёнок (отсоединён) живёт вечно
+test('процесс: висит дольше таймаута (5 с) со своим ребёнком → оба сняты деревом по pid, {code: null, timedOut: true}', async () => {
+  const pipe = lifePipe('ext99');
+  const f = fakeSync({ child: true, tag: `t${process.pid}`, ms: 600000, pipe });
+  const kids = [];
+  const h = createSyncRun({ root: f.dir, timeoutMs: 5000, spawn: spawnKept(kids) }).start('quiet');
   try {
-    assert.ok(await until(() => fs.existsSync(path.join(f.dir, 'tools', 'child.pid'))));
-    child = f.childPid();
-    assert.ok(alive(h.pid) && alive(child), 'до таймаута оба живы');
+    assert.ok(await until(() => fs.existsSync(path.join(f.dir, 'tools', 'child.pid')), 15000), 'ребёнок sync поднял метку');
+    assert.equal(kids.length, 1);
+    assert.equal(kids[0].pid, h.pid);
+    assert.ok(!exited(kids[0]) && await pipeAlive(pipe), 'до таймаута оба живы');
     const res = await h.done;
     assert.equal(res.code, null);
     assert.equal(res.timedOut, true);
-    assert.ok(await until(() => !alive(h.pid) && !alive(child), 5000), 'sync и его ребёнок сняты');
-  } finally { killOwn(child); killOwn(h.pid); }
+    // снят — событием (exit своего процесса, пропажа метки ребёнка), не числом pid: снятый процесс под нагрузкой уходит
+    // не сразу, а pid Windows раздаёт заново
+    assert.ok(await untilExit(kids[0]), 'sync снят');
+    assert.ok(await untilPipeGone(pipe), 'его ребёнок снят деревом');
+  } finally { await dropKids(kids, [pipe]); }
 });
 
 test('процесс: на таймауте exit от taskkill (код 1) приходит раньше конца снятия → исход всё равно {code: null, timedOut: true}', async () => {
@@ -629,7 +645,8 @@ test('процесс: таймаут, отсчитанный заново (rearm
   const once = async (withRearm) => {
     const f = fakeSync({ wait: true, code: 0 });
     const t0 = Date.now();
-    const h = createSyncRun({ root: f.dir, timeoutMs: 3000 }).start('quiet');
+    const kids = [];
+    const h = createSyncRun({ root: f.dir, timeoutMs: 3000, spawn: spawnKept(kids) }).start('quiet');
     try {
       assert.ok(await until(() => f.marks().some((m) => m.ev === 'start'), 20000), 'подменный sync запустился');
       if (Date.now() - t0 < 2000) await sleep(2000 - (Date.now() - t0));
@@ -637,7 +654,7 @@ test('процесс: таймаут, отсчитанный заново (rearm
       await sleep(1500);
       fs.writeFileSync(path.join(f.dir, 'tools', 'release'), '');
       return await h.done;
-    } finally { killOwn(h.pid); }
+    } finally { await dropKids(kids); }
   };
   const a = await once(true);
   assert.equal(a.code, 0, 'с rearm — дожил до своего конца');
@@ -665,14 +682,15 @@ const iv = setInterval(() => { if (fs.existsSync(marks) || Date.now() - t > 2000
   const libUrl = pathToFileURL(path.join(import.meta.dirname, '..', 'lib', 'board-sync.mjs')).href;
   const out = {};
   for (const det of ['1', '0']) {
-    const f = fakeSync({ ms: 4000, code: 0 });
+    const selfPipe = lifePipe('ext99s');
+    const f = fakeSync({ ms: 4000, code: 0, selfPipe });
     const pidFile = path.join(pdir, `pid-${det}.txt`);
     const p = spawn(process.execPath, [path.join(pdir, 'parent.mjs'), libUrl, f.dir, det, pidFile, path.join(f.dir, 'tools', 'marks.log')], { windowsHide: true, stdio: 'ignore' });
     await new Promise((r) => p.once('exit', r));
     assert.ok(f.marks().some((m) => m.ev === 'start'), 'подменный sync запустился');
     await sleep(5500);
     out[det] = f.marks().some((m) => m.ev === 'end');
-    try { killOwn(Number(fs.readFileSync(pidFile, 'utf8'))); } catch { /* нет файла */ }
+    await pipeExit(selfPipe); // sync запущен не нами, а родителем: уборка по его метке, не по pid из файла
   }
   assert.equal(out['1'], true, 'с detached метка дописана после выхода родителя');
   assert.equal(out['0'], false, 'отрицательный контроль: без detached метки нет');
@@ -744,10 +762,11 @@ test('витрина: pult выключен, boardSync включён → выз
   const reg = path.join(tmpDir('ext99-reg-'), 'registry.json');
   fs.writeFileSync(reg, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
   const dataDir = tmpDir('ext99-data-');
-  const port = 49000 + Math.floor(Math.random() * 900);
-  const config = { port, toasts: false, paths: { board, boardLib: BOARD_LIB, registry: reg }, pollMs: { board: 200, journals: 500 }, statsEveryMin: 10,
-    pult: { enabled: false }, boardSync: { enabled: true, quietS: 1 } };
-  const s = await startServer({ config, dataDir, readEvents: async () => [] });
+  // порт — свободный от ОС, с новой попыткой при гонке (EXT-112): прежний случайный 49000–49899 лежит в динамическом
+  // диапазоне Windows (с 49152), его берут исходящие соединения соседних тестов — listen EACCES
+  const config = (port) => ({ port, toasts: false, paths: { board, boardLib: BOARD_LIB, registry: reg }, pollMs: { board: 200, journals: 500 }, statsEveryMin: 10,
+    pult: { enabled: false }, boardSync: { enabled: true, quietS: 1 } });
+  const { port, s } = await onFreePort((p) => startServer({ config: config(p), dataDir, readEvents: async () => [] }));
   const marks = () => { try { return fs.readFileSync(path.join(board, 'tools', 'marks.log'), 'utf8'); } catch { return ''; } };
   try {
     await sleep(500);

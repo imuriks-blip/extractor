@@ -18,7 +18,7 @@ import { createRegistryReader } from '../lib/registry.mjs';
 import { cleanEnv, classify, parseOutput } from '../lib/pult/board-run.mjs';
 import { priorOpen, markCandidates } from '../lib/pult/accept.mjs';
 import { boardMode } from '../lib/pult/routes.mjs';
-import { BOARD_LIB, tmpDir, makeBoard, writeCard, gitInitCommit, git, gitCommitAll } from './helpers.mjs';
+import { BOARD_LIB, tmpDir, makeBoard, writeCard, gitInitCommit, git, gitCommitAll, exited, untilExit } from './helpers.mjs';
 
 const lib = (f) => import(new URL(`file:///${BOARD_LIB}/${f}`).href);
 const { parseCard } = await lib('header.mjs');
@@ -116,7 +116,7 @@ async function setup({ mode = 'live', cards = null, codes = undefined, seams = {
   const app = await buildApp({ port: PORT, board, registry, scan, similar, webDir: web, ...(slog ? { log: slog } : {}), ...(threads ? { threads: threadsApi, journals } : {}),
     pult: { enabled: true, words: true, bell, bellDir: path.join(data, 'bell'), actionsLog, mirrorDir: path.join(boardDir, '.mirror'), lock: lockLib, boardRoot: boardDir,
       python: process.execPath, planePy: path.join(pdir, 'fake-plane.mjs') },
-    pultSeams: { boardScript: path.join(wdir, 'board-wrap.mjs'), boardSpawn: (...a) => { spawned.push(a); return realSpawn(...a); }, ...seams } });
+    pultSeams: { boardScript: path.join(wdir, 'board-wrap.mjs'), boardSpawn: (...a) => { const child = realSpawn(...a); a.child = child; spawned.push(a); return child; }, ...seams } });
   const r = await app.inject({ method: 'GET', url: '/', headers: { host: `127.0.0.1:${PORT}` } });
   const token = r.body.match(/name="vitrina-token" content="([^"]+)"/)[1];
   const press = (body, intentId = nextIntent()) => app.inject({ method: 'POST', url: '/api/act', payload: JSON.stringify({ intentId, ...body }),
@@ -135,8 +135,8 @@ import { spawn as realSpawn } from 'node:child_process';
 
 const accept = (card = 'EXT-7', extra = {}) => ({ action: 'accept', card, q: Q, ...extra });
 const trailer = (dir, key) => git(dir, 'log', '-1', `--format=%(trailers:key=${key},valueonly)`).trim();
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// процесс board этого нажатия — свой ChildProcess из шва boardSpawn (EXT-112: жив/снят — по нему, не по pid)
+const boardChild = (s, cmd) => s.spawned.find((c) => c[1][5] === cmd)?.child;
 
 // ---------------- режим из файла доски (п.1) ----------------
 
@@ -429,9 +429,13 @@ test('таймаут 60 с (здесь 20 с под нагрузкой, 1,5 с �
   const s = await setup({ wrap: { log: 'hang-after' }, seams: { boardTimeoutMs: 20000 } });
   const r = await s.press(accept());
   assert.equal(r.json().outcome, 'ok', JSON.stringify(r.json()));
-  const pid = Number(fs.readFileSync(path.join(s.wdir, 'pid-log.txt'), 'utf8'));
-  await wait(300);
-  assert.equal(alive(pid), false, 'зависший board снят');
+  // снят — событием exit своего процесса (EXT-112): проверка «pid жив через 300 мс» под полным прогоном лгала —
+  // снятый taskkill процесс уходит не сразу, а pid Windows раздаёт заново. 15 с — только ожидание события: не снятый
+  // зависший board живёт вечно, и проверка падает
+  const hung = boardChild(s, 'log');
+  assert.ok(hung, 'board log запущен через шов');
+  assert.equal(hung.pid, Number(fs.readFileSync(path.join(s.wdir, 'pid-log.txt'), 'utf8')), 'тот самый процесс, что завис');
+  assert.ok(await untilExit(hung), 'зависший board снят');
   assert.deepEqual(s.lines().filter((l) => l.step === 'board').map((l) => `${l.cmd}:${l.result.code}`), ['log:null', 'read:0', 'status:0']);
   assert.equal(s.lines().find((l) => l.cmd === 'log').result.line, 'таймаут');
   // зависание до записи: записи нет
@@ -439,12 +443,13 @@ test('таймаут 60 с (здесь 20 с под нагрузкой, 1,5 с �
   const nr = await n.press(accept());
   assert.equal(nr.json().outcome, 'error');
   assert.equal(n.entries('EXT-7').length, 1);
-  await wait(300);
-  assert.equal(alive(Number(fs.readFileSync(path.join(n.wdir, 'pid-log.txt'), 'utf8'))), false);
+  const hung2 = boardChild(n, 'log');
+  assert.equal(hung2.pid, Number(fs.readFileSync(path.join(n.wdir, 'pid-log.txt'), 'utf8')));
+  assert.ok(await untilExit(hung2), 'зависший до записи board снят');
   // исправный рядом: без зависания тот же таймаут не мешает
   const ok = await setup();
   assert.equal((await ok.press(accept())).json().outcome, 'ok');
-  assert.equal(alive(bystander.pid), true, 'посторонний процесс жив');
+  assert.equal(exited(bystander), false, 'посторонний процесс жив');
   } finally { bystander.kill(); }
 });
 

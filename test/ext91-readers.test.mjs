@@ -10,7 +10,7 @@ import { EventEmitter } from 'node:events';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createLive } from '../lib/pult/live.mjs';
-import { createBoardRunner } from '../lib/pult/board-run.mjs';
+import { createBoardRunner, classify } from '../lib/pult/board-run.mjs';
 import { buildWaiting } from '../lib/waiting.mjs';
 import { buildProjectBoard } from '../lib/project-board.mjs';
 import { findContract } from '../lib/trace.mjs';
@@ -247,4 +247,21 @@ test('createBoardRunner: node по умолчанию — process.execPath; path
   await createBoardRunner({ root: 'C:/b', spawn }).run(['read']);
   await createBoardRunner({ root: 'C:/b', spawn, node: 'D:/custom/node.exe' }).run(['read']);
   assert.deepEqual(seen, [process.execPath, 'D:/custom/node.exe']);
+});
+
+// ---------------- таймаут board: close от taskkill не перебивает исход (EXT-112) ----------------
+
+test('createBoardRunner: на таймауте close от taskkill (код 1) приходит раньше конца снятия → исход {code: null, timedOut: true}, «таймаут»; без таймаута код 1 — код 1', async () => {
+  const fake = () => { const c = new EventEmitter(); c.pid = 777; c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); c.kill = () => {}; return c; };
+  let child = null;
+  // снятие деревом: процесс умирает с кодом 1 (так кончает taskkill /F) до того, как taskkill вернулся
+  const kill = async () => { child.emit('exit', 1); child.emit('close', 1); await new Promise((r) => setTimeout(r, 50)); };
+  const r = await createBoardRunner({ root: 'C:/b', spawn: () => (child = fake()), kill, timeoutMs: 100 }).run(['log']);
+  assert.deepEqual([r.code, r.timedOut], [null, true]);
+  assert.deepEqual([classify(r).kind, classify(r).line], ['unclear', 'таймаут']);
+  // исправный случай: свой выход кодом 1 до таймаута — код 1 как есть, не таймаут
+  const own = () => { const c = fake(); setTimeout(() => { c.emit('exit', 1); c.emit('close', 1); }, 20); return c; };
+  const r2 = await createBoardRunner({ root: 'C:/b', spawn: own, kill, timeoutMs: 5000 }).run(['log']);
+  assert.deepEqual([r2.code, r2.timedOut], [1, undefined]);
+  assert.equal(classify(r2).line, 'код 1 без строки исхода');
 });
