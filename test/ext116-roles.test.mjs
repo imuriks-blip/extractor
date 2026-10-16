@@ -14,7 +14,10 @@ import { BOARD_LIB, tmpDir } from './helpers.mjs';
 
 const { scan } = await import(new URL(`file:///${BOARD_LIB}/secrets.mjs`).href);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = fs.readFileSync(path.join(HERE, 'fixtures', 'roles', 'registry-2de0aff.md'), 'utf8');
+// копия на диске — с концами строк, какие дал checkout (core.autocrlf: в свежей копии CRLF); тесты режут текст по \n —
+// поэтому SRC приводится к LF, а CRLF проверяется отдельно (тест «CRLF» ниже; EXT-118, находка дирижёра)
+const RAW = fs.readFileSync(path.join(HERE, 'fixtures', 'roles', 'registry-2de0aff.md'), 'utf8');
+const SRC = RAW.replace(/\r\n/g, '\n');
 const P = 'C:/vault/unorbis/_meta/Реестр ролей цеха.md';
 const NAMES = ['Иван', 'Лем', 'Трурль', 'Цереброн', 'Тарантога', 'Терминус', 'Электрибальд', 'Клапауций', 'Голем', 'Демон', 'Ийон Тихий'];
 const SECTIONS = ['Кто', 'Где живёт', 'Кто ставит задачу и кому отчёт', 'Функции', 'Берёт / не берёт', 'Пишет', 'Читает', 'Инструменты',
@@ -497,4 +500,17 @@ test('Мелочь 1 (повторное ревью): путь к Vault брос
   const a = await get('/api/agents');
   assert.equal(a.statusCode, 200);
   assert.match(a.json().error, /не строкой/, 'текст — путь задан, но не строкой (ревью Голема, Мелочь A)');
+});
+
+test('CRLF (EXT-118): реестр с концами строк CRLF разбирается так же, как с LF — роли, разделы, проблемы, сводка', () => {
+  const crlf = SRC.replace(/\n/g, '\r\n');
+  const a = reader(SRC).roles.get();
+  const b = reader(crlf).roles.get();
+  assert.equal(b.error, null);
+  assert.equal(b.roles.length, 11);
+  assert.deepEqual(b.roles.map((r) => [r.name, r.sections.length, r.problems.length]), a.roles.map((r) => [r.name, r.sections.length, r.problems.length]));
+  // целиком — заголовки и тексты разделов, поля, сводка: «\r» внутри текста не остаётся (ревью Голема, Мелочь)
+  assert.deepEqual(b.roles, a.roles);
+  assert.deepEqual(b.summary, a.summary);
+  assert.ok(!JSON.stringify(b).includes('\\r'), 'нигде в разборе нет \\r');
 });
