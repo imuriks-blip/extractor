@@ -445,3 +445,38 @@ test('Р3: NO_ROLES без читателя — /api/agents 200 с error и пу
   const h = (await a.inject({ method: 'GET', url: '/api/health', headers: { host: '127.0.0.1:4317' } })).json();
   assert.equal(h.readers.roles.roles, 0);
 });
+
+// ——— дозапрос 1 (ревью Голема, Важно 1): исключение разборщика не ParseError не роняет /api/health в 500 ———
+test('Важно 1: разборщик падает не ParseError (readFileSync отдал не строку) — health 200, errors ≥ 1, lastError PARSE_BUG; agents 200 с error', async () => {
+  const { m, roles } = reader(SRC);
+  assert.equal(roles.get().error, null, 'проба: сначала удачный разбор');
+  // не строка, которую String() не превращает в текст: TypeError внутри разбора, не ParseError
+  const bad = Object.create(null);
+  m.fs.readFileSync = () => { m.reads++; return bad; };
+  m.mtimeMs = 7000;
+  const { get } = await app(roles);
+  const res = await get('/api/health');
+  assert.equal(res.statusCode, 200);
+  const h = res.json().readers.roles;
+  assert.ok(h.errors >= 1);
+  assert.equal(h.lastError, 'PARSE_BUG');
+  assert.notEqual(h.failingSince, null);
+  assert.equal(h.roles, 11, 'прежний разбор держится');
+  const a = await get('/api/agents');
+  assert.equal(a.statusCode, 200);
+  assert.match(a.json().error, /PARSE_BUG/);
+  assert.equal(a.json().roles.length, 11);
+  // сбой кэшируется по файлу, как ошибка разбора: неизменный файл не перечитывается, ошибки не копятся
+  const before = m.reads;
+  await get('/api/health');
+  assert.equal(m.reads, before);
+  assert.equal((await get('/api/health')).json().readers.roles.errors, h.errors);
+  // без прежнего разбора — то же, roles: []
+  const r2 = reader(SRC);
+  r2.m.fs.readFileSync = () => bad;
+  const g2 = await app(r2.roles);
+  const h2 = await g2.get('/api/health');
+  assert.equal(h2.statusCode, 200);
+  assert.equal(h2.json().readers.roles.lastError, 'PARSE_BUG');
+  assert.deepEqual((await g2.get('/api/agents')).json().roles, []);
+});
