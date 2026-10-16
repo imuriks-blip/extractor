@@ -16,6 +16,8 @@ import { buildWorkers } from '../lib/waiting.mjs';
 import { createGitReader } from '../lib/git-reader.mjs';
 import { createTraceChecker } from '../lib/trace.mjs';
 import { createGlossary } from '../lib/glossary.mjs';
+import { createRoles } from '../lib/roles.mjs';
+import { createAgentDefs } from '../lib/agent-defs.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -29,6 +31,7 @@ const PENDING = {
   card: {},
   health: {},
   glossary: {},
+  agents: {},
 };
 
 // лента карточки — разнородный список: образец каждого вида сверяется с элементом того же вида у ручки
@@ -162,9 +165,17 @@ ${tbl('backlog', 'fallback')}`);
   // EXT-99 (§2.12): состояние тихой отправки доски — настоящий модуль на той же временной доске (флаг выключен, sync не зовётся)
   const boardSync = createBoardSync({ root: dir, git: createGitRead(), lock: { pidAlive: () => false, otherBoot: () => false }, scan: () => [], run: () => { throw new Error('sync не зовётся'); } });
   await boardSync.tick();
-  const app = await buildApp({ port: 4317, board, boardSync, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }) });
+  // EXT-116: реестр ролей — настоящий читатель на временной копии реестра Vault 2de0aff (test/fixtures/roles) и шести
+  // определениях по факту 15.10 (спека, Р2) во временной папке; живой Vault и ~/.claude не читаются
+  const vault = tmpDir('vault-');
+  fs.mkdirSync(path.join(vault, 'unorbis', '_meta'), { recursive: true });
+  fs.copyFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'roles', 'registry-2de0aff.md'), path.join(vault, 'unorbis', '_meta', 'Реестр ролей цеха.md'));
+  const defsDir = tmpDir('defs-');
+  for (const [n, t, m] of [['bard', 120, 'inherit'], ['clap', 40, 'inherit'], ['demon', 60, 'sonnet'], ['golem', 40, 'opus'], ['terminus', 90, 'inherit'], ['tikhiy', 25, 'sonnet']]) fs.writeFileSync(path.join(defsDir, `${n}.md`), `---\nname: ${n}\nmodel: ${m}\nmaxTurns: ${t}\n---\n`);
+  const roles = createRoles({ file: () => path.join(vault, 'unorbis', '_meta', 'Реестр ролей цеха.md'), defs: createAgentDefs({ dir: defsDir }).read });
+  const app = await buildApp({ port: 4317, board, boardSync, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }), roles });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
-  return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health'), glossary: await get('/api/glossary') };
+  return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health'), glossary: await get('/api/glossary'), agents: await get('/api/agents') };
 }
 const real = await realResponses();
 
@@ -177,11 +188,46 @@ test('образцы: все файлы — JSON', () => {
   for (const f of fs.readdirSync(DIR).filter((n) => n.endsWith('.json'))) assert.doesNotThrow(() => load(f), f);
 });
 
-for (const [name, file] of [['ceh', 'ceh.json'], ['project', 'project-EXT.json'], ['card', 'card-EXT-6.json'], ['health', 'health.json'], ['glossary', 'glossary.json']]) {
+for (const [name, file] of [['ceh', 'ceh.json'], ['project', 'project-EXT.json'], ['card', 'card-EXT-6.json'], ['health', 'health.json'], ['glossary', 'glossary.json'], ['agents', 'agents.json']]) {
   test(`образец ${file}: ключи как у настоящей ручки, заготовки помечены тактом`, () => {
     compare(load(file), real[name], PENDING[name]);
   });
 }
+
+test('EXT-116: сверка agents.json и readers.roles — против настоящего читателя реестра, не против заглушки NO_ROLES', () => {
+  assert.equal(real.agents.error, null);
+  assert.ok(real.agents.roles.length > 0);
+  assert.ok(real.health.readers.roles.roles > 0);
+  assert.ok(real.agents.roles.some((r) => r.check), 'сверка с определениями посчитана');
+});
+
+test('EXT-116: образцы agents-error.json и agents-drift.json — форма agents.json и нужные окну Т2 случаи', () => {
+  const ok = load('agents.json');
+  const roleKeys = keys(ok.roles[0]);
+  // agents-empty.json (Т2, гейт 1 (а)): ошибка без прежнего разбора — после перезапуска витрины (Р1 «Свежесть»)
+  for (const f of ['agents-error.json', 'agents-drift.json', 'agents-empty.json']) {
+    const fx = load(f);
+    assert.deepEqual(keys(fx), keys(ok), f);
+    for (const r of fx.roles) assert.deepEqual(keys(r), roleKeys, `${f}: ${r.name}`);
+  }
+  assert.equal(ok.roles.length, 11);
+  assert.equal(ok.error, null);
+  assert.equal(ok.drifts, 0);
+  const er = load('agents-error.json');
+  assert.ok(er.error && er.failingSince && er.roles.length > 0, 'ошибка с прежними ролями');
+  const em = load('agents-empty.json');
+  assert.ok(em.error && em.roles.length === 0 && em.updatedAt === null && em.legend === null && em.summary.length === 0, 'ошибка без ролей');
+  const dr = load('agents-drift.json');
+  const has = (p) => dr.roles.some(p);
+  assert.ok(has((r) => r.check?.brake === 'drift' && r.drift.some((d) => d.field === 'brake')), 'brake drift');
+  assert.ok(has((r) => r.check?.model === 'drift' && r.drift.some((d) => d.field === 'model')), 'model drift');
+  assert.ok(has((r) => r.check?.model === 'unchecked'), 'model unchecked');
+  assert.ok(has((r) => r.check === null && r.fact?.def === false), 'без определения');
+  assert.ok(has((r) => r.check === null && r.fact?.def === null), 'определение не читается');
+  assert.ok(has((r) => r.status === 'proposal'), 'предложение');
+  assert.ok(has((r) => r.problems.length > 0 && r.sections.some((s) => s.text === null)), 'разобрано не всё');
+  assert.equal(dr.drifts, dr.roles.reduce((n, r) => n + r.drift.length, 0));
+});
 
 test('образец ceh.json: порядок проектов — решение Ивана 5; состояния тредов — один словарь §2.1, каждое есть', () => {
   const fx = load('ceh.json');
