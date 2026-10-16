@@ -496,5 +496,5 @@ test('Мелочь 1 (повторное ревью): путь к Vault брос
   assert.equal(res.json().readers.roles.lastError, 'NO_VAULT');
   const a = await get('/api/agents');
   assert.equal(a.statusCode, 200);
-  assert.ok(a.json().error);
+  assert.match(a.json().error, /не строкой/, 'текст — путь задан, но не строкой (ревью Голема, Мелочь A)');
 });

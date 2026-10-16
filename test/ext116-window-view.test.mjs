@@ -162,8 +162,8 @@ test('образцы: пути в текстах разделов — с обр�
 });
 
 // Мелочь ревью Голема по Т2: поиск совпадал внутри слова («бот» находил «работ») и учитывал слова в 1–2 буквы.
-// Основа слова запроса — только с начала слова текста; слова запроса короче 3 букв не учитываются (из одних таких — как пустой).
-test('гейт 4: поиск — основа с начала слова, не внутри; слова короче 3 букв не учитываются', () => {
+// Основа слова запроса — только с начала слова текста; слова запроса в 1 букву не учитываются (из одних таких — как пустой).
+test('гейт 4: поиск — основа с начала слова, не внутри; слова в 1 букву не учитываются, «ТЗ» — да', () => {
   const R = [
     { name: 'Первый', fields: {}, sections: [{ title: 'Работа', text: 'работает молча, заработок' }] },
     { name: 'Второй', fields: {}, sections: [{ title: 'Связь', text: 'пишет в чат **бота**' }] },
@@ -181,13 +181,24 @@ test('гейт 4: поиск — основа с начала слова, не �
   assert.deepEqual(names('боты'), ['Второй', 'Третий', 'Четвёртый']);
   assert.deepEqual(names('работа'), ['Первый']);
   assert.deepEqual(ad.searchRoles(R, 'бот').find((x) => x.role.name === 'Четвёртый').hits, [0], 'после « — начало слова');
-  // слова короче 3 букв не учитываются
-  assert.deepEqual(ad.queryWords('в на бот'), ['бот']);
-  assert.deepEqual(ad.queryWords('в на'), []);
+  // слова в 1 букву не учитываются; от 2 букв — да (термины цеха: «ТЗ», «PR»; повторное ревью Голема, Мелочь B)
+  assert.deepEqual(ad.queryWords('в и бот'), ['бот']);
+  assert.deepEqual(ad.queryWords('в и'), []);
+  assert.deepEqual(ad.queryWords('ТЗ PR'), ['тз', 'pr']);
   assert.deepEqual(names('бот в'), names('бот'), '«в» не сужает и не расширяет');
-  assert.ok(ad.searchRoles(R, 'в на').every((x) => x.hits === null), 'из одних коротких — как пустой: все роли, раскрытие по щелчку');
-  assert.equal(ad.searchRoles(R, 'в на').length, R.length);
-  assert.deepEqual(ad.searchSummary(OK.summary, 'в на'), OK.summary, 'сводка — как без поиска');
+  assert.ok(ad.searchRoles(R, 'в и').every((x) => x.hits === null), 'из одних коротких — как пустой: все роли, раскрытие по щелчку');
+  assert.equal(ad.searchRoles(R, 'в и').length, R.length);
+  assert.deepEqual(ad.searchSummary(OK.summary, 'в и'), OK.summary, 'сводка — как без поиска');
+  // «ТЗ» — с начала слова, не внутри («ТЗ» не находит «отзыв»); дефис — граница («бот» находит «чат-бот»); ё = е внутри текста
+  const T = [
+    { name: 'Пятый', fields: {}, sections: [{ title: 'Задачи', text: 'берёт ТЗ дирижёра' }] },
+    { name: 'Шестой', fields: {}, sections: [{ title: 'Связь', text: 'отзыв, чат-бот, Ёмкость' }] },
+  ];
+  const tn = (q) => ad.searchRoles(T, q).map((x) => x.role.name);
+  assert.deepEqual(tn('тз'), ['Пятый']);
+  assert.deepEqual(tn('бот'), ['Шестой']);
+  assert.deepEqual(tn('емк'), ['Шестой']);
+  assert.deepEqual(tn('берет'), ['Пятый']);
   // сводка: то же правило начала слова
   const S = [{ title: 'Связь', text: '', rows: [['Работа', 'заработок'], ['Боты', 'чат']] }];
   assert.deepEqual(ad.searchSummary(S, 'бот'), [{ title: 'Связь', text: '', rows: [['Боты', 'чат']] }]);
