@@ -1,6 +1,7 @@
 // Каркас витрины: шапка (крошки, свежесть, тема) и маршрут. Маршруты — в хеше адреса (#/project/EXT, с открытой
 // карточкой #/project/EXT/EXT-6), чтобы раздаче web/dist сервером не нужен был запасной маршрут на index.html.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Agents from './Agents.jsx';
 import Ceh from './Ceh.jsx';
 import Glossary from './Glossary.jsx';
 import Help from './Help.jsx';
@@ -97,10 +98,11 @@ function Header({ route, freshness, name, pult, live }) {
       {/* live: ход прохода, начатого до переключения, виден до конца; итога и пометок нажатий нет (MirrorStatus live) */}
       {((freshness && (mirror || live)) || route.name === 'usage') && <MirrorStatus label={mirror} live={live} />}
       <ThemeSwitch />
-      {/* «Служебное», «Словарь» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64, EXT-87) */}
+      {/* «Служебное», «Словарь», «Агенты» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64, EXT-87, EXT-116) */}
       <span className="tbtns">
         {pult?.enabled === true && <ServiceMenu live={live} />}
         <Glossary />
+        <Agents />
         <Help />
       </span>
     </header>

@@ -204,7 +204,8 @@ test('EXT-116: сверка agents.json и readers.roles — против нас
 test('EXT-116: образцы agents-error.json и agents-drift.json — форма agents.json и нужные окну Т2 случаи', () => {
   const ok = load('agents.json');
   const roleKeys = keys(ok.roles[0]);
-  for (const f of ['agents-error.json', 'agents-drift.json']) {
+  // agents-empty.json (Т2, гейт 1 (а)): ошибка без прежнего разбора — после перезапуска витрины (Р1 «Свежесть»)
+  for (const f of ['agents-error.json', 'agents-drift.json', 'agents-empty.json']) {
     const fx = load(f);
     assert.deepEqual(keys(fx), keys(ok), f);
     for (const r of fx.roles) assert.deepEqual(keys(r), roleKeys, `${f}: ${r.name}`);
@@ -214,6 +215,8 @@ test('EXT-116: образцы agents-error.json и agents-drift.json — фор�
   assert.equal(ok.drifts, 0);
   const er = load('agents-error.json');
   assert.ok(er.error && er.failingSince && er.roles.length > 0, 'ошибка с прежними ролями');
+  const em = load('agents-empty.json');
+  assert.ok(em.error && em.roles.length === 0 && em.updatedAt === null && em.legend === null && em.summary.length === 0, 'ошибка без ролей');
   const dr = load('agents-drift.json');
   const has = (p) => dr.roles.some(p);
   assert.ok(has((r) => r.check?.brake === 'drift' && r.drift.some((d) => d.field === 'brake')), 'brake drift');

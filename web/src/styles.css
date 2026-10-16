@@ -414,6 +414,64 @@ details.hlp-s>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cu
   .gls-t td.g-meaning,.gls-t td.g-example{display:block;width:auto;margin-top:2px}
 }
 
+/* ===== Агенты цеха (EXT-116, Р4): окно словаря — те же размеры, шапка и поиск; строка роли — таблица, как у словаря;
+   раскрытие — 14 разделов списком под строкой; жёлтое — расхождение с определением; до 560 — строка карточкой ===== */
+.ags .gls-f{display:flex;flex-direction:column;gap:1px}
+.ags .gls-q{margin-top:5px}
+.ags-m{margin:0;font-size:12px;color:var(--muted)}
+.ags-m .sep{color:var(--faint)}
+.ags-warn{color:var(--amber)}
+.ags-gray{color:var(--muted)}
+.ags-err{color:var(--red)}
+.ags-lg{display:block;max-width:110ch;margin:0;padding:0;border:0;background:none;text-align:left;font-size:12px;color:var(--muted);cursor:pointer}
+.ags-lg:hover{color:var(--fg)}
+.ags-lg b{font-weight:600}
+.ags-t{width:100%;border-collapse:collapse}
+.ags-t th{font-weight:500;font-size:11px;color:var(--faint);text-align:left;padding:6px 8px 3px 0;white-space:nowrap}
+.ags-t td{padding:4px 8px 4px 0;border-top:1px solid var(--line);vertical-align:baseline}
+.ags-t .a-name{width:24%}
+.ags-t .a-label{width:14%}
+.ags-t .a-sign{width:18%}
+.ags-t .a-model{width:26%}
+.ags-t code{font-size:12px;overflow-wrap:anywhere}
+.ags-r{cursor:pointer}
+.ags-r:hover>td{background:var(--hover)}
+.ags-r.prop>td,.ags-r.prop .ags-n{color:var(--muted)}
+.ags-n{margin-right:6px;padding:0;border:0;background:none;font-weight:600;text-align:left;cursor:pointer}
+.ags-n .car{display:inline-block;width:12px;color:var(--faint);font-weight:400;transition:transform .12s}
+.ags-n[aria-expanded="true"] .car{transform:rotate(90deg)}
+.ags-tg{margin:0 4px 0 0;white-space:nowrap}
+.ags-dr{padding:0 4px;border-radius:3px;background:var(--amber-bg);color:var(--amber)}
+.ags-un{font-size:12px;color:var(--muted);white-space:nowrap}
+.ags-xr>td{padding:0 8px 8px 12px;border-top:0}
+.ags-note{margin:0 0 4px;font-size:12px;color:var(--muted)}
+.ags-d{display:grid;grid-template-columns:minmax(120px,180px) minmax(0,1fr);gap:2px 12px;max-width:120ch;margin:0}
+.ags-d dt{font-weight:600}
+.ags-d dd{margin:0;overflow-wrap:anywhere}
+.ags-d b{font-weight:600}
+.ags-more{margin-top:4px;padding:0;border:0;background:none;font-size:12px;color:var(--accent);cursor:pointer}
+.ags-sum{margin-top:8px;border-top:1px solid var(--line)}
+.ags-sum>summary{display:flex;align-items:baseline;gap:8px;padding:7px 0;cursor:pointer;list-style:none;font-weight:600}
+.ags-ss h3{margin:6px 0 2px;font-size:12px;font-weight:500;color:var(--muted)}
+.ags-ss p{margin:0 0 4px;max-width:110ch}
+.ags-sw{overflow-x:auto}
+.ags-st{border-collapse:collapse;min-width:50%}
+.ags-st th{font-weight:500;font-size:11px;color:var(--faint);text-align:left;padding:3px 12px 3px 0;white-space:nowrap}
+.ags-st td{padding:3px 12px 3px 0;border-top:1px solid var(--line);vertical-align:baseline}
+.ags-st code{font-size:12px}
+@media (prefers-reduced-motion:reduce){.ags-n .car{transition:none}}
+@media (max-width:560px){
+  .ags-t thead{display:none}
+  .ags-t tr.ags-r{display:flex;flex-wrap:wrap;column-gap:10px;padding:5px 0;border-top:1px solid var(--line)}
+  .ags-t tr.ags-r>td{width:auto;padding:0;border:0}
+  .ags-t tr.ags-r>td.a-name{flex-basis:100%}
+  .ags-t tr.ags-r>td[data-k]::before{content:attr(data-k) " ";font-size:11px;color:var(--faint)}
+  .ags-r:hover>td{background:none}
+  .ags-xr,.ags-xr>td{display:block;padding:0 0 8px}
+  .ags-d{grid-template-columns:minmax(0,1fr);gap:0}
+  .ags-d dd{margin-bottom:4px}
+}
+
 /* ===== Кнопки-слова (EXT-70, макет ПТ7 5.10, утверждён «все по рекомендации»): те же кнопки и размеры, что у «Принять»/«Вернуть»;
    подтверждение — под строкой фоном без рамки, как пометки треда (.alarm); статус слова 2.8 — словом и цветом ===== */
 .mline{display:block;font-size:12px}
