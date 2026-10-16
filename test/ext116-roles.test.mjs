@@ -509,5 +509,8 @@ test('CRLF (EXT-118): реестр с концами строк CRLF разби�
   assert.equal(b.error, null);
   assert.equal(b.roles.length, 11);
   assert.deepEqual(b.roles.map((r) => [r.name, r.sections.length, r.problems.length]), a.roles.map((r) => [r.name, r.sections.length, r.problems.length]));
-  assert.equal(b.summary.length, a.summary.length);
+  // целиком — заголовки и тексты разделов, поля, сводка: «\r» внутри текста не остаётся (ревью Голема, Мелочь)
+  assert.deepEqual(b.roles, a.roles);
+  assert.deepEqual(b.summary, a.summary);
+  assert.ok(!JSON.stringify(b).includes('\\r'), 'нигде в разборе нет \\r');
 });
