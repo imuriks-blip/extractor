@@ -82,6 +82,16 @@
       "wtErrors": 0,
       "firstPassMs": 3400,
       "lastPassMs": 900
+    },
+    "roles": {
+      "lastOkAt": "2026-10-01T12:00:03.500Z",
+      "errors": 0,
+      "lastError": null,
+      "failingSince": null,
+      "mtimeMs": 1760554920000,
+      "roles": 11,
+      "problems": 0,
+      "defUnread": 0
     }
   },
   "gitCalls": {
