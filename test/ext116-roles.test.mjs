@@ -452,6 +452,7 @@ test('Важно 1: разборщик падает не ParseError (readFileSyn
   assert.equal(roles.get().error, null, 'проба: сначала удачный разбор');
   // не строка, которую String() не превращает в текст: TypeError внутри разбора, не ParseError
   const bad = Object.create(null);
+  const goodRead = m.fs.readFileSync;
   m.fs.readFileSync = () => { m.reads++; return bad; };
   m.mtimeMs = 7000;
   const { get } = await app(roles);
@@ -471,6 +472,12 @@ test('Важно 1: разборщик падает не ParseError (readFileSyn
   await get('/api/health');
   assert.equal(m.reads, before);
   assert.equal((await get('/api/health')).json().readers.roles.errors, h.errors);
+  // файл исправили (новое время изменения) — ошибка снимается (повторное ревью Голема, Мелочь 3)
+  m.fs.readFileSync = goodRead;
+  m.mtimeMs = 8000;
+  const fixed = (await get('/api/health')).json().readers.roles;
+  assert.equal(fixed.failingSince, null);
+  assert.equal(roles.get().error, null);
   // без прежнего разбора — то же, roles: []
   const r2 = reader(SRC);
   r2.m.fs.readFileSync = () => bad;
@@ -479,4 +486,15 @@ test('Важно 1: разборщик падает не ParseError (readFileSyn
   assert.equal(h2.statusCode, 200);
   assert.equal(h2.json().readers.roles.lastError, 'PARSE_BUG');
   assert.deepEqual((await g2.get('/api/agents')).json().roles, []);
+});
+
+test('Мелочь 1 (повторное ревью): путь к Vault бросает (paths.vault не строкой) — health 200, lastError NO_VAULT; agents 200 с error', async () => {
+  const roles = createRoles({ file: () => { throw new TypeError('The "path" argument must be of type string'); }, defs: () => null });
+  const { get } = await app(roles);
+  const res = await get('/api/health');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().readers.roles.lastError, 'NO_VAULT');
+  const a = await get('/api/agents');
+  assert.equal(a.statusCode, 200);
+  assert.ok(a.json().error);
 });
