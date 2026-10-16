@@ -142,6 +142,17 @@ test('разбор: два значения Board-Session или Board-As, пу�
   assert.deepEqual(parseWriters('', 'EXT'), []);
 });
 
+test('EXT-118: у карточки INFRA писатель — и trurl:INFRA, и cerebron:INFRA; cerebron с другим кодом и у карточки не INFRA — чужая подпись', () => {
+  const out = [
+    L('d1', 'cerebron:INFRA', S1),
+    L('d2', 'trurl:INFRA', S2),
+    L('d3', 'cerebron:EXT', S3),
+    L('d4', 'trurl:EXT', S4),
+  ].join('\n') + '\n';
+  assert.deepEqual(parseWriters(out, 'INFRA'), [S1, S2]);
+  assert.deepEqual(parseWriters(out, 'EXT'), [S4], 'cerebron:EXT и cerebron:INFRA у карточки EXT — не писатели');
+});
+
 test('readWriters: один вызов обёртки в boardRoot ровно этой командой; сбой — исключение с кодом; висит дольше таймаута — TIMEOUT', async () => {
   const calls = [];
   const ok = await readWriters({ git: async (repo, args) => { calls.push([repo, args]); return `${L('h', 'trurl:EXT', S2)}\n`; }, root: 'C:/b', card: 'EXT-9' });
