@@ -7,7 +7,7 @@ import { useDialog } from './dialog.js';
 import { useNow } from './data.js';
 import {
   COLS, MISSING, NOTHING, PROPOSAL_NOTE, DRIFT_HINT, TITLE,
-  driftLine, errorLines, fieldMark, headLine, legendHead, roleTags, rolesTitle, searchRoles, searchSummary, sectionKind,
+  driftLine, errorLines, fieldMark, headLine, legendHead, queryWords, roleTags, rolesTitle, searchRoles, searchSummary, sectionKind,
 } from './agentsData.js';
 
 let cache = null; // последний ответ с ролями — показ, пока идёт новый запрос
@@ -117,7 +117,7 @@ export default function Agents() {
   const onRow = (key) => { if (!window.getSelection()?.toString()) toggle(key); };
 
   const roles = data?.roles ?? [];
-  const searching = q.trim() !== '';
+  const searching = queryWords(q).length > 0;
   const shown = useMemo(() => searchRoles(roles, q), [roles, q]);
   const summary = useMemo(() => searchSummary(data?.summary, q), [data, q]);
   const head = headLine(data);

@@ -76,16 +76,23 @@ export function sectionKind(text) {
 }
 
 // поиск: без регистра, ё = е, разметка не мешает; слово от 4 букв ищется без окончания («база» находит «базы», «в базу»);
-// несколько слов — все должны найтись в роли
+// основа ищется только с начала слова текста («бот» находит «бота», «боты», но не «работ»); слова запроса короче 3 букв
+// не учитываются — запрос из одних таких как пустой (ревью Голема по Т2); несколько слов — все должны найтись в роли
 const norm = (s) => String(s ?? '').toLowerCase().replace(/ё/g, 'е').replace(/[`*]/g, '');
 export function queryWords(q) {
-  return norm(q).split(/\s+/).filter(Boolean).map((w) => {
+  return norm(q).split(/\s+/).filter((w) => w.length >= 3).map((w) => {
     if (w.length < 4) return w;
     const s = w.replace(/[аеиоуыэюяйь]+$/, '');
     return s.length >= 3 ? s : w;
   });
 }
-const has = (text, w) => norm(text).includes(w);
+// буква или цифра (буква — у которой есть регистр: кириллица, латиница); перед началом слова такой нет
+const wordChar = (c) => c !== undefined && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
+const has = (text, w) => {
+  const t = norm(text);
+  for (let i = t.indexOf(w); i >= 0; i = t.indexOf(w, i + 1)) if (!wordChar(t[i - 1])) return true;
+  return false;
+};
 
 const roleText = (r) => [r.name, ...Object.values(r.fields ?? {}), ...(r.sections ?? []).flatMap((s) => [s.title, s.text])].join('\n');
 

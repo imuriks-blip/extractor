@@ -10,10 +10,12 @@ import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import { fileURLToPath } from 'node:url'
+import { guardLive } from './guard-live.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const REPO = path.resolve(HERE, '..')
 const PORT = 4399
+guardLive(REPO, PORT) // до любой записи: отказ в живой папке и на порту 4317 (CLAUDE.md репозитория)
 if (!process.argv[2]) { console.error('нужна папка для снимков'); process.exit(2) }
 const SHOTS = path.resolve(process.argv[2])
 const CHROME = process.argv[3] ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe'

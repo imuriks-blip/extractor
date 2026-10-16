@@ -160,3 +160,38 @@ test('образцы: пути в текстах разделов — с обр�
     assert.ok(!texts.some((t) => t.includes('C:projects')), `${f}: косые не пропали`);
   }
 });
+
+// Мелочь ревью Голема по Т2: поиск совпадал внутри слова («бот» находил «работ») и учитывал слова в 1–2 буквы.
+// Основа слова запроса — только с начала слова текста; слова запроса короче 3 букв не учитываются (из одних таких — как пустой).
+test('гейт 4: поиск — основа с начала слова, не внутри; слова короче 3 букв не учитываются', () => {
+  const R = [
+    { name: 'Первый', fields: {}, sections: [{ title: 'Работа', text: 'работает молча, заработок' }] },
+    { name: 'Второй', fields: {}, sections: [{ title: 'Связь', text: 'пишет в чат **бота**' }] },
+    { name: 'Третий', fields: {}, sections: [{ title: 'Связь', text: 'Боты цеха' }] },
+    { name: 'Четвёртый', fields: {}, sections: [{ title: 'Связь', text: 'отвечает «боту» (на ходу)' }] },
+  ];
+  const names = (q) => ad.searchRoles(R, q).map((x) => x.role.name);
+  // внутри слова — нет: «бот» не находит «работ», «заработок»
+  assert.deepEqual(names('бот'), ['Второй', 'Третий', 'Четвёртый']);
+  assert.deepEqual(names('бот'.toUpperCase()), ['Второй', 'Третий', 'Четвёртый']);
+  assert.deepEqual(names('рабо'), ['Первый'], '«рабо» — с начала «работает», не внутри «заработок»; роль одна');
+  // исправный случай: основа с начала слова находит формы — «бота» и «боты» → основа «бот»
+  assert.deepEqual(ad.queryWords('бота боты'), ['бот', 'бот']);
+  assert.deepEqual(names('бота'), ['Второй', 'Третий', 'Четвёртый']);
+  assert.deepEqual(names('боты'), ['Второй', 'Третий', 'Четвёртый']);
+  assert.deepEqual(names('работа'), ['Первый']);
+  assert.deepEqual(ad.searchRoles(R, 'бот').find((x) => x.role.name === 'Четвёртый').hits, [0], 'после « — начало слова');
+  // слова короче 3 букв не учитываются
+  assert.deepEqual(ad.queryWords('в на бот'), ['бот']);
+  assert.deepEqual(ad.queryWords('в на'), []);
+  assert.deepEqual(names('бот в'), names('бот'), '«в» не сужает и не расширяет');
+  assert.ok(ad.searchRoles(R, 'в на').every((x) => x.hits === null), 'из одних коротких — как пустой: все роли, раскрытие по щелчку');
+  assert.equal(ad.searchRoles(R, 'в на').length, R.length);
+  assert.deepEqual(ad.searchSummary(OK.summary, 'в на'), OK.summary, 'сводка — как без поиска');
+  // сводка: то же правило начала слова
+  const S = [{ title: 'Связь', text: '', rows: [['Работа', 'заработок'], ['Боты', 'чат']] }];
+  assert.deepEqual(ad.searchSummary(S, 'бот'), [{ title: 'Связь', text: '', rows: [['Боты', 'чат']] }]);
+  // окно: «ищем» — когда в запросе есть учитываемые слова (сводка раскрыта только тогда)
+  const a = src('Agents.jsx');
+  assert.ok(a.includes('const searching = queryWords(q).length > 0;'), 'из одних коротких — сводка не раскрывается');
+});
