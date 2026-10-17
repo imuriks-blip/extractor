@@ -116,6 +116,7 @@ const infraPlan = `# План INFRA-93
   - [x] 2.3 · чужое имя · след: foo@abc1234
   - [>] 2.4 · отдано · → EXT-105
   - [ ] 2.5 · предстоит
+  - [-] 2.6 · снято · почему: лишнее
 `;
 const extMap = (ideas, where = 'фаза: витрина и карта.\nследующий шаг: сервер карты.') => `# Карта EXT
 формат: 1
@@ -171,7 +172,7 @@ test('Г2 п.3: план INFRA-карточки — extractor@ и Vault@ из or
   assert.equal(planItem(m, '1').shownMark, 'x');
   // [>] — отметка с карточки: EXT-105 in-progress → «идёт»
   assert.deepEqual([planItem(m, '2.4').mark, planItem(m, '2.4').shownMark, planItem(m, '2.4').cardStatus], ['>', '~', 'in-progress']);
-  // итог «сделано X из Y»: [x] 1, 2.1, 2.2, 2.3 — 4 из 7 пунктов
+  // итог «сделано X из Y»: [x] 1, 2.1, 2.2, 2.3 — 4 из 7 пунктов; снятый 2.6 в Y не входит — как planTotals доски (ревью Голема Т3, Важно 2)
   assert.deepEqual(findCard(m, 'INFRA-93').plan.summary, { done: 4, total: 7 });
 });
 

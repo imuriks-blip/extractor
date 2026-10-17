@@ -45,7 +45,7 @@ function Repo({ r, label }) {
   );
 }
 
-function Beacon({ b, failing, now }) {
+function Beacon({ code, b, failing, now }) {
   const labels = repoLabels(b.repos || []);
   const gitStale = b.repos?.length ? staleText({ lastOkAt: b.readAt, failingSince: b.failingSince }, failing, now, GIT_STALE_MS) : null;
   return (
@@ -58,6 +58,8 @@ function Beacon({ b, failing, now }) {
             <span className="cl2" title={b.next || undefined}><span className="l">следующий шаг</span>{b.next ?? <span className="faint">—</span>}</span>
           </>}
       {(b.repos || []).map((r, i) => <Repo key={r.path || r.name} r={r} label={labels[i]} />)}
+      {/* EXT-103 Т3: карта проекта — своё окно; фаза и шаг выше у проекта с картой — из неё (Р-10 (а)) */}
+      <a className="bmap" href={`#/roadmap/${code}`}>Карта {code}</a>
       {b.phaseFailingSince && (
         <span className="bstale">фаза и шаг: данные на {hm(b.phaseReadAt, now)}, чтение не удаётся {minutes(Date.parse(b.phaseFailingSince), now)}</span>
       )}
@@ -249,7 +251,7 @@ export default function Project({ code, data, pult, failing, now, cardId, onOpen
   const f = data.freshness || {};
   return (
     <>
-      <Beacon b={data.beacon || {}} failing={failing} now={now} />
+      <Beacon code={code} b={data.beacon || {}} failing={failing} now={now} />
       <div className="pgrid">
         <div className="col">
           <Board code={code} pult={pult} b={data.board || {}} sel={cardId} onOpen={onOpenCard} now={now} stale={staleText(f.board, failing, now)} />
