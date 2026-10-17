@@ -5,27 +5,49 @@ import { plural } from './format.js';
 
 /* ---------- след строки «Готово, посмотри» — плашкой словами ---------- */
 
-// причины сервера (lib/trace.mjs), из-за которых работы «нет отчёта»: закрытия по контракту нет или оно неполное
-const NO_REPORT = new Set(['no-contract', 'no-lines', 'no-who']);
-// причины «не отправлено»: коммит не в main или не на сервере
-const NOT_SENT = new Set(['not-pushed', 'not-in-main']);
+// причины сервера (lib/trace.mjs): «нет отчёта» — закрытия по контракту нет или оно неполное; «не слито» — коммит не в main;
+// «не отправлено» — в main, но не на сервере. Короткая причина видна рядом с плашкой, подробности — под «подробнее».
+const BAD_WORD = { 'not-in-main': 'не слито', 'not-pushed': 'не отправлено' };
+const BAD_WHY = {
+  'no-contract': 'цех не оставил отчёт о сдаче',
+  'no-lines': 'в отчёте о сдаче не хватает строк',
+  'no-who': 'в отчёте не сказано, кто решил',
+  'not-in-main': 'работа не слита в основную ветку',
+  'not-pushed': 'работа не отправлена на сервер',
+};
 
-// kind — вид для свёртки и фильтра: ok | warn | bad | none | wait; text — плашка; cls — цвет (s-ok / s-warn / s-bad)
-export function traceWord(t) {
-  if (t === undefined) return null;
-  if (t === null || t.state == null) return { kind: 'wait', cls: 'wait', text: 'проверяю' };
-  if (t.state === 'ok') return { kind: 'ok', cls: 'ok', text: 'цех проверил' };
-  if (t.state === 'warn') return { kind: 'warn', cls: 'warn', text: 'проверь сам' };
-  if (t.state === 'bad') {
-    const bad = (t.reasons || []).filter((r) => r.level === 'bad').map((r) => r.code);
-    const sent = bad.length > 0 && bad.every((c) => NOT_SENT.has(c));
-    return sent ? { kind: 'bad', cls: 'bad', text: 'не отправлено' } : { kind: 'bad', cls: 'bad', text: 'нет отчёта' };
-  }
-  return { kind: 'none', cls: 'none', text: 'без проверки' };
+// «после контракта — ещё N» (EXT-48, В2 Голема): видна рядом с плашкой при любом state — как у TraceBadge
+export function laterText(t) {
+  if (!t || !(t.laterRecords > 0)) return null;
+  return t.reasons?.find((r) => r.code === 'later')?.text ?? `после контракта — ещё ${plural(t.laterRecords, ['запись', 'записи', 'записей'])}`;
 }
 
-// слова фильтра «Готово, посмотри» по виду следа (значения фильтра — прежние: ok / warn / bad, reviewData.js)
-export const FILTER_WORD = { ok: 'цех проверил', warn: 'проверь сам', bad: 'не сходится' };
+// kind — вид следа (ok | warn | bad | none | wait); text — плашка; cls — цвет; note — серым рядом (что проверять / почему);
+// later — «после контракта — ещё N» рядом
+export function traceWord(t) {
+  if (t === undefined) return null;
+  if (t === null || t.state == null) return { kind: 'wait', cls: 'wait', text: 'проверяю', note: null, later: null };
+  const later = laterText(t);
+  if (t.state === 'ok') {
+    return later
+      ? { kind: 'ok', cls: 'warn', text: 'проверено, но после проверки есть новые записи', note: null, later }
+      : { kind: 'ok', cls: 'ok', text: 'цех проверил', note: null, later: null };
+  }
+  if (t.state === 'warn') return { kind: 'warn', cls: 'warn', text: 'проверь сам', note: t.label || null, later };
+  if (t.state === 'bad') {
+    const bad = (t.reasons || []).filter((r) => r.level === 'bad').map((r) => r.code);
+    const report = bad.find((c) => !BAD_WORD[c]);
+    const text = report || !bad.length ? 'нет отчёта' : bad.includes('not-in-main') ? 'не слито' : 'не отправлено';
+    const first = report ?? (bad.includes('not-in-main') ? 'not-in-main' : bad[0]);
+    const why = BAD_WHY[first] ?? null;
+    const note = why && bad.length > 1 ? `${why} · ещё ${bad.length - 1}` : why;
+    return { kind: 'bad', cls: 'bad', text, note, later };
+  }
+  return { kind: 'none', cls: 'none', text: 'без проверки', note: null, later };
+}
+
+// слова фильтра «Готово, посмотри» по виду следа (значения фильтра — прежние: ok / warn / bad, reviewData.js) — те же, что на плашках
+export const FILTER_WORD = { ok: 'цех проверил', warn: 'проверь сам', bad: 'нет отчёта, не слито, не отправлено' };
 
 // подгруппа проекта в «Готово, посмотри»: все строки с одной плашкой — свёртка одной строкой (uniform — эта плашка)
 export function reviewSubView(rows) {
@@ -41,21 +63,26 @@ export const markWord = (m) => MARK_WORD[m] ?? m;
 
 /* ---------- «Кто работает»: замечания треда — строкой по-людски ---------- */
 
-// level: red — тревога (в сводку «Сейчас»), amber — замечание; reread — у строки кнопка «Перечитать правила» (если тред открыт)
+// уровень — как у сервера (isRedMark, lib/threads.mjs): красное всё, кроме жёлтого такта и «Общего файла» (collision);
+// «память на исходе» — не пометка сервера, жёлтая. reread — у строки кнопка «Перечитать правила» (если тред открыт)
+export const isRedMark = (m) => !((m?.kind === 'takt' && m.level !== 'red') || m?.kind === 'collision');
+
 export function threadRemarks(t) {
   const out = [];
   const files = [];
-  for (const m of t.marks || []) {
+  (t.marks || []).forEach((m, i) => {
     const who = m.who || m.agent || 'помощник';
-    if (m.kind === 'partial') out.push({ kind: m.kind, level: 'red', text: `помощник ${who} остановился на полпути${m.waitingWord ? ' — ждёт твоего слова' : ''}` });
-    else if (m.kind === 'takt') out.push({ kind: m.kind, level: m.level === 'red' ? 'red' : 'amber', text: 'задача выдана, ответа от неё нет' });
-    else if (m.kind === 'subagentWrite') out.push({ kind: m.kind, level: 'red', text: `помощник ${who} записал в доску — так нельзя` });
-    else if (m.kind === 'oldRules') out.push({ kind: m.kind, level: 'amber', text: 'работает по старым правилам', reread: (m.missing?.length ?? 0) > 0 });
+    const level = isRedMark(m) ? 'red' : 'amber';
+    const key = `${m.kind}-${i}`;
+    if (m.kind === 'partial') out.push({ key, kind: m.kind, level, text: `помощник ${who} остановился на полпути${m.card ? ` (${m.card})` : ''}${m.waitingWord ? ' — ждёт твоего слова' : ''}` });
+    else if (m.kind === 'takt') out.push({ key, kind: m.kind, level, text: `задача ${m.card ? `${m.card} ` : ''}выдана, ответа от неё нет` });
+    else if (m.kind === 'subagentWrite') out.push({ key, kind: m.kind, level, text: `помощник ${who} записал в доску — так нельзя` });
+    else if (m.kind === 'oldRules') out.push({ key, kind: m.kind, level, text: 'работает по старым правилам', reread: (m.missing?.length ?? 0) > 0 });
     else if (m.kind === 'collision') { const o = m.other?.title || 'другой тред'; if (!files.includes(o)) files.push(o); }
-    else out.push({ kind: m.kind, level: 'red', text: m.kind });
-  }
-  if (files.length) out.push({ kind: 'collision', level: 'amber', text: `правит общие файлы вместе с: ${files.join(', ')}` });
-  if (t.memory?.warn) out.push({ kind: 'memory', level: 'amber', text: 'память на исходе — пора сделать снимок и открыть новый тред' });
+    else out.push({ key, kind: m.kind, level, text: m.kind });
+  });
+  if (files.length) out.push({ key: 'collision', kind: 'collision', level: 'amber', text: `правит общие файлы вместе с: ${files.join(', ')}` });
+  if (t.memory?.warn) out.push({ key: 'memory', kind: 'memory', level: 'amber', text: 'память на исходе — пора сделать снимок и открыть новый тред' });
   return out;
 }
 
@@ -80,6 +107,8 @@ export function workersView(threads) {
     idle: quiet.filter((r) => r.t.state !== 'stale').map((r) => r.t),
     stale: quiet.filter((r) => r.t.state === 'stale').map((r) => r.t),
     withRemarks: rows.filter((r) => r.remarks.length).length,
+    // красный счётчик шапки (3.1, marksCount): только треды с красными пометками
+    withRed: rows.filter((r) => r.remarks.some((x) => x.level === 'red')).length,
   };
 }
 
@@ -95,11 +124,16 @@ export function briefNow(threads) {
   if (n('idle')) parts.push(`свободны ${n('idle')}`);
   if (n('stale')) parts.push(`нет вестей ${n('stale')}`);
   const line = parts.length ? `Тредов ${ts.length}: ${parts.join(', ')}.` : 'Живых тредов нет.';
-  let alarm = null;
+  // тревога — самая срочная красная пометка цеха: обрыв помощника, запись в доску, такт без ответа, потом старые правила
+  const PRI = ['partial', 'subagentWrite', 'takt', 'oldRules'];
+  const pri = (k) => (PRI.includes(k) ? PRI.indexOf(k) : PRI.length);
+  let best = null;
   for (const t of ts) {
-    const r = threadRemarks(t).find((x) => x.level === 'red');
-    if (r) { alarm = `${t.title || 'тред без названия'}: ${r.text}`; break; }
+    for (const r of threadRemarks(t).filter((x) => x.level === 'red')) {
+      if (!best || pri(r.kind) < pri(best.r.kind)) best = { t, r };
+    }
   }
+  const alarm = best ? `${best.t.title || 'тред без названия'}: ${best.r.text}` : null;
   return { line, alarm };
 }
 
@@ -115,10 +149,12 @@ export function briefMe(w) {
 
 /* ---------- проекты строками ---------- */
 
-// без фазы и следующего шага — «тихо, описания нет»: одной строкой внизу
+// «тихо, описания пока нет»: нет фазы, нет шага, все счётчики нулевые и чтение не падает — одной строкой внизу;
+// проект со счётчиками или со сбоем чтения — обычной строкой
+export const isQuiet = (p) => !p.phase && !p.next && !p.inProgress && !p.ready && !p.review && !p.phaseFailingSince;
 export function splitProjects(projects) {
   const ps = projects || [];
-  return { described: ps.filter((p) => p.phase || p.next), quiet: ps.filter((p) => !p.phase && !p.next) };
+  return { described: ps.filter((p) => !isQuiet(p)), quiet: ps.filter(isQuiet) };
 }
 
 // счётчики справа — словами, только ненулевые

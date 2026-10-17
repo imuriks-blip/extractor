@@ -99,7 +99,7 @@ function Where({ w }) {
       <span className="l">Дальше</span>
       <span>{w.next ?? <span className="faint">—</span>}</span>
       {text.length > 0 && <><span className="l" /><div className="rm-text">{text.map((p, i) => <p key={i}>{p}</p>)}</div></>}
-      {(w.updated || w.by) && <><span className="l" /><More label={`обновлено ${dateShort(w.updated) || '—'}`}>{w.by ? <span className="mono">{w.by}</span> : 'кто правил — не указано'}</More></>}
+      {(w.updated || w.by) && <><span className="l" /><More label={`карта обновлена ${dateShort(w.updated) || '—'}`}>{w.by ? <span className="mono">{w.by}</span> : 'кто правил — не указано'}</More></>}
     </div>
   );
 }
@@ -137,18 +137,22 @@ function Ask({ code, qs }) {
 
 function IdeaRow({ i }) {
   const v = ideaView(i);
+  // след карточки идеи не сходится (или ещё не посчитан) — значок рядом со статусом; «сделана» зелёной только при зелёном следе
+  const hot = v.trace !== undefined && traceState(v.trace) !== 'ok';
+  const cls = hot && v.cls === 'done' ? 'idle' : v.cls;
   return (
     // EXT-125: сверху — статус словом и сама идея; номер, карточка, след и откуда — под «подробнее»
     <div className={v.cls === 'gone' ? 'rm-row rm-pl rm-old' : 'rm-row rm-pl'}>
       <span className="rm-t">
-        <span className={`rm-st s-${v.cls}`}>{v.text}</span>
+        <span className={`rm-st s-${cls}`}>{v.text}</span>
+        {hot && <TraceBadge t={v.trace} />}
         <span className="rm-it">{i.text}</span>
         {i.why && <span className="faint"> — {i.why}</span>}
         <More>
           <span className="mono">{i.n}</span>
           {v.card && <> · <CardLink id={v.card} /></>}
           {v.ask && <> · <span className="mono">{v.ask}</span></>}
-          {v.trace !== undefined && <> <Trc t={v.trace} text={null} /></>}
+          {v.trace !== undefined && !hot && <> <Trc t={v.trace} text={null} /></>}
           {' · '}{srcLine(i)}
         </More>
       </span>
@@ -200,12 +204,18 @@ function BigCard({ c, defOpen }) {
   const o = useOpen(`rm-card-${c.id}`, defOpen);
   const plan = c.plan;
   const st = mapStatus(c.status);
+  // след не сходится (или ещё не посчитан) — значок в строке карточки рядом со статусом, не только в раскрытии;
+  // «сделано» зелёным — только при зелёном следе (спека карты, «След „сделано“»)
+  const traced = c.trace !== undefined;
+  const hot = traced && traceState(c.trace) !== 'ok';
+  const stCls = st.cls === 'done' && (!traced || hot) ? 'later' : st.cls;
   // EXT-125: строка карточки — заголовок и статус словом («делаем / посмотри / потом»), у плана — «шагов X из Y»;
   // раскрытие — это «подробнее»: номер, статус доски, след, маленькие и план со следами и хешами
   const head = (
     <>
       <span className="rm-ct">{c.exists === false ? <span className="faint">нет на доске</span> : c.title}</span>
-      <span className={`rm-st s-${st.cls}`}>{st.text}</span>
+      {c.exists !== false && <span className={`rm-st s-${stCls}`}>{st.text}</span>}
+      {hot && <TraceBadge t={c.trace} />}
       {plan && <span className="rm-sum num">шагов {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
     </>
   );
@@ -215,7 +225,7 @@ function BigCard({ c, defOpen }) {
       <div className="rm-meta">
         <CardLink id={c.id} />
         <span className="lbl">{cardWord(c.status)}</span>
-        {c.trace && <TraceBadge t={c.trace} />}
+        {c.trace && !hot && <TraceBadge t={c.trace} />}
         {c.childrenSummary && <span className="rm-sum num">{c.childrenSummary.label}</span>}
         {plan && <span className="rm-sum num">план: сделано {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
         {c.hint && <span className="faint rm-sum">{c.hint}</span>}

@@ -56,10 +56,19 @@ export function Stale({ text }) {
 
 /* ---------- Ждёт меня ---------- */
 
-// плашка следа словами (EXT-125): «цех проверил» / «проверь сам» / «нет отчёта» / «не отправлено»; знак и подпись сервера — под «подробнее»
+// плашка следа словами (EXT-125): «цех проверил» / «проверено, но после проверки есть новые записи» / «проверь сам» /
+// «нет отчёта» / «не слито» / «не отправлено»; рядом серым — что проверять (подпись сервера у «проверь сам»), короткая
+// причина у красного и «после контракта — ещё N»; знак и подпись сервера целиком — под «подробнее»
 function Plain({ t }) {
   const w = traceWord(t);
-  return w ? <span className={`pst s-${w.cls}`}>{w.text}</span> : null;
+  if (!w) return null;
+  return (
+    <>
+      <span className={`pst s-${w.cls}`}>{w.text}</span>
+      {w.note && <span className="pst-n"> {w.note}</span>}
+      {w.later && <span className="pst-n"> · {w.later}</span>}
+    </>
+  );
 }
 
 // сводка над «Цехом» (EXT-125): «Сейчас» — треды и тревога; «Ждёт меня» — решения и что посмотреть. «Дальше» — после INFRA-113
@@ -484,12 +493,18 @@ function PlainThread({ t, remarks, now }) {
   return (
     <div className="thr">
       <div className="th1">
-        <span className="tname">{t.title || 'без названия'}{!t.project && <span className="faint"> · проект не определён</span>}</span>
+        {/* как в Thread: код проекта, «по карточкам», «проект не определён» и метка прораба (§2.1: ответить ему нельзя) — серым */}
+        <span className="tname">
+          {t.project && !(t.title || '').startsWith(t.project) && <span className="mono">{t.project}</span>}{t.title || 'без названия'}
+          {t.project && t.projectBy === 'cards' && <span className="by-in"> · по карточкам</span>}
+          {!t.project && <span className="faint"> · проект не определён</span>}
+          {foremanLabel(t) && <span className="faint"> · {foremanLabel(t)}</span>}
+        </span>
         <span className={`st ${cls}`}>{word}</span>
       </div>
       {doing && <div className="pl">{threadDoing(t)}</div>}
       {remarks.map((r) => (
-        <div key={r.kind} className={`pl pl-${r.level}`}>
+        <div key={r.key} className={`pl pl-${r.level}`}>
           <span>{r.text}</span>
           {r.reread && oldRules && <Reread session={t.sessionId} missing={oldRules.missing} now={now} bare />}
         </div>
@@ -521,7 +536,8 @@ function Workers({ w, now, stale }) {
     <details className="blk" open={o.open} onToggle={o.onToggle}>
       <Summary>
         Кто работает <span className="cnt num">{busy} из {w.threads.length}</span>
-        {v.withRemarks > 0 && <span className="hint red">{plural(v.withRemarks, ['тред с замечанием', 'треда с замечаниями', 'тредов с замечаниями'])}</span>}
+        {/* красный счётчик — только треды с красными пометками (3.1, marksCount); жёлтые в него не входят */}
+        {v.withRed > 0 && <span className="hint red">{plural(v.withRed, ['тред с тревогой', 'треда с тревогой', 'тредов с тревогой'])}</span>}
       </Summary>
       {v.shown.map((r) => <PlainThread key={r.t.sessionId} t={r.t} remarks={r.remarks} now={now} />)}
       {v.idle.length > 0 && <Quiet id="idle" title={v.shown.length ? 'Свободны, замечаний нет' : 'Все свободны, замечаний нет'} list={v.idle} now={now} />}

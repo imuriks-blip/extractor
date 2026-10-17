@@ -768,3 +768,7 @@ details.grp.wq>summary{font-weight:400}
 /* «подробнее» — в строку за текстом пункта, не отдельной строкой; раскрытое — блоком ниже */
 .tt>details.dd,.rm-t>details.dd{display:inline;margin-left:8px}
 .tt>details.dd[open],.rm-t>details.dd[open]{display:block;margin-left:0}
+/* дозапрос 2 (Голем): причина рядом с плашкой — серым; значок следа в строке карты; «карта обновлена» — отдельно от «Дальше» */
+.pst-n{font-size:12px;color:var(--muted)}
+.rm-card>summary .trc,.rm-pl .rm-t>.trc{display:inline-flex;margin-left:6px}
+.rm-where>details.dd{margin-top:4px}
