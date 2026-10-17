@@ -296,6 +296,68 @@ test('Г2 п.4: карта без «фаза:» (битая) — фаза «Це
   assert.match(p.phaseError, /фаза/);
 });
 
+// ---------- дозапрос 1 по ревью Голема ----------
+
+test('Важно 2: маячок окна проекта — у проекта с картой фаза и шаг из карты (строгая маска), без карты — из Vault, битая — прежнее и ошибка', async () => {
+  const b = async (code) => (await get(`/api/project/${code}`)).beacon;
+  const infra = await b('INFRA');
+  assert.equal(infra.phaseFrom, 'map');
+  assert.ok(infra.phase.startsWith('цех пересобран') && !infra.phase.includes(FLOW) && infra.phase.includes('[скрыто:'), infra.phase);
+  assert.deepEqual([infra.next, infra.phaseError], ['дорожная карта цеха', null]);
+  const car = await b('CAR');
+  assert.deepEqual([car.phaseFrom, car.phase, car.next, car.phaseError], ['vault', 'Vault CAR.', 'Шаг Vault CAR.', null]);
+  // EXT — карта без «фаза:» с прошлого теста: прежние фаза и шаг удачного разбора и ошибка, не Vault
+  const ext = await b('EXT');
+  assert.deepEqual([ext.phaseFrom, ext.phase, ext.next], ['map', 'витрина и карта.', 'сервер карты.']);
+  assert.match(ext.phaseError, /фаза/);
+});
+
+test('Важно 1: /api/health → readers.roadmap строгой сетью — id флоу из заголовка битой карты замаскирован (мягкая сеть его пропустила бы)', async () => {
+  fs.writeFileSync(path.join(boardDir, 'EXT', 'EXT.map.md'), extMap(IDEA1).replace('## Карточки', `## флоу ${FLOW}\n\n## Карточки`));
+  gitCommitAll(boardDir, 'EXT map with flow section');
+  await board.refresh();
+  const raw = reader.state().lastError;
+  assert.ok(raw.includes(FLOW), raw);
+  assert.ok(maskDeep(raw, scanT, { project: '' }).includes(FLOW), 'контроль: мягкая сеть id флоу по слову-признаку прощает');
+  const h = (await get('/api/health')).readers.roadmap;
+  assert.ok(!JSON.stringify(h).includes(FLOW), h.lastError);
+  assert.match(h.lastError, /\[скрыто:/);
+});
+
+test('Мелочь 2: state() читателя карты не строит таблицу имён на каждый вызов — при том же реестре та же таблица', () => {
+  assert.equal(reader.state().repoNameClashes, reader.state().repoNameClashes);
+});
+
+test('Мелочь 3: изменённый файл карты кода не из projects.md — не читается (как при полном чтении)', async () => {
+  fs.mkdirSync(path.join(boardDir, 'ZZ'), { recursive: true });
+  fs.writeFileSync(path.join(boardDir, 'ZZ', 'ZZ.map.md'), extMap(IDEA1).replace('# Карта EXT', '# Карта ZZ').replace(/- EXT-\d+\n/g, ''));
+  gitCommitAll(boardDir, 'ZZ map outside projects.md');
+  await board.refresh();
+  assert.ok(!reader.mapCodes().includes('ZZ'), JSON.stringify(reader.mapCodes()));
+  assert.equal(reader.state().maps, 2);
+});
+
+test('Мелочь 1: сбой git по следу карты (репозитория нет) не замораживает свежесть проверки Review — у второго входа свой учёт', async () => {
+  const b3 = makeBoard(tmpDir('rm-board3-'), { codes: ['EXT'], cards: [{ id: 'EXT-1', status: 'review', title: 'На ревью' }] });
+  fs.writeFileSync(path.join(b3, 'EXT', 'EXT-1.log.md'), contractLog);
+  fs.writeFileSync(path.join(b3, 'EXT', 'EXT-1.plan.md'), '# План EXT-1\nформат: 1\n\n- [x] 1 · Шаг · след: gone@abc1234\n');
+  gitInitCommit(b3);
+  const reg3File = path.join(tmpDir('rm-reg3-'), 'registry.json');
+  fs.writeFileSync(reg3File, JSON.stringify({ board_codes: { EXT: { repos: [extractor, path.join(tmpDir('rm-gone-'), 'gone')] } } }));
+  const reg3 = createRegistryReader(reg3File);
+  const r3 = rm.createRoadmapReader({ root: b3, lib: roadmapLib, registry: reg3 });
+  const bd3 = createBoardReader({ root: b3, git: gitR, parseCard, parseLog, latest, roadmap: r3 });
+  await bd3.init();
+  const t3 = createTraceChecker({ git: gitR, registry: reg3, board: bd3, roadmap: r3 });
+  await t3.refresh();
+  assert.equal(t3.peek('EXT-1').state, 'ok', 'Review: контракт с отправленным коммитом extractor');
+  assert.deepEqual(t3.peekRoad('gone@abc1234').reasons.map((x) => x.code), ['git-error']);
+  const s = t3.state();
+  assert.ok(s.lastOkAt, 'свежесть Review двигается');
+  assert.deepEqual([s.errors, s.lastError], [0, null]);
+  assert.ok(s.roadmap.errors >= 1 && s.roadmap.lastOkAt === null, JSON.stringify(s.roadmap));
+});
+
 // ---------- живой сервер: запасной импорт и перечитка ----------
 
 const startOn = (board0, boardLib, poll = 60000) => onFreePort((port) => startServer({ config: { port, toasts: false, paths: { board: board0, boardLib, registry: regFile, vault }, pollMs: { board: poll, journals: 60000, git: 60000 }, statsEveryMin: 10 }, dataDir: tmpDir('rm-data-') }));

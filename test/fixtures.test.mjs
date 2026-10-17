@@ -149,7 +149,8 @@ async function realResponses() {
   - [!] 2.2 · Ждёт · ждёт: EXT-9
 - [-] 3 · Лишнее · почему: снято
 `);
-  git(dir, 'add', '.');
+  // только пути образца (Мелочь 4 ревью): git add . унёс бы в коммит доски всё, что лежит рядом
+  git(dir, 'add', 'EXT/EXT.map.md', 'EXT/EXT-6.plan.md');
   git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.autocrlf=false', 'commit', '-q', '-am', 'EXT-6 контракт');
   const roadmap = createRoadmapReader({ root: dir, lib: roadmapLib, registry: createRegistryReader(reg) });
   const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest, roadmap });
