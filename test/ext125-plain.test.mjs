@@ -92,6 +92,14 @@ test('«Кто работает»: красный счётчик — тольк�
   assert.equal(v.withRemarks, 3);
   assert.deepEqual(v.shown.map((r) => r.t.sessionId), ['a', 'b', 'c'], 'красный первым');
   assert.deepEqual(v.idle.map((t) => t.sessionId), ['d']);
+  // жёлтое тред не поднимает (решение Ивана 10): ждёт и работает — выше свободного с жёлтым замечанием
+  const y = pd.workersView([
+    { sessionId: 'y', state: 'idle', marks: [{ kind: 'collision', other: { title: 'EXT' } }], subagents: [] },
+    { sessionId: 'w', state: 'waiting', marks: [], subagents: [] },
+    { sessionId: 'r', state: 'idle', marks: [{ kind: 'oldRules', missing: [{ path: 'x' }] }], subagents: [] },
+    { sessionId: 'b', state: 'busy', marks: [], subagents: [] },
+  ]);
+  assert.deepEqual(y.shown.map((r) => r.t.sessionId), ['r', 'w', 'b', 'y'], 'красное — первым, жёлтое — после ждёт и работает');
   assert.equal(pd.briefNow([{ title: 'BW · приёмка', state: 'idle', marks: [{ kind: 'oldRules' }] }]).alarm, 'BW · приёмка: работает по старым правилам');
   assert.equal(pd.briefNow([{ title: 'X', state: 'busy', marks: [{ kind: 'collision', other: {} }] }]).alarm, null, 'жёлтое — не тревога');
   const ceh = fx('ceh.json');
