@@ -10,7 +10,7 @@ import { mapStatus } from './plainData.js';
 import { TraceBadge } from './Trace.jsx';
 import {
   ROADMAP_POLL_MS, NO_MAP, brokenLine, cardHref, cardWord, countsParts, dateShort, ideaView, markView, offLines,
-  roadmapUrl, splitIdeas, srcLine, waitView, splitQuestions, stepLine, totalLine, traceState, traceTip, TRACE_SIGN,
+  roadmapUrl, splitIdeas, srcLine, waitView, splitQuestions, stepLine, totalLine, traceState, traceTip, TRACE_SIGN, cardTraceView,
 } from './roadmapData.js';
 
 const CardLink = ({ id }) => <a className="rm-id" href={cardHref(id)}>{id}</a>;
@@ -206,8 +206,7 @@ function BigCard({ c, defOpen }) {
   const st = mapStatus(c.status);
   // след не сходится (или ещё не посчитан) — значок в строке карточки рядом со статусом, не только в раскрытии;
   // «сделано» зелёным — только при зелёном следе (спека карты, «След „сделано“»)
-  const traced = c.trace !== undefined;
-  const hot = traced && traceState(c.trace) !== 'ok';
+  const { traced, hot } = cardTraceView(c);
   const stCls = st.cls === 'done' && (!traced || hot) ? 'later' : st.cls;
   // EXT-125: строка карточки — заголовок и статус словом («делаем / посмотри / потом»), у плана — «шагов X из Y»;
   // раскрытие — это «подробнее»: номер, статус доски, след, маленькие и план со следами и хешами

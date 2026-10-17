@@ -127,7 +127,7 @@ test('карта: статус словом; «нет на доске» не д�
     ['делаем', 'посмотри', 'потом', 'потом', 'сделано', 'снято']);
   const r = src('Roadmap.jsx');
   assert.match(r, /\{c\.exists !== false && <span className=\{`rm-st s-\$\{stCls\}`\}>\{st\.text\}<\/span>\}/);
-  assert.match(r, /const hot = traced && traceState\(c\.trace\) !== 'ok';/);
+  assert.match(r, /const \{ traced, hot \} = cardTraceView\(c\);/);
   assert.match(r, /\{hot && <TraceBadge t=\{c\.trace\} \/>\}/);
   assert.match(r, /const stCls = st\.cls === 'done' && \(!traced \|\| hot\) \? 'later' : st\.cls;/, '«сделано» зелёным — только при зелёном следе');
   assert.match(r, /\{hot && <TraceBadge t=\{v\.trace\} \/>\}/, 'идея — так же');
@@ -143,4 +143,15 @@ test('служебное — под «подробнее», действия н�
   assert.match(c, /sid=\{inner \? undefined : t\.sessionId\}/, 'под «подробнее» кнопка не дублируется');
   assert.match(c, /<div key=\{r\.key\} className=\{`pl pl-\$\{r\.level\}`\}>/);
   assert.equal((c.match(/foremanLabel\(t\) && <span className="faint"> · \{foremanLabel\(t\)\}<\/span>/g) || []).length, 2, 'метка прораба — в Thread и в PlainThread');
+});
+
+// повторное ревью Голема на cfca486, Важно 1: у карточки не в «done» сервер отдаёт trace: null (lib/roadmap.mjs) —
+// значка «проверяю след» в строке быть не должно; у «done» null — «проверяю», красный — значок, зелёный — нет
+test('карта: значок следа в строке — только у «done» с не-зелёным следом', async () => {
+  const { cardTraceView } = await import('../web/src/roadmapData.js');
+  assert.deepEqual(cardTraceView({ status: 'in-progress', trace: null }), { traced: false, hot: false });
+  assert.deepEqual(cardTraceView({ status: 'cancelled', trace: null }), { traced: false, hot: false });
+  assert.deepEqual(cardTraceView({ status: 'done', trace: null }), { traced: true, hot: true });
+  assert.deepEqual(cardTraceView({ status: 'done', trace: { state: 'bad' } }), { traced: true, hot: true });
+  assert.deepEqual(cardTraceView({ status: 'done', trace: { state: 'ok' } }), { traced: true, hot: false });
 });
