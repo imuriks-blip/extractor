@@ -1,0 +1,280 @@
+{
+  "_comment": "GET /api/roadmap/<КОД>: дерево карты. map null — карты нет (hasMap false) или первый разбор битый (broken). ideas[].shown — статус показа: у идеи с card — со статуса карточки (стала карточкой / в работе / сделана / стала карточкой · карточка снята), cardTrace — след карточки в done. cards — ahead / done / cancelled по статусу доски в порядке файла; trace — у done: итог проверки следа как у «Принять» (state ok/warn/bad/none, label, hint, reasons, checked, contractAt, laterRecords). children — маленькие по parent, childrenSummary.label «закрыто X из Y · идёт Z · ждёт W» (закрыто — done и cancelled), hint — серая подсказка «все маленькие закрыты». plan — null или пункты: mark из файла, shownMark — для [>] со статуса карточки; traces[] — по части следа «имя@хеш» или номер карточки, state null — ещё не проверено («проверяю след…»); summary — сделано X из Y.",
+  "available": true,
+  "error": null,
+  "code": "EXT",
+  "name": "имя-ext",
+  "hasMap": true,
+  "map": {
+    "where": {
+      "updated": "2026-10-17 10:00",
+      "by": "trurl:EXT",
+      "phase": "Карта.",
+      "next": "Окно.",
+      "text": [
+        "Абзац."
+      ]
+    },
+    "questions": [
+      {
+        "n": "q1",
+        "status": "открыт",
+        "date": "2026-10-17",
+        "from": "чат EXT 17.10",
+        "text": "Вопрос?",
+        "answer": null,
+        "who": null
+      },
+      {
+        "n": "q2",
+        "status": "закрыт",
+        "date": "2026-10-16",
+        "from": "чат EXT 16.10",
+        "text": "Был?",
+        "answer": "да",
+        "who": "слово Ивана в чате 16.10"
+      }
+    ],
+    "ideas": [
+      {
+        "n": "i1",
+        "status": "обсуждаем",
+        "shown": "обсуждаем",
+        "date": "2026-10-17",
+        "from": "чат EXT 17.10",
+        "text": "Идея",
+        "ask": null,
+        "card": null,
+        "cardStatus": null,
+        "cardTrace": null,
+        "why": null
+      },
+      {
+        "n": "i2",
+        "status": "стала карточкой",
+        "shown": "в работе",
+        "date": "2026-10-16",
+        "from": "чат EXT 16.10",
+        "text": "Спека",
+        "ask": null,
+        "card": "EXT-6",
+        "cardStatus": "review",
+        "cardTrace": null,
+        "why": null
+      },
+      {
+        "n": "i3",
+        "status": "отброшена",
+        "shown": "отброшена",
+        "date": "2026-10-15",
+        "from": "чат EXT 15.10",
+        "text": "Лишнее",
+        "ask": null,
+        "card": null,
+        "cardStatus": null,
+        "cardTrace": null,
+        "why": "не нужно"
+      }
+    ],
+    "cards": {
+      "ahead": [
+        {
+          "id": "EXT-6",
+          "code": "EXT",
+          "exists": true,
+          "title": "Спека",
+          "status": "review",
+          "trace": null,
+          "children": [
+            {
+              "id": "EXT-7",
+              "title": "Слить",
+              "status": "in-progress"
+            },
+            {
+              "id": "EXT-11",
+              "title": "Снята",
+              "status": "cancelled"
+            }
+          ],
+          "childrenSummary": {
+            "closed": 1,
+            "total": 2,
+            "active": 1,
+            "waiting": 0,
+            "label": "закрыто 1 из 2 · идёт 1 · ждёт 0"
+          },
+          "hint": null,
+          "plan": {
+            "id": "EXT-6",
+            "items": [
+              {
+                "depth": 0,
+                "mark": "x",
+                "shownMark": "x",
+                "num": "1",
+                "text": "Спека",
+                "card": null,
+                "cardStatus": null,
+                "cardTrace": null,
+                "wait": null,
+                "why": null,
+                "traces": [
+                  {
+                    "part": "extractor@0c80182",
+                    "state": "warn",
+                    "label": "0c80182 в main, но origin/main на машине нет (extractor) — отправку не проверить",
+                    "hint": null,
+                    "reasons": [
+                      {
+                        "level": "warn",
+                        "code": "no-origin",
+                        "text": "0c80182 в main, но origin/main на машине нет (extractor) — отправку не проверить"
+                      }
+                    ],
+                    "checked": {
+                      "lines": [],
+                      "who": null,
+                      "commits": [
+                        {
+                          "hash": "0c80182",
+                          "repo": "extractor",
+                          "found": true,
+                          "inMain": true,
+                          "pushed": null
+                        }
+                      ]
+                    },
+                    "contractAt": null,
+                    "laterRecords": 0
+                  }
+                ]
+              },
+              {
+                "depth": 0,
+                "mark": "~",
+                "shownMark": "~",
+                "num": "2",
+                "text": "Код",
+                "card": null,
+                "cardStatus": null,
+                "cardTrace": null,
+                "wait": null,
+                "why": null,
+                "traces": []
+              },
+              {
+                "depth": 1,
+                "mark": ">",
+                "shownMark": "~",
+                "num": "2.1",
+                "text": "Слить",
+                "card": "EXT-7",
+                "cardStatus": "in-progress",
+                "cardTrace": null,
+                "wait": null,
+                "why": null,
+                "traces": []
+              },
+              {
+                "depth": 1,
+                "mark": "!",
+                "shownMark": "!",
+                "num": "2.2",
+                "text": "Ждёт",
+                "card": null,
+                "cardStatus": null,
+                "cardTrace": null,
+                "wait": "EXT-9",
+                "why": null,
+                "traces": []
+              },
+              {
+                "depth": 0,
+                "mark": "-",
+                "shownMark": "-",
+                "num": "3",
+                "text": "Лишнее",
+                "card": null,
+                "cardStatus": null,
+                "cardTrace": null,
+                "wait": null,
+                "why": "снято",
+                "traces": []
+              }
+            ],
+            "summary": {
+              "done": 1,
+              "total": 5
+            },
+            "broken": null
+          }
+        },
+        {
+          "id": "EXT-8",
+          "code": "EXT",
+          "exists": true,
+          "title": "Потом",
+          "status": "backlog",
+          "trace": null,
+          "children": [],
+          "childrenSummary": null,
+          "hint": null,
+          "plan": null
+        }
+      ],
+      "done": [
+        {
+          "id": "EXT-10",
+          "code": "EXT",
+          "exists": true,
+          "title": "Готово",
+          "status": "done",
+          "trace": {
+            "state": "bad",
+            "label": "контракта закрытия нет",
+            "hint": null,
+            "reasons": [
+              {
+                "level": "bad",
+                "code": "no-contract",
+                "text": "контракта закрытия нет"
+              }
+            ],
+            "checked": {
+              "lines": [],
+              "who": null,
+              "commits": []
+            },
+            "contractAt": null,
+            "laterRecords": 0
+          },
+          "children": [],
+          "childrenSummary": null,
+          "hint": null,
+          "plan": null
+        }
+      ],
+      "cancelled": [
+        {
+          "id": "EXT-11",
+          "code": "EXT",
+          "exists": true,
+          "title": "Снята",
+          "status": "cancelled",
+          "trace": null,
+          "children": [],
+          "childrenSummary": null,
+          "hint": null,
+          "plan": null
+        }
+      ]
+    }
+  },
+  "counts": {
+    "askOpen": 1,
+    "ideasDiscuss": 1,
+    "ahead": 2
+  },
+  "broken": null
+}
