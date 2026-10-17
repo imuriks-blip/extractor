@@ -8,15 +8,19 @@ import Help from './Help.jsx';
 import MirrorStatus from './Mirror.jsx';
 import { ServiceMenu } from './Service.jsx';
 import Project from './Project.jsx';
+import Roadmap from './Roadmap.jsx';
 import Usage from './Usage.jsx';
 import { cehSource, idleSource, streamSource, useNow, useSource } from './data.js';
 import { dm, hms, oldest } from './format.js';
 import { useTheme } from './prefs.js';
 import { setBoardMode } from './boardMode.js';
 import { boardSyncLine } from './boardSyncText.js';
+import { roadmapRoute, roadmapTitle } from './roadmapData.js';
 
 function parseRoute() {
   if (window.location.hash === '#/usage') return { name: 'usage' };
+  const rm = roadmapRoute(window.location.hash); // EXT-103 Т3: #/roadmap, #/roadmap/<КОД>
+  if (rm) return rm;
   const m = /^#\/project\/([A-Z]{2,6})(?:\/([A-Z]{2,6}-\d+))?$/.exec(window.location.hash);
   return m ? { name: 'project', code: m[1], card: m[2] ?? null } : { name: 'ceh' };
 }
@@ -57,14 +61,18 @@ function Header({ route, freshness, name, pult, live }) {
   const mirror = freshness?.mirror?.label;
   const sync = boardSyncLine(freshness?.boardSync);
   return (
-    <header className={route.name === 'usage' ? 'top nofresh' : 'top'}>
+    <header className={route.name === 'usage' || route.name === 'roadmap' ? 'top nofresh' : 'top'}>
       <b>Экстрактор</b><span className="sep">/</span>
       {route.name === 'ceh'
         ? <span>Цех</span>
         : route.name === 'usage'
           ? <span>Расход</span>
-          : <><a href="#/">Цех</a><span className="sep">/</span><span><b className="mono pcode">{route.code}</b>{name && <> · {name}</>}</span></>}
-      {/* «Расход» (EXT-84) — свой экран: рядом с крошками ссылка на соседний */}
+          : route.name === 'roadmap'
+            ? <><a href="#/">Цех</a><span className="sep">/</span>
+                {route.code ? <><a href="#/roadmap">Карта</a><span className="sep">/</span><b className="mono pcode">{route.code}</b></> : <span>Карта</span>}</>
+            : <><a href="#/">Цех</a><span className="sep">/</span><span><b className="mono pcode">{route.code}</b>{name && <> · {name}</>}</span></>}
+      {/* «Карта» (EXT-103) и «Расход» (EXT-84) — свои экраны: рядом с крошками ссылки на соседние */}
+      {route.name !== 'roadmap' && <a className="navl" href="#/roadmap">Карта</a>}
       <a className="navl" href={route.name === 'usage' ? '#/' : '#/usage'}>{route.name === 'usage' ? '← Цех' : 'Расход'}</a>
       {freshness && (
         <span className="fresh muted mono">
@@ -96,7 +104,7 @@ function Header({ route, freshness, name, pult, live }) {
           сразу за временем зеркала (EXT-73). Кнопки прохода в строке нет: «Обновить» — в меню «Служебное» (EXT-77, EXT-87) */}
       {/* на «Расходе» подписи зеркала нет, но меню «Служебное» то же: ход зеркала держит тот же MirrorStatus (EXT-87) */}
       {/* live: ход прохода, начатого до переключения, виден до конца; итога и пометок нажатий нет (MirrorStatus live) */}
-      {((freshness && (mirror || live)) || route.name === 'usage') && <MirrorStatus label={mirror} live={live} />}
+      {((freshness && (mirror || live)) || route.name === 'usage' || route.name === 'roadmap') && <MirrorStatus label={mirror} live={live} />}
       <ThemeSwitch />
       {/* «Служебное», «Словарь», «Агенты» и «?» — одна группа: на узком окне переносятся вместе, «?» не остаётся один (EXT-64, EXT-87, EXT-116) */}
       <span className="tbtns">
@@ -113,7 +121,8 @@ export default function App() {
   const route = useRoute();
   const code = route.name === 'project' ? route.code : null;
   // один источник на экран: «Цех» — /api/ceh, окно проекта — /api/project/<КОД>
-  const source = useMemo(() => (route.name === 'usage' ? idleSource : code ? streamSource(`/api/project/${code}`) : cehSource), [code, route.name]);
+  // «Расход» и «Карта» читают свои ручки сами (опросом)
+  const source = useMemo(() => (route.name === 'usage' || route.name === 'roadmap' ? idleSource : code ? streamSource(`/api/project/${code}`) : cehSource), [code, route.name]);
   const { data, failingSince, error } = useSource(source);
   // счётчик (4.2): N = |а| + |б| по всем проектам — из /api/ceh и в окне проекта; Review не входит
   // «Расход» тоже читает /api/ceh: от него нужен pult.enabled для меню «Служебное» (EXT-87) и счётчик в заголовке
@@ -127,7 +136,8 @@ export default function App() {
 
   // заголовок «(N) Экстрактор · Цех» / «(N) Экстрактор · <КОД>»; N = 0 или ещё не прочитано — без скобок
   useEffect(() => {
-    const base = route.name === 'ceh' ? 'Экстрактор · Цех' : route.name === 'usage' ? 'Экстрактор · Расход' : `Экстрактор · ${route.code}`;
+    const base = route.name === 'ceh' ? 'Экстрактор · Цех' : route.name === 'usage' ? 'Экстрактор · Расход'
+      : route.name === 'roadmap' ? roadmapTitle(route.code) : `Экстрактор · ${route.code}`;
     document.title = n > 0 ? `(${n}) ${base}` : base;
   }, [route, n]);
   // значок на иконке установленного приложения (4.2, В-8): тот же N; 0 — снят; не прочитано — не трогаем
@@ -154,6 +164,8 @@ export default function App() {
   let body;
   if (route.name === 'usage') {
     body = <Usage />;
+  } else if (route.name === 'roadmap') {
+    body = <Roadmap code={route.code} />;
   } else if (!data) {
     body = <div className="foot" role="status">
       {code && error === 'HTTP 404' ? `Проекта ${code} нет на доске.` : failingSince ? 'Сервер витрины не отвечает — пробую снова каждые 5 с.' : 'Читаю данные…'}

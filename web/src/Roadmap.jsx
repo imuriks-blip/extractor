@@ -1,0 +1,272 @@
+// Окно «Дорожная карта» (EXT-103 Т3; спека Vault extractor/SPEC-extractor-roadmap.md, раздел 3 «Вид», гейт Г3).
+// #/roadmap — все проекты строками со счётчиками; #/roadmap/<КОД> — карта проекта: Где стоим · Ждёт Ивана · Идеи · Впереди ·
+// Сделано · Снято. Только показ (Р-4 (а)): кнопок записи нет. Свой опрос ручки раз в 5 с, пока окно открыто (правку карты поток
+// событий не сигналит). Разметка и стили — соседних экранов: .beacon, details.blk / .grp, .ptable, .lbl, .trc (EXT-48).
+import { useMemo } from 'react';
+import { pollSource, useSource } from './data.js';
+import { useOpen } from './prefs.js';
+import { Summary } from './Summary.jsx';
+import { TraceBadge } from './Trace.jsx';
+import {
+  ROADMAP_POLL_MS, NO_MAP, brokenLine, cardHref, cardWord, countsParts, dateShort, ideaView, markView, offLines,
+  roadmapUrl, splitIdeas, srcLine, splitQuestions, stepLine, totalLine, traceState, traceTip, TRACE_SIGN,
+} from './roadmapData.js';
+
+const CardLink = ({ id }) => <a className="rm-id" href={cardHref(id)}>{id}</a>;
+
+// след одной части («имя@хеш» или номер карточки): знак, текст, причина — подсказкой и для экранного чтеца;
+// text null — только знак (у идеи «сделана»: значок следа её карточки, подпись — в подсказке)
+function Trc({ t, text }) {
+  const st = traceState(t);
+  const tip = traceTip(t);
+  return (
+    <span className={`trc rm-trc t-${st}`} title={tip}>
+      <span className="ts" aria-hidden="true">{st === 'wait' ? '…' : TRACE_SIGN[st]}</span>
+      {text != null && <span className="mono">{text}</span>}<span className="sr">{text != null ? '. ' : 'след: '}{tip}</span>
+    </span>
+  );
+}
+
+function Broken({ b, what }) {
+  const s = brokenLine(b, what);
+  return s ? <div className="rm-warn" role="status">{s}</div> : null;
+}
+
+/* ---------- все проекты ---------- */
+
+function All({ d, onOpen }) {
+  const key = (code) => (e) => { if (e.key === 'Enter') onOpen(code); };
+  const total = totalLine(d.total);
+  return (
+    <details className="blk" open>
+      <Summary>Карты проектов <span className="cnt num">{d.projects.length}</span>{total && <span className="hint">{total}</span>}</Summary>
+      <div className="tw">
+        <table className="ptable rm-all">
+          <thead><tr><th>Проект</th><th>Где стоим</th><th>Карта</th><th className="go"></th></tr></thead>
+          <tbody>
+            {d.projects.map((p) => {
+              const parts = countsParts(p.counts);
+              return (
+                <tr className={p.hasMap ? 'p' : 'p rm-nomap'} key={p.code} tabIndex={0} onClick={() => onOpen(p.code)} onKeyDown={key(p.code)}
+                  aria-label={`Открыть карту ${p.code}`}>
+                  <td className="code">{p.code}</td>
+                  <td>
+                    {p.hasMap && p.where
+                      ? <span className="pn" title={[p.where.phase, p.where.next && `→ ${p.where.next}`].filter(Boolean).join(' ') || undefined}>
+                          {p.where.phase ? <span className="phase">{p.where.phase}</span> : <span className="faint">фаза не указана</span>}
+                          {p.where.next && <> <span className="next">→ {p.where.next}</span></>}
+                        </span>
+                      : null}
+                    {p.broken && <span className="pfail rm-amb">{brokenLine(p.broken)}</span>}
+                  </td>
+                  <td className="rm-cnt">
+                    {parts
+                      ? parts.map((x, i) => <span key={x.k}>{i > 0 && <span className="faint"> · </span>}<span className={x.hot ? 'rm-hot' : undefined}>{x.text}</span></span>)
+                      : <span className="faint">{NO_MAP}</span>}
+                  </td>
+                  <td className="go" aria-hidden="true">›</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {!d.projects.length && <div className="empty">Проектов нет.</div>}
+    </details>
+  );
+}
+
+/* ---------- карта проекта ---------- */
+
+function Where({ w }) {
+  if (!w) return <div className="beacon" data-sec="where"><span className="faint">«Где стоим» в карте пусто</span></div>;
+  const text = Array.isArray(w.text) ? w.text : [];
+  return (
+    <div className="beacon rm-where" data-sec="where" aria-label="Где стоим">
+      <span><span className="l">фаза</span>{w.phase ? <span className="phase">{w.phase}</span> : <span className="faint">не указана</span>}</span>
+      <span><span className="l">следующий шаг</span>{w.next ?? <span className="faint">—</span>}</span>
+      {(w.updated || w.by) && <span className="faint rm-by">{dateShort(w.updated)}{w.by && <> · <span className="mono">{w.by}</span></>}</span>}
+      {text.length > 0 && <div className="rm-text">{text.map((p, i) => <p key={i}>{p}</p>)}</div>}
+    </div>
+  );
+}
+
+function Ask({ code, qs }) {
+  const o = useOpen(`rm-ask-${code}`);
+  const c = useOpen(`rm-askc-${code}`, false);
+  const { open, closed } = splitQuestions(qs);
+  return (
+    <details className="blk" data-sec="ask" open={o.open} onToggle={o.onToggle}>
+      <Summary>Ждёт Ивана <span className={open.length ? 'cnt num rm-hot' : 'cnt num'}>{open.length}</span><span className="hint hsm">вопросы без карточки · отвечать в чате треда</span></Summary>
+      {open.map((q) => (
+        <div className="rm-row" key={q.n}>
+          <span className="rm-n mono">{q.n}</span>
+          <span className="rm-t">{q.text}</span>
+          <span className="rm-src">{srcLine(q)}</span>
+        </div>
+      ))}
+      {!open.length && <div className="empty">Открытых вопросов нет.</div>}
+      {closed.length > 0 && (
+        <details className="grp" open={c.open} onToggle={c.onToggle}>
+          <Summary>Закрытые <span className="cnt num">{closed.length}</span></Summary>
+          {closed.map((q) => (
+            <div className="rm-row rm-old" key={q.n}>
+              <span className="rm-n mono">{q.n}</span>
+              <span className="rm-t">{q.text}{q.answer && <span className="rm-ans"> → {q.answer}</span>}{q.who && <span className="faint"> · {q.who}</span>}</span>
+              <span className="rm-src">{dateShort(q.date)}</span>
+            </div>
+          ))}
+        </details>
+      )}
+    </details>
+  );
+}
+
+function IdeaRow({ i }) {
+  const v = ideaView(i);
+  return (
+    <div className={v.cls === 'gone' ? 'rm-row rm-old' : 'rm-row'}>
+      <span className="rm-n mono">{i.n}</span>
+      <span className="rm-t">
+        <span className={`rm-st s-${v.cls}`}>{v.text}</span>
+        {v.card && <> <CardLink id={v.card} /></>}
+        {v.ask && <> <span className="mono faint">{v.ask}</span></>}
+        {v.trace !== undefined && <> <Trc t={v.trace} text={null} /></>}
+        <span className="rm-it">{i.text}</span>
+        {i.why && <span className="faint"> — {i.why}</span>}
+      </span>
+      <span className="rm-src">{srcLine(i)}</span>
+    </div>
+  );
+}
+
+function Ideas({ code, ideas, discuss }) {
+  const o = useOpen(`rm-ideas-${code}`);
+  const c = useOpen(`rm-drop-${code}`, false);
+  const { shown, dropped } = splitIdeas(ideas);
+  return (
+    <details className="blk" data-sec="ideas" open={o.open} onToggle={o.onToggle}>
+      <Summary>Идеи <span className="cnt num">{shown.length}</span>{discuss > 0 && <span className="hint">в обсуждении {discuss}</span>}</Summary>
+      {shown.map((i) => <IdeaRow key={i.n} i={i} />)}
+      {!shown.length && <div className="empty">Идей нет.</div>}
+      {dropped.length > 0 && (
+        <details className="grp" open={c.open} onToggle={c.onToggle}>
+          <Summary>Отброшенные <span className="cnt num">{dropped.length}</span></Summary>
+          {dropped.map((i) => <IdeaRow key={i.n} i={i} />)}
+        </details>
+      )}
+    </details>
+  );
+}
+
+function PlanItem({ it }) {
+  const m = markView(it);
+  const step = stepLine(it);
+  return (
+    <div className={`rm-pi d${Math.min(it.depth ?? 0, 2)}${it.shownMark === '-' ? ' rm-old' : ''}`}>
+      <span className={`rm-mk ${m.cls}`} title={m.word} aria-hidden="true">{m.sign}</span>
+      <span className="rm-t">
+        <span className="sr">{m.word}: </span>
+        <span className="rm-num mono">{it.num}</span> {it.text}
+        {it.card && <> <span className="faint">→</span> <CardLink id={it.card} /> <span className="faint">{cardWord(it.cardStatus)}</span></>}
+        {it.wait && <> <span className="rm-amb">ждёт <CardLink id={it.wait} /></span></>}
+        {it.why && <span className="faint"> — {it.why}</span>}
+        {(it.traces || []).map((t) => <span key={t.part}> <Trc t={t.state == null ? null : t} text={t.part} /></span>)}
+        {it.cardTrace && <> <Trc t={it.cardTrace} text={it.card} /></>}
+      </span>
+      {step && <span className="rm-step">{step}</span>}
+    </div>
+  );
+}
+
+function BigCard({ c, defOpen }) {
+  const o = useOpen(`rm-card-${c.id}`, defOpen);
+  const plan = c.plan;
+  const has = (c.children?.length || 0) > 0 || !!plan;
+  const head = (
+    <>
+      <CardLink id={c.id} />
+      <span className="rm-ct">{c.exists === false ? <span className="faint">нет на доске</span> : c.title}</span>
+      <span className="lbl">{cardWord(c.status)}</span>
+      {c.trace && <TraceBadge t={c.trace} />}
+      {c.childrenSummary && <span className="rm-sum num">{c.childrenSummary.label}</span>}
+      {plan && <span className="rm-sum num">план: сделано {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
+      {c.hint && <span className="faint rm-sum">{c.hint}</span>}
+    </>
+  );
+  if (!has) return <div className="rm-card rm-flat" data-id={c.id}>{head}</div>;
+  return (
+    <details className="grp rm-card" data-id={c.id} open={o.open} onToggle={o.onToggle}>
+      <Summary>{head}</Summary>
+      {c.children?.length > 0 && (
+        <div className="rm-kids" aria-label={`Маленькие ${c.id}`}>
+          {c.children.map((k) => (
+            <div className={k.status === 'cancelled' || k.status === 'done' ? 'rm-kid rm-old' : 'rm-kid'} key={k.id}>
+              <CardLink id={k.id} /><span className="rm-t">{k.title}</span><span className="lbl">{cardWord(k.status)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {plan && (
+        <div className="rm-plan" aria-label={`План ${c.id}`}>
+          <Broken b={plan.broken} what="план" />
+          {plan.items.map((it) => <PlanItem key={it.num} it={it} />)}
+          {!plan.items.length && <div className="lmore">План пуст.</div>}
+        </div>
+      )}
+    </details>
+  );
+}
+
+function Cards({ code, sec, title, list, defOpen, cardsOpen, hint }) {
+  const o = useOpen(`rm-${sec}-${code}`, defOpen);
+  return (
+    <details className="blk" data-sec={sec} open={o.open} onToggle={o.onToggle}>
+      <Summary>{title} <span className="cnt num">{list.length}</span>{hint && <span className="hint hsm">{hint}</span>}</Summary>
+      <div className="rm-cards">
+        {list.map((c) => <BigCard key={c.id} c={c} defOpen={cardsOpen} />)}
+      </div>
+      {!list.length && <div className="empty">Пусто.</div>}
+    </details>
+  );
+}
+
+function One({ d }) {
+  const code = d.code;
+  if (!d.hasMap && !d.map) {
+    return <div className="beacon" data-sec="nomap"><span className="faint">{NO_MAP}: у проекта {code} карты на доске нет ({code}/{code}.map.md)</span></div>;
+  }
+  const m = d.map;
+  if (!m) return <><Broken b={d.broken} /><div className="beacon"><span className="faint">карта {code} не разобрана ни разу — показывать нечего</span></div></>;
+  const cards = m.cards || {};
+  return (
+    <div className="rm-col">
+      <Broken b={d.broken} />
+      <Where w={m.where} />
+      <Ask code={code} qs={m.questions} />
+      <Ideas code={code} ideas={m.ideas} discuss={d.counts?.ideasDiscuss ?? 0} />
+      <Cards code={code} sec="ahead" title="Впереди" list={cards.ahead || []} defOpen cardsOpen hint="порядок — карты: что важнее, выше" />
+      <Cards code={code} sec="done" title="Сделано" list={cards.done || []} defOpen cardsOpen={false} />
+      <Cards code={code} sec="cancelled" title="Снято" list={cards.cancelled || []} defOpen={false} cardsOpen={false} />
+    </div>
+  );
+}
+
+export default function Roadmap({ code }) {
+  const source = useMemo(() => pollSource(roadmapUrl(code), ROADMAP_POLL_MS), [code]);
+  const { data, failingSince, error } = useSource(source);
+  if (!data) {
+    return <div className="foot" role="status">
+      {code && error === 'HTTP 404' ? `Проекта ${code} нет.` : failingSince ? 'Сервер витрины не отвечает — пробую снова каждые 5 с.' : 'Читаю карту…'}
+    </div>;
+  }
+  const off = offLines(data);
+  return (
+    <div className="rm-col">
+      {failingSince != null && <div className="foot" role="status">Сервер витрины не отвечает — показаны прежние данные.</div>}
+      {off
+        ? <div className="beacon rm-off" role="status"><span className="rm-amb">{off.error}</span><span className="faint">{off.hint}</span></div>
+        : code ? <One d={data} /> : <All d={data} onOpen={(c) => { window.location.hash = `#/roadmap/${c}`; }} />}
+    </div>
+  );
+}
