@@ -143,6 +143,12 @@ export function traceState(t) {
   if (!t || t.state == null) return 'wait';
   return TRACE_SIGN[t.state] ? t.state : 'none';
 }
+// EXT-125: след карточки на карте сервер считает только у «done» (lib/roadmap.mjs: у прочих trace: null — «следа нет»,
+// а не «ещё считаю»); значок в строке — только у «done», чей след не зелёный (null у «done» — «проверяю»)
+export function cardTraceView(c) {
+  const traced = c.status === 'done';
+  return { traced, hot: traced && traceState(c.trace) !== 'ok' };
+}
 
 // подпись EXT-108 у пункта плана: «тред EXT: шаг 3 из 6» — только если поле пришло в данных (EXT-108 в коде витрины ещё нет);
 // форма поля — предложение для сервера: step = { thread, n, of }

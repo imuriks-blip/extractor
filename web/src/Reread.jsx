@@ -56,17 +56,18 @@ function useReread(session, now) {
 }
 
 // missing — [{path, short}] у пометки oldRules; пусто или поля нет (набор выключен) — компонент не зовётся
-export default function Reread({ session, missing, now }) {
+// bare (EXT-125, «Цех» простыми словами): только кнопка и её исход — список файлов показывает «подробнее» треда
+export default function Reread({ session, missing, now, bare = false }) {
   const { on, row, act, press, retry, blocked } = useReread(session, now);
   const busy = act?.phase === 'busy';
   const locked = busy || act?.phase === 'sent'; // «отправляю» — до ответа POST и до первого опроса после него
   return (
-    <div className="rr">
-      <span>не перечитаны:{' '}
+    <div className={bare ? 'rr rr-bare' : 'rr'}>
+      {!bare && <span>не перечитаны:{' '}
         {missing.map((f, i) => (
           <Fragment key={f.path}>{i > 0 && ', '}<span className="mono" title={f.path}>{f.short || f.path}</span></Fragment>
         ))}
-      </span>
+      </span>}
       {on && (
         <span className="rr-a">
           <button type="button" className="pbtn" disabled={locked || blocked} onClick={press}>Перечитать правила</button>
