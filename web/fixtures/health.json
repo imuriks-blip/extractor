@@ -92,6 +92,17 @@
       "roles": 11,
       "problems": 0,
       "defUnread": 0
+    },
+    "roadmap": {
+      "_comment": "EXT-103 Т2: читатель карт и планов доски. available false — модуль roadmap.mjs доски не загрузился (lastError — причина); maps, plans — файлов сейчас; broken — сколько из них сейчас не разбираются (показан прежний разбор); parseErrors — неудачных разборов всего с запуска; repoNameClashes — имена следа с двумя путями в реестре (след с таким именем — жёлтый «имя неоднозначно»)",
+      "available": true,
+      "lastOkAt": "2026-10-01T12:00:03.000Z",
+      "maps": 2,
+      "plans": 1,
+      "broken": 0,
+      "parseErrors": 0,
+      "lastError": null,
+      "repoNameClashes": []
     }
   },
   "gitCalls": {

@@ -1,0 +1,10 @@
+{
+  "_comment": "GET /api/roadmap при модуле доски, которого нет (запасной путь импорта): 200, available false; прочие ручки живы",
+  "available": false,
+  "error": "карта недоступна: модуль доски не найден (ERR_MODULE_NOT_FOUND)",
+  "projects": [],
+  "total": {
+    "ahead": 0
+  },
+  "repoNameClashes": []
+}

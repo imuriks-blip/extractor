@@ -1,0 +1,31 @@
+{
+  "_comment": "GET /api/roadmap (EXT-103 Т2, спека дорожной карты, раздел 3): проекты projects.md строками. available false — модуль roadmap.mjs доски не загрузился (error «карта недоступна: модуль доски не найден», projects []). counts — null у проекта без карты; askOpen — открытые qN (Р-7 (а)), ideasDiscuss — идеи «обсуждаем», ahead — «впереди» без повторов (карточка в карте своего проекта и в карте INFRA считается у своего). total.ahead — разные номера по цеху. broken — {file, errors: [{line, msg}]} при битой карте: данные — прежний удачный разбор. Тексты — строгой маской.",
+  "available": true,
+  "error": null,
+  "projects": [
+    {
+      "code": "EXT",
+      "name": "имя-ext",
+      "hasMap": true,
+      "counts": {
+        "askOpen": 1,
+        "ideasDiscuss": 1,
+        "ahead": 2
+      },
+      "where": {
+        "updated": "2026-10-17 10:00",
+        "by": "trurl:EXT",
+        "phase": "Карта.",
+        "next": "Окно.",
+        "text": [
+          "Абзац."
+        ]
+      },
+      "broken": null
+    }
+  ],
+  "total": {
+    "ahead": 2
+  },
+  "repoNameClashes": []
+}

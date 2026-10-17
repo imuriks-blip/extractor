@@ -82,7 +82,22 @@
     { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox take" },
     { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox merge", "cardPos": 1 },
     { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox drop" },
-    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox commit" }
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "inbox commit" },
+    {
+      "_comment": "Дорожная карта (EXT-103 Т2, спека дорожной карты 2.3, раздел 3): board map <глагол> <КОД> — код проекта на позиции codePos, номера нет (refs: [], project); board plan <глагол> <ID> — номер карточки, как log. Чтение map show / plan show — не запись",
+      "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map import", "codePos": 0
+    },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map where", "codePos": 0 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map idea", "codePos": 0 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map idea-set", "codePos": 0 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map ask", "codePos": 0 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map answer", "codePos": 0 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "map card", "codePos": 0 },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "plan import" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "plan add" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "plan mark" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "plan edit" },
+    { "tool": ["Bash", "PowerShell"], "interpreter": "node", "command": "board.mjs", "sub": "plan give" }
   ],
   "pult": {
     "enabled": false,

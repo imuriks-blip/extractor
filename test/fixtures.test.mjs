@@ -18,10 +18,12 @@ import { createTraceChecker } from '../lib/trace.mjs';
 import { createGlossary } from '../lib/glossary.mjs';
 import { createRoles } from '../lib/roles.mjs';
 import { createAgentDefs } from '../lib/agent-defs.mjs';
+import { createRoadmapReader } from '../lib/roadmap.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
 const { parseLog, latest } = await import(new URL(`file:///${BOARD_LIB}/log.mjs`).href);
+const roadmapLib = await import(new URL(`file:///${BOARD_LIB}/roadmap.mjs`).href);
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'fixtures');
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 
@@ -32,6 +34,8 @@ const PENDING = {
   health: {},
   glossary: {},
   agents: {},
+  roadmap: {},
+  roadmapCode: {},
 };
 
 // лента карточки — разнородный список: образец каждого вида сверяется с элементом того же вида у ручки
@@ -79,7 +83,8 @@ async function realResponses() {
   const now = Date.now();
   const hm = (ms) => { const d = new Date(ms + 3 * 3600000).toISOString(); return `${d.slice(0, 10)} ${d.slice(11, 16)} +03:00`; };
   const dir = makeBoard(tmpDir('board-'), { codes: ['EXT'], cards: [{ id: 'EXT-6', status: 'review', title: 'Спека', body: 'Тело.' }, { id: 'EXT-7', status: 'in-progress', title: 'Слить', parent: 'EXT-6', blocks: ['EXT-6'] },
-    { id: 'EXT-8', status: 'backlog', title: 'Потом' }, { id: 'EXT-9', status: 'ready', title: 'Следом' }, { id: 'EXT-10', status: 'done', title: 'Готово' }] });
+    { id: 'EXT-8', status: 'backlog', title: 'Потом' }, { id: 'EXT-9', status: 'ready', title: 'Следом' }, { id: 'EXT-10', status: 'done', title: 'Готово' },
+    { id: 'EXT-11', status: 'cancelled', title: 'Снята', parent: 'EXT-6' }] });
   // (б): последняя запись EXT-7 с маркером, свежая; зеркало — .mirror/status.json (В-5)
   fs.writeFileSync(path.join(dir, 'EXT', 'EXT-7.log.md'), `### ${hm(now - 3600000)} · plane · коммент\n\nЖдёт «сливай».\n\n`);
   fs.mkdirSync(path.join(dir, '.mirror'));
@@ -109,8 +114,46 @@ async function realResponses() {
 -   **Знание:** записи нет — спека.
 
 `);
+  // EXT-103 Т2: карта EXT и план EXT-6 (спека дорожной карты 2.2) — образцы roadmap.json, roadmap-EXT.json; след плана — коммит
+  // общего репозитория по имени его папки (таблица имён 2.2)
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT.map.md'), `# Карта EXT
+формат: 1
+
+## Где стоим
+обновлено: 2026-10-17 10:00 · trurl:EXT
+фаза: Карта.
+следующий шаг: Окно.
+Абзац.
+
+## Ждёт Ивана
+- q1 · открыт · 2026-10-17 · откуда: чат EXT 17.10 · Вопрос?
+- q2 · закрыт · 2026-10-16 · откуда: чат EXT 16.10 · Был? · ответ: да · кто решил: слово Ивана в чате 16.10
+
+## Идеи
+- i1 · обсуждаем · 2026-10-17 · откуда: чат EXT 17.10 · Идея
+- i2 · стала карточкой · 2026-10-16 · откуда: чат EXT 16.10 · Спека · → EXT-6
+- i3 · отброшена · 2026-10-15 · откуда: чат EXT 15.10 · Лишнее · почему: не нужно
+
+## Карточки
+- EXT-6
+- EXT-8
+- EXT-10
+- EXT-11
+`);
+  fs.writeFileSync(path.join(dir, 'EXT', 'EXT-6.plan.md'), `# План EXT-6
+формат: 1
+
+- [x] 1 · Спека · след: ${path.basename(shared)}@${specHash}
+- [~] 2 · Код
+  - [>] 2.1 · Слить · → EXT-7
+  - [!] 2.2 · Ждёт · ждёт: EXT-9
+- [-] 3 · Лишнее · почему: снято
+`);
+  // только пути образца (Мелочь 4 ревью): git add . унёс бы в коммит доски всё, что лежит рядом
+  git(dir, 'add', 'EXT/EXT.map.md', 'EXT/EXT-6.plan.md');
   git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.autocrlf=false', 'commit', '-q', '-am', 'EXT-6 контракт');
-  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest });
+  const roadmap = createRoadmapReader({ root: dir, lib: roadmapLib, registry: createRegistryReader(reg) });
+  const board = createBoardReader({ root: dir, git: createGitRead(), parseCard, parseLog, latest, roadmap });
   await board.init();
   const journals = createJournalReader({ root: tmpDir('jr-'), indexDir: tmpDir('ji-') });
   await journals.refresh();
@@ -141,7 +184,7 @@ async function realResponses() {
   const gitReader = createGitReader({ git: createGitRead(), registry, boardRoot: dir });
   await gitReader.refresh();
   await board.refresh();
-  const trace = createTraceChecker({ git: createGitRead(), registry, board });
+  const trace = createTraceChecker({ git: createGitRead(), registry, board, roadmap });
   await trace.refresh();
   // EXT-61: словарь — файл в формате Vault unorbis/Словарь.md (два раздела по две строки)
   const gl = path.join(tmpDir('gl-'), 'Словарь.md');
@@ -173,9 +216,9 @@ ${tbl('backlog', 'fallback')}`);
   const defsDir = tmpDir('defs-');
   for (const [n, t, m] of [['bard', 120, 'inherit'], ['clap', 40, 'inherit'], ['demon', 60, 'sonnet'], ['golem', 40, 'opus'], ['terminus', 90, 'inherit'], ['tikhiy', 25, 'sonnet']]) fs.writeFileSync(path.join(defsDir, `${n}.md`), `---\nname: ${n}\nmodel: ${m}\nmaxTurns: ${t}\n---\n`);
   const roles = createRoles({ file: () => path.join(vault, 'unorbis', '_meta', 'Реестр ролей цеха.md'), defs: createAgentDefs({ dir: defsDir }).read });
-  const app = await buildApp({ port: 4317, board, boardSync, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }), roles });
+  const app = await buildApp({ port: 4317, board, boardSync, registry, journals: { state: journals.state, sessions: () => sessions }, threads, scan: () => [], gitReader, projectCards: { get: () => ({ phase: 'Фаза.', next: 'Шаг.' }) }, maxTurns: () => 90, pult: { enabled: true }, trace, glossary: createGlossary({ file: () => gl }), roles, roadmap });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
-  return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health'), glossary: await get('/api/glossary'), agents: await get('/api/agents') };
+  return { ceh: await get('/api/ceh'), project: await get('/api/project/EXT'), card: await get('/api/card/EXT-6'), health: await get('/api/health'), glossary: await get('/api/glossary'), agents: await get('/api/agents'), roadmap: await get('/api/roadmap'), roadmapCode: await get('/api/roadmap/EXT') };
 }
 const real = await realResponses();
 
@@ -188,7 +231,7 @@ test('образцы: все файлы — JSON', () => {
   for (const f of fs.readdirSync(DIR).filter((n) => n.endsWith('.json'))) assert.doesNotThrow(() => load(f), f);
 });
 
-for (const [name, file] of [['ceh', 'ceh.json'], ['project', 'project-EXT.json'], ['card', 'card-EXT-6.json'], ['health', 'health.json'], ['glossary', 'glossary.json'], ['agents', 'agents.json']]) {
+for (const [name, file] of [['ceh', 'ceh.json'], ['project', 'project-EXT.json'], ['card', 'card-EXT-6.json'], ['health', 'health.json'], ['glossary', 'glossary.json'], ['agents', 'agents.json'], ['roadmap', 'roadmap.json'], ['roadmapCode', 'roadmap-EXT.json']]) {
   test(`образец ${file}: ключи как у настоящей ручки, заготовки помечены тактом`, () => {
     compare(load(file), real[name], PENDING[name]);
   });
