@@ -66,7 +66,7 @@ function mapEXT({ t1 = 'in-progress', step108 = false } = {}) {
   // «ждёт: слово Ивана» — не номер карточки: текстом, без ссылки (ревью Голема, Важно 1); рядом 2.2 «ждёт EXT-9» — ссылкой
   const items = d.map.cards.ahead[0].plan.items
   items.splice(4, 0, { depth: 1, mark: '!', shownMark: '!', num: '2.3', text: 'Выбор', card: null, cardStatus: null, cardTrace: null, wait: 'слово Ивана', why: null, traces: [] })
-  d.map.cards.ahead[0].plan.summary.total = items.length
+  d.map.cards.ahead[0].plan.summary.total = items.filter((i) => i.shownMark !== '-').length // снятые в Y не входят — как сервер и доска
   return d
 }
 let scenario = { all: ALL, one: mapEXT() }
