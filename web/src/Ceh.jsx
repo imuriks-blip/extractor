@@ -7,8 +7,9 @@ import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, s
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
-import { Summary } from './Summary.jsx';
+import { Summary, More } from './Summary.jsx';
 import Reread from './Reread.jsx';
+import { FILTER_WORD, briefMe, briefNow, markWord, projectCounts, reviewSubView, splitProjects, threadDoing, traceWord, workersView } from './plainData.js';
 import { MyWords, Worktrees } from './Words.jsx';
 import NewCard from './NewCard.jsx';
 
@@ -54,6 +55,25 @@ export function Stale({ text }) {
 }
 
 /* ---------- Ждёт меня ---------- */
+
+// плашка следа словами (EXT-125): «цех проверил» / «проверь сам» / «нет отчёта» / «не отправлено»; знак и подпись сервера — под «подробнее»
+function Plain({ t }) {
+  const w = traceWord(t);
+  return w ? <span className={`pst s-${w.cls}`}>{w.text}</span> : null;
+}
+
+// сводка над «Цехом» (EXT-125): «Сейчас» — треды и тревога; «Ждёт меня» — решения и что посмотреть. «Дальше» — после INFRA-113
+function Brief({ data }) {
+  const b = briefNow(data.workers?.threads);
+  return (
+    <div className="beacon brief" aria-label="Сводка">
+      <span className="l">Сейчас</span>
+      <span>{b.line}{b.alarm && <span className="brief-alarm"> {b.alarm}</span>}</span>
+      <span className="l">Ждёт меня</span>
+      <span className="lead">{briefMe(data.waiting)}</span>
+    </div>
+  );
+}
 
 function Group({ id, title, count, hint, children }) {
   const o = useOpen(`grp-${id}`);
@@ -108,9 +128,12 @@ const MAIN_WORD = { сливай: 'merge', выкатывай: 'deploy', Б: 'ye
 // подгруппа проекта в «Готово, посмотри» (EXT-79): раскрыта по умолчанию, свёртка помнится (ceh-open:grp-review-<КОД>);
 // в заголовке — код, сколько под фильтром («из M» — когда фильтр убрал часть), сводка следа ✕ / ! / ✓ и давность самой свежей;
 // больше 10 — «Показать ещё» внутри подгруппы
-const SUB_SIGNS = [['bad', '✕', 'нет следа'], ['warn', '!', 'проверь'], ['ok', '✓', 'проверен']];
+// EXT-125: сводка следа — словами (FILTER_WORD); все строки с одной плашкой — подгруппа свёрнута одной строкой «все — <плашка>»
+// (свой ключ памяти: прежняя отметка «раскрыто» её не держит)
+const SUB_SIGNS = ['bad', 'warn', 'ok'];
 function ReviewSub({ g, now, row }) {
-  const o = useOpen(`grp-review-${g.code}`);
+  const { uniform } = reviewSubView(g.rows);
+  const o = useOpen(uniform ? `grp-review-1-${g.code}` : `grp-review-${g.code}`, !uniform);
   const [shown, more] = useShowMore(g.rows);
   return (
     <details className="sg" open={o.open} onToggle={o.onToggle}>
@@ -118,9 +141,11 @@ function ReviewSub({ g, now, row }) {
         <span className="code">{g.code}</span><span className="cnt num">{g.rows.length}</span>
         {g.rows.length !== g.total && <span className="of num">из {g.total}</span>}
         <span className="sgt num">
-          {SUB_SIGNS.filter(([k]) => g.counts[k] > 0).map(([k, sign, word]) => (
-            <span key={k} className={`s-${k}`}><span aria-hidden="true">{sign}</span><span className="sr">{word}:</span>{' '}{g.counts[k]}</span>
-          ))}
+          {uniform
+            ? <span className="sg-all">все — {uniform}</span>
+            : SUB_SIGNS.filter((k) => g.counts[k] > 0).map((k) => (
+              <span key={k} className={`s-${k}`}>{FILTER_WORD[k]} {g.counts[k]}</span>
+            ))}
         </span>
         <span className="age num">{ageShort(g.at, now)}</span>
       </Summary>
@@ -143,10 +168,11 @@ function Waiting({ w, now, stale, pult, threads, order }) {
   const [review, moreReview] = useShowMore(open);
   const [filter, setFilter] = useStored(REVIEW_FILTER_KEY, 'all', isReviewFilter);
   const rv = reviewView(open, order, filter);
+  // EXT-125: сверху — заголовок и плашка следа словами; номер карточки и след целиком — под «подробнее»
   const reviewRow = (r) => (
-    <div className="wrow pr" key={r.id}>
-      <span className="src mono">{r.id}</span>
-      <span className="tt">{r.title}<TraceBadge t={r.trace} /></span>
+    <div className="wrow pr np" key={r.id}>
+      <span className="tt">{r.title}<Plain t={r.trace} />
+        <More><span className="mono">{r.id}</span><TraceBadge t={r.trace} /></More></span>
       <span className="age num">{ageShort(r.at, now)}</span>
       <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} ar={pultOn} />
       {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
@@ -205,17 +231,17 @@ function Waiting({ w, now, stale, pult, threads, order }) {
       {yes.length > 0 && (
         <Group id="yes" title="Нужно твоё «да»" count={yes.length}>
           {yes.map((r) => (wordsOn && r.q ? (
-            <div className="wrow pr" key={r.key}>
-              <span className="src mono">{r.id}</span>
-              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}</span>
+            <div className="wrow pr np" key={r.key}>
+              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{markWord(r.mark)}</span>{r.title}
+                <More><span className="mono">{r.id}</span> · метка {r.mark}</More></span>
               <span className="age num">{ageShort(r.since, now)}</span>
               <Pult card={r.id} q={r.q} ar={false} mark={r.pultMark} words={{ btns: [MAIN_WORD[r.mark] ?? 'yes', 'no'], main: MAIN_WORD[r.mark] ?? 'yes' }} />
               {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
           ) : (
-            <div className="wrow df" key={r.key}>
-              <span className="src mono">{r.id}</span>
-              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span>{r.title}{redLine(r)}</span>
+            <div className="wrow df np" key={r.key}>
+              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{markWord(r.mark)}</span>{r.title}{redLine(r)}
+                <More><span className="mono">{r.id}</span> · метка {r.mark}</More></span>
               <span className="age num">{ageShort(r.since, now)}</span>
               {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
@@ -224,14 +250,14 @@ function Waiting({ w, now, stale, pult, threads, order }) {
       )}
 
       {open.length > 0 && (
-        <Group id="review" title="Готово, посмотри" count={rv.head} hint="Review">
+        <Group id="review" title="Готово, посмотри" count={rv.head} hint="принять или вернуть">
           {rv.grouped && (
             <div className="rf">
               <div className="filt" role="group" aria-label="Фильтр по следу">
                 <button type="button" aria-pressed={rv.filter === 'all'} onClick={() => setFilter('all')}>все</button>
                 {rv.chips.map((c) => (
                   <button type="button" key={c.val} aria-pressed={c.on} onClick={() => setFilter(nextFilter(filter, c.val))}>
-                    <span className={`s-${c.val}`} aria-hidden="true">{c.sign}</span> {c.word}<span className="n num">{c.n}</span>
+                    <span className={`s-${c.val}`} aria-hidden="true">{c.sign}</span> {FILTER_WORD[c.val] ?? c.word}<span className="n num">{c.n}</span>
                   </button>
                 ))}
               </div>
@@ -257,41 +283,41 @@ function Waiting({ w, now, stale, pult, threads, order }) {
 const noPhase = (p) => (p.inRegistry === false ? 'проект не описан в реестре' : 'фаза не указана в карточке проекта');
 const phaseTip = (p) => [p.phase?.full ?? noPhase(p), p.next && `→ ${p.next.full}`].filter(Boolean).join('\n');
 
-const n0 = (v) => <td className={v ? 'n num' : 'n num z'}>{v ?? 0}</td>;
 
+// EXT-125, проекты строками (слово Ивана): код, ниже «сейчас» (фаза) и «Дальше:» (следующий шаг) — из тех же полей;
+// справа давность и счётчики словами. Без фазы и шага — одной строкой «Ещё N — тихо, описания пока нет: …», код открывает окно.
 function Projects({ projects, now, stale, onOpen, pult }) {
   const o = useOpen('projects');
   const key = (code) => (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(code); } };
+  const { described, quiet } = splitProjects(projects);
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
-      <Summary>Проекты <span className="cnt num">{projects.length}</span><span className="hint">порядок постоянный · строка открывает окно проекта</span></Summary>
-      <div className="tw">
-        <table className="ptable">
-          <thead><tr><th>Проект</th><th>Фаза · следующий шаг</th><th className="n">в работе</th><th className="n">очередь</th><th className="n">Review</th><th className="n">активность</th><th className="go"></th></tr></thead>
-          <tbody>
-            {projects.map((p) => (
-              <tr className="p" key={p.code} tabIndex={0} onClick={() => onOpen(p.code)} onKeyDown={key(p.code)} aria-label={`Открыть окно проекта ${p.code}`}>
-                <td className="code">{p.code}</td>
-                <td>
-                  {/* не выше двух строк с «…»; целиком — во всплывающей подсказке (слово Ивана 02.10) */}
-                  <span className="pn" title={phaseTip(p)}>
-                    {p.phase
-                      ? <span className="phase">{p.phase.short}</span>
-                      : <span className="faint">{noPhase(p)}</span>}
-                    {(p.phase || p.next) && <> <span className="next">→ {p.next?.short ?? '—'}</span></>}
-                  </span>
-                  {p.phaseFailingSince && (
-                    <span className="pfail">данные на {hm(p.phaseReadAt, now)}, чтение не удаётся {minutes(Date.parse(p.phaseFailingSince), now)}</span>
-                  )}
-                </td>
-                {n0(p.inProgress)}{n0(p.ready)}{n0(p.review)}
-                <td className="n num muted">{p.activityAt ? ageShort(p.activityAt, now) : '—'}</td>
-                <td className="go" aria-hidden="true">›</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Summary>Проекты <span className="cnt num">{projects.length}</span><span className="hint">строка открывает окно проекта</span></Summary>
+      {described.map((p) => (
+        <div className="pj" key={p.code} role="button" tabIndex={0} onClick={() => onOpen(p.code)} onKeyDown={key(p.code)} aria-label={`Открыть окно проекта ${p.code}`}>
+          <span className="code">{p.code}</span>
+          {/* не выше двух строк с «…»; целиком — во всплывающей подсказке (слово Ивана 02.10) */}
+          <span className="pj-t" title={phaseTip(p)}>
+            {p.phase ? <span className="pj-now">{p.phase.short}</span> : <span className="pj-now faint">{noPhase(p)}</span>}
+            {p.next && <span className="pj-next"><span className="pj-k">Дальше:</span> {p.next.short}</span>}
+            {p.phaseFailingSince && (
+              <span className="pfail">данные на {hm(p.phaseReadAt, now)}, чтение не удаётся {minutes(Date.parse(p.phaseFailingSince), now)}</span>
+            )}
+          </span>
+          <span className="pj-a num">
+            <span>{p.activityAt ? ageShort(p.activityAt, now) : '—'}</span>
+            {projectCounts(p).length > 0 && <span>{projectCounts(p).join(' · ')}</span>}
+          </span>
+        </div>
+      ))}
+      {quiet.length > 0 && (
+        <div className="empty pj-quiet">
+          {described.length ? 'Ещё' : 'Все'} {quiet.length} — тихо, описания пока нет:{' '}
+          {quiet.map((p, i) => (
+            <span key={p.code}>{i > 0 && ', '}<button type="button" className="unfold" title={noPhase(p)} onClick={() => onOpen(p.code)}>{p.code}</button></span>
+          ))}
+        </div>
+      )}
       <NewCard projects={projects} pult={pult} />
       <Stale text={stale} />
     </details>
@@ -409,12 +435,14 @@ function Memory({ m, now }) {
   );
 }
 
-export function Thread({ t, now }) {
+// inner (EXT-125) — тред целиком под «подробнее» строки «Цеха»: без своей шапки и рамки; кнопку «Перечитать правила» там
+// не рисуем (она уже в строке замечания) — «Старые правила» показывают только список файлов
+export function Thread({ t, now, inner = false }) {
   const [cls, word] = STATE[t.state] || ['free', t.state];
   const showCode = t.project && !(t.title || '').startsWith(t.project);
   return (
-    <div className="thr">
-      <div className="th1">
+    <div className={inner ? 'thr thr-in' : 'thr'}>
+      {!inner && <div className="th1">
         <span className="tname">
           {showCode && <span className="mono">{t.project}</span>}{t.title || 'без названия'}
           {t.project && t.projectBy === 'cards' && <span className="by-in"> · по карточкам</span>}
@@ -423,7 +451,7 @@ export function Thread({ t, now }) {
           {foremanLabel(t) && <span className="faint"> · {foremanLabel(t)}</span>}
         </span>
         <span className={`st ${cls}`}>{word}</span>
-      </div>
+      </div>}
       <div className="th2">
         {t.state === 'stale'
           ? <span>нет вестей {dur(t.lastSeenAt, now)} · последнее наблюдение {hm(t.lastSeenAt, now)}: «{STATE_WORD[t.lastState] || t.lastState || '?'}»</span>
@@ -438,22 +466,67 @@ export function Thread({ t, now }) {
       </div>
       <Memory m={t.memory} now={now} />
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
-      {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} sid={t.sessionId} />)}
+      {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} sid={inner ? undefined : t.sessionId} />)}
     </div>
+  );
+}
+
+const GaugeLegend = () => (
+  <div className="legend"><span><span className="gauge"><i style={{ width: '40%' }} /><b style={{ left: '55%' }} /></span> ходы до тормоза агента, риска — ориентир из ТЗ</span></div>
+);
+
+// EXT-125: тред одной строкой по-людски — чем занят или его замечания (кнопка «Перечитать правила» рядом); прежний вид треда
+// целиком (карточка, память, помощники, пометки) — под «подробнее»
+function PlainThread({ t, remarks, now }) {
+  const [cls, word] = STATE[t.state] || ['free', t.state];
+  const oldRules = t.marks.find((m) => m.kind === 'oldRules');
+  const doing = !remarks.length || t.subagents.length > 0;
+  return (
+    <div className="thr">
+      <div className="th1">
+        <span className="tname">{t.title || 'без названия'}{!t.project && <span className="faint"> · проект не определён</span>}</span>
+        <span className={`st ${cls}`}>{word}</span>
+      </div>
+      {doing && <div className="pl">{threadDoing(t)}</div>}
+      {remarks.map((r) => (
+        <div key={r.kind} className={`pl pl-${r.level}`}>
+          <span>{r.text}</span>
+          {r.reread && oldRules && <Reread session={t.sessionId} missing={oldRules.missing} now={now} bare />}
+        </div>
+      ))}
+      <More>
+        <Thread t={t} now={now} inner />
+        {t.subagents.length > 0 && <GaugeLegend />}
+      </More>
+    </div>
+  );
+}
+
+// треды без замечаний — одной строкой с раскрытием (свободные; «нет вестей» — своей строкой)
+function Quiet({ id, title, list, now }) {
+  const o = useOpen(`workers-${id}`, false);
+  return (
+    <details className="grp wq" open={o.open} onToggle={o.onToggle}>
+      <Summary>{title}: <span className="wq-n">{list.map((t) => t.title || 'без названия').join(', ')}</span></Summary>
+      {list.map((t) => <Thread key={t.sessionId} t={t} now={now} />)}
+    </details>
   );
 }
 
 function Workers({ w, now, stale }) {
   const o = useOpen('workers');
+  const v = workersView(w.threads);
+  const busy = w.threads.filter((t) => t.state === 'busy').length;
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
       <Summary>
-        Кто работает <span className="cnt num">{plural(w.threads.length, ['тред', 'треда', 'тредов'])} · {plural(w.subagentsCount, ['субагент', 'субагента', 'субагентов'])}</span>
-        {w.marksCount > 0 && <span className="hint red">{plural(w.marksCount, ['пометка', 'пометки', 'пометок'])}</span>}
+        Кто работает <span className="cnt num">{busy} из {w.threads.length}</span>
+        {v.withRemarks > 0 && <span className="hint red">{plural(v.withRemarks, ['тред с замечанием', 'треда с замечаниями', 'тредов с замечаниями'])}</span>}
       </Summary>
-      {w.threads.map((t) => <Thread key={t.sessionId} t={t} now={now} />)}
+      {v.shown.map((r) => <PlainThread key={r.t.sessionId} t={r.t} remarks={r.remarks} now={now} />)}
+      {v.idle.length > 0 && <Quiet id="idle" title={v.shown.length ? 'Свободны, замечаний нет' : 'Все свободны, замечаний нет'} list={v.idle} now={now} />}
+      {v.stale.length > 0 && <Quiet id="stale" title="Нет вестей" list={v.stale} now={now} />}
       {!w.threads.length && <div className="foot">Живых тредов нет.</div>}
-      <div className="legend"><span><span className="gauge"><i style={{ width: '40%' }} /><b style={{ left: '55%' }} /></span> ходы до тормоза агента, риска — ориентир из ТЗ</span></div>
       <Stale text={stale} />
       <div className="foot">Только живые треды на этом компьютере. Облачные сессии не видны.</div>
     </details>
@@ -465,6 +538,8 @@ function Workers({ w, now, stale }) {
 export default function Ceh({ data, failing, now, onOpenProject }) {
   const f = data.freshness || {};
   return (
+    <>
+    <Brief data={data} />
     <div className="grid">
       {/* wcol — колонка «Ждёт меня»: строки смотрят на её ширину (EXT-80, styles.css) */}
       <div className="col wcol">
@@ -477,5 +552,6 @@ export default function Ceh({ data, failing, now, onOpenProject }) {
         {data.pult?.enabled === true && <Worktrees />}
       </div>
     </div>
+    </>
   );
 }

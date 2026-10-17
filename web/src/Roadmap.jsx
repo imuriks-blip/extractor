@@ -5,7 +5,8 @@
 import { useMemo } from 'react';
 import { pollSource, useSource } from './data.js';
 import { useOpen } from './prefs.js';
-import { Summary } from './Summary.jsx';
+import { Summary, More } from './Summary.jsx';
+import { mapStatus } from './plainData.js';
 import { TraceBadge } from './Trace.jsx';
 import {
   ROADMAP_POLL_MS, NO_MAP, brokenLine, cardHref, cardWord, countsParts, dateShort, ideaView, markView, offLines,
@@ -34,17 +35,20 @@ function Broken({ b, what }) {
 
 /* ---------- все проекты ---------- */
 
+// EXT-125: проекты без карты — не строкой каждый, а одной строкой внизу; код — ссылка на окно «карты нет»
 function All({ d, onOpen }) {
   const key = (code) => (e) => { if (e.key === 'Enter') onOpen(code); };
   const total = totalLine(d.total);
+  const withMap = d.projects.filter((p) => p.hasMap || p.broken);
+  const noMap = d.projects.filter((p) => !p.hasMap && !p.broken);
   return (
     <details className="blk" open>
-      <Summary>Карты проектов <span className="cnt num">{d.projects.length}</span>{total && <span className="hint">{total}</span>}</Summary>
+      <Summary>Карты проектов <span className="cnt num">{withMap.length}</span>{total && <span className="hint">{total}</span>}</Summary>
       <div className="tw">
         <table className="ptable rm-all">
           <thead><tr><th>Проект</th><th>Где стоим</th><th>Карта</th><th className="go"></th></tr></thead>
           <tbody>
-            {d.projects.map((p) => {
+            {withMap.map((p) => {
               const parts = countsParts(p.counts);
               return (
                 <tr className={p.hasMap ? 'p' : 'p rm-nomap'} key={p.code} tabIndex={0} onClick={() => onOpen(p.code)} onKeyDown={key(p.code)}
@@ -71,6 +75,12 @@ function All({ d, onOpen }) {
           </tbody>
         </table>
       </div>
+      {noMap.length > 0 && (
+        <div className="empty pj-quiet">
+          {withMap.length ? `У остальных ${noMap.length}` : `У всех ${noMap.length}`} карты пока нет:{' '}
+          {noMap.map((p, i) => <span key={p.code}>{i > 0 && ', '}<a className="rm-id" href={`#/roadmap/${p.code}`}>{p.code}</a></span>)}
+        </div>
+      )}
       {!d.projects.length && <div className="empty">Проектов нет.</div>}
     </details>
   );
@@ -81,12 +91,15 @@ function All({ d, onOpen }) {
 function Where({ w }) {
   if (!w) return <div className="beacon" data-sec="where"><span className="faint">«Где стоим» в карте пусто</span></div>;
   const text = Array.isArray(w.text) ? w.text : [];
+  // EXT-125: «Где стоим» крупно (одно крупное на экране), «Дальше», абзац карты; кто и когда правил карту — под «подробнее»
   return (
-    <div className="beacon rm-where" data-sec="where" aria-label="Где стоим">
-      <span><span className="l">фаза</span>{w.phase ? <span className="phase">{w.phase}</span> : <span className="faint">не указана</span>}</span>
-      <span><span className="l">следующий шаг</span>{w.next ?? <span className="faint">—</span>}</span>
-      {(w.updated || w.by) && <span className="faint rm-by">{dateShort(w.updated)}{w.by && <> · <span className="mono">{w.by}</span></>}</span>}
-      {text.length > 0 && <div className="rm-text">{text.map((p, i) => <p key={i}>{p}</p>)}</div>}
+    <div className="beacon brief rm-where" data-sec="where" aria-label="Где стоим">
+      <span className="l">Где стоим</span>
+      {w.phase ? <span className="lead">{w.phase}</span> : <span className="faint">фаза не указана</span>}
+      <span className="l">Дальше</span>
+      <span>{w.next ?? <span className="faint">—</span>}</span>
+      {text.length > 0 && <><span className="l" /><div className="rm-text">{text.map((p, i) => <p key={i}>{p}</p>)}</div></>}
+      {(w.updated || w.by) && <><span className="l" /><More label={`обновлено ${dateShort(w.updated) || '—'}`}>{w.by ? <span className="mono">{w.by}</span> : 'кто правил — не указано'}</More></>}
     </div>
   );
 }
@@ -125,17 +138,20 @@ function Ask({ code, qs }) {
 function IdeaRow({ i }) {
   const v = ideaView(i);
   return (
-    <div className={v.cls === 'gone' ? 'rm-row rm-old' : 'rm-row'}>
-      <span className="rm-n mono">{i.n}</span>
+    // EXT-125: сверху — статус словом и сама идея; номер, карточка, след и откуда — под «подробнее»
+    <div className={v.cls === 'gone' ? 'rm-row rm-pl rm-old' : 'rm-row rm-pl'}>
       <span className="rm-t">
         <span className={`rm-st s-${v.cls}`}>{v.text}</span>
-        {v.card && <> <CardLink id={v.card} /></>}
-        {v.ask && <> <span className="mono faint">{v.ask}</span></>}
-        {v.trace !== undefined && <> <Trc t={v.trace} text={null} /></>}
         <span className="rm-it">{i.text}</span>
         {i.why && <span className="faint"> — {i.why}</span>}
+        <More>
+          <span className="mono">{i.n}</span>
+          {v.card && <> · <CardLink id={v.card} /></>}
+          {v.ask && <> · <span className="mono">{v.ask}</span></>}
+          {v.trace !== undefined && <> <Trc t={v.trace} text={null} /></>}
+          {' · '}{srcLine(i)}
+        </More>
       </span>
-      <span className="rm-src">{srcLine(i)}</span>
     </div>
   );
 }
@@ -183,22 +199,27 @@ function PlanItem({ it }) {
 function BigCard({ c, defOpen }) {
   const o = useOpen(`rm-card-${c.id}`, defOpen);
   const plan = c.plan;
-  const has = (c.children?.length || 0) > 0 || !!plan;
+  const st = mapStatus(c.status);
+  // EXT-125: строка карточки — заголовок и статус словом («делаем / посмотри / потом»), у плана — «шагов X из Y»;
+  // раскрытие — это «подробнее»: номер, статус доски, след, маленькие и план со следами и хешами
   const head = (
     <>
-      <CardLink id={c.id} />
       <span className="rm-ct">{c.exists === false ? <span className="faint">нет на доске</span> : c.title}</span>
-      <span className="lbl">{cardWord(c.status)}</span>
-      {c.trace && <TraceBadge t={c.trace} />}
-      {c.childrenSummary && <span className="rm-sum num">{c.childrenSummary.label}</span>}
-      {plan && <span className="rm-sum num">план: сделано {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
-      {c.hint && <span className="faint rm-sum">{c.hint}</span>}
+      <span className={`rm-st s-${st.cls}`}>{st.text}</span>
+      {plan && <span className="rm-sum num">шагов {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
     </>
   );
-  if (!has) return <div className="rm-card rm-flat" data-id={c.id}>{head}</div>;
   return (
     <details className="grp rm-card" data-id={c.id} open={o.open} onToggle={o.onToggle}>
       <Summary>{head}</Summary>
+      <div className="rm-meta">
+        <CardLink id={c.id} />
+        <span className="lbl">{cardWord(c.status)}</span>
+        {c.trace && <TraceBadge t={c.trace} />}
+        {c.childrenSummary && <span className="rm-sum num">{c.childrenSummary.label}</span>}
+        {plan && <span className="rm-sum num">план: сделано {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
+        {c.hint && <span className="faint rm-sum">{c.hint}</span>}
+      </div>
       {c.children?.length > 0 && (
         <div className="rm-kids" aria-label={`Маленькие ${c.id}`}>
           {c.children.map((k) => (
@@ -246,7 +267,7 @@ function One({ d }) {
       <Where w={m.where} />
       <Ask code={code} qs={m.questions} />
       <Ideas code={code} ideas={m.ideas} discuss={d.counts?.ideasDiscuss ?? 0} />
-      <Cards code={code} sec="ahead" title="Впереди" list={cards.ahead || []} defOpen cardsOpen hint="порядок — карты: что важнее, выше" />
+      <Cards code={code} sec="ahead" title="Впереди" list={cards.ahead || []} defOpen cardsOpen={false} hint="что важнее — выше" />
       <Cards code={code} sec="done" title="Сделано" list={cards.done || []} defOpen cardsOpen={false} />
       <Cards code={code} sec="cancelled" title="Снято" list={cards.cancelled || []} defOpen={false} cardsOpen={false} />
     </div>

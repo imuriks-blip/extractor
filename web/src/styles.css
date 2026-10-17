@@ -692,3 +692,79 @@ details.grp.rm-card>summary{flex-wrap:wrap;gap:2px 8px;padding:4px 10px;font-siz
   .rm-pi.d1{padding-left:10px} .rm-pi.d2{padding-left:20px}
   .rm-all .rm-cnt{white-space:normal}
 }
+
+/* ===== Витрина простыми словами (EXT-125, макет TPHv64ezLFcv3SnpGk2VPt): только существующие значения — 11/12/13/15px,
+   отступы 2/4/6/10/28px, --line, .beacon, .blk, .grp, .st. Главное — сверху словами, служебное — под «подробнее» ===== */
+/* сводка: подпись слева, текст справа; крупное — одна строка .lead (15px, как заголовок окна .ph h2) */
+.beacon.brief{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;align-items:baseline}
+.brief .lead{font-size:15px;font-weight:600;text-wrap:balance}
+.brief-alarm{color:var(--red)}
+.brief .rm-text{color:var(--fg)}
+/* «подробнее» */
+details.dd{display:block;font-size:12px;color:var(--faint)}
+details.dd>summary{display:inline;cursor:pointer;list-style:none;color:var(--accent)}
+details.dd>summary::-webkit-details-marker{display:none}
+details.dd>summary::after{content:" ▾"} details.dd[open]>summary::after{content:" ▴"}
+.ddb{margin-top:2px;padding:4px 6px;background:var(--hover);border-radius:3px;color:var(--muted);overflow-wrap:anywhere;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline}
+.ddb .trc{display:inline-flex}
+/* плашка следа словами */
+.pst{display:inline-block;font-size:11px;font-weight:500;padding:0 5px;border-radius:3px;margin-left:6px;white-space:nowrap;background:var(--hover);color:var(--muted)}
+.pst.s-ok{background:var(--green-bg)} .pst.s-warn{background:var(--amber-bg)} .pst.s-bad{background:var(--red-bg)}
+.sg-all{color:var(--muted)}
+/* строки (б), (в) без колонки номера: текст во всю ширину, кнопки справа */
+.wrow.pr.np{grid-template-columns:minmax(0,1fr) auto auto 64px}
+.wrow.pr.np>.tt{grid-area:1/1}.wrow.pr.np .pbtns{grid-area:1/2}.wrow.pr.np>.dfr{grid-area:1/3}.wrow.pr.np>.age{grid-area:1/4}
+.wrow.pr.np .pult>:not(.pbtns),.wrow.np>.dnote{grid-column:1/-1}
+.wrow.df.np{grid-template-columns:minmax(0,1fr) auto 64px}
+.wrow.df.np>.tt{grid-area:1/1}.wrow.df.np>.dfr{grid-area:1/2}.wrow.df.np>.age{grid-area:1/3}
+@media (min-width:561px){
+  @container (max-width:739px){
+    .wrow.pr.np{grid-template-columns:auto auto minmax(0,1fr) 64px}
+    .wrow.pr.np>.tt{grid-area:1/1/2/4}.wrow.pr.np>.age{grid-area:1/4}
+    .wrow.pr.np .pbtns{grid-area:2/1}.wrow.pr.np>.dfr{grid-area:2/2}
+  }
+}
+@media (max-width:560px){
+  .wrow.pr.np{grid-template-columns:auto auto minmax(0,1fr)}
+  .wrow.pr.np>.tt{grid-area:1/1/2/4}.wrow.pr.np .pbtns{grid-area:2/1}.wrow.pr.np>.dfr{grid-area:2/2}.wrow.pr.np>.age{grid-area:2/3}
+  .wrow.df.np{grid-template-columns:minmax(0,1fr) auto}
+  .wrow.df.np>.tt{grid-area:1/1/2/3}.wrow.df.np>.dfr{grid-area:2/1;justify-self:start}.wrow.df.np>.age{grid-area:2/2}
+}
+/* проекты строками */
+.pj{display:grid;grid-template-columns:70px minmax(0,1fr) auto;gap:2px 10px;padding:5px 10px;border-top:1px solid var(--line);cursor:pointer;align-items:baseline}
+.pj:hover{background:var(--hover)}
+.pj-t{min-width:0}
+.pj-now{display:block}
+.pj-next{display:block;color:var(--muted)}
+.pj-k{font-weight:500}
+.pj-a{display:flex;flex-direction:column;align-items:flex-end;font-size:12px;color:var(--muted);white-space:nowrap}
+.pj-quiet .unfold{font-family:var(--mono)}
+@media (max-width:560px){
+  .pj{grid-template-columns:minmax(0,1fr) auto}
+  .pj-t{grid-area:2/1/3/3}
+  .pj-a{flex-direction:row;gap:8px}
+}
+/* кто работает: строка по-людски, замечание — цветом и словами */
+.pl{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;margin-top:1px}
+.pl-red>span:first-child{color:var(--red)}
+.pl-amber>span:first-child{color:var(--amber)}
+.rr-bare{margin-top:0}
+.thr .dd{margin-top:2px}
+.thr-in{border-top:0;padding:0}
+.ddb>.thr-in{flex-basis:100%}
+.ddb .legend{border-top:0;padding:2px 0 0;flex-basis:100%}
+details.grp.wq>summary{font-weight:400}
+.wq-n{color:var(--fg)}
+/* карта: идея и карточка — статусом-словом, номер и след — под «подробнее» */
+.rm-row.rm-pl{grid-template-columns:minmax(0,1fr);padding-left:28px}
+.rm-st.s-look{background:var(--amber-bg);color:var(--amber)}
+.rm-st.s-later{background:var(--hover);color:var(--muted)}
+.rm-meta{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;margin:0 10px 4px 28px;padding:4px 6px;background:var(--hover);border-radius:3px;font-size:12px;color:var(--muted)}
+.rm-meta .trc{display:inline-flex}
+@media (max-width:560px){
+  .rm-row.rm-pl{padding-left:12px}
+  .rm-meta{margin-left:12px}
+}
+/* «подробнее» — в строку за текстом пункта, не отдельной строкой; раскрытое — блоком ниже */
+.tt>details.dd,.rm-t>details.dd{display:inline;margin-left:8px}
+.tt>details.dd[open],.rm-t>details.dd[open]{display:block;margin-left:0}
