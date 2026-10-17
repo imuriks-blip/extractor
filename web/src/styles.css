@@ -667,7 +667,7 @@ section.blk{background:var(--surface);border:1px solid var(--line);border-radius
 .rm-it{margin-left:4px}
 .rm-old,.rm-old .rm-id{color:var(--faint)}
 .rm-ans{color:var(--fg)}
-.rm-trc{display:inline-flex;font-size:12px;vertical-align:baseline}
+.rm-trc{display:inline-flex;font-size:12px;vertical-align:baseline;margin-left:4px} /* знак следа не вплотную к тексту пункта — не пунктуация */
 .rm-trc .mono{font-size:12px}
 .rm-trc.t-wait{color:var(--faint)}
 details.grp.rm-card>summary{flex-wrap:wrap;gap:2px 8px;padding:4px 10px;font-size:13px;color:var(--fg);font-weight:400}

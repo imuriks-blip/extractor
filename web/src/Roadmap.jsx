@@ -9,7 +9,7 @@ import { Summary } from './Summary.jsx';
 import { TraceBadge } from './Trace.jsx';
 import {
   ROADMAP_POLL_MS, NO_MAP, brokenLine, cardHref, cardWord, countsParts, dateShort, ideaView, markView, offLines,
-  roadmapUrl, splitIdeas, srcLine, splitQuestions, stepLine, totalLine, traceState, traceTip, TRACE_SIGN,
+  roadmapUrl, splitIdeas, srcLine, waitView, splitQuestions, stepLine, totalLine, traceState, traceTip, TRACE_SIGN,
 } from './roadmapData.js';
 
 const CardLink = ({ id }) => <a className="rm-id" href={cardHref(id)}>{id}</a>;
@@ -162,6 +162,7 @@ function Ideas({ code, ideas, discuss }) {
 function PlanItem({ it }) {
   const m = markView(it);
   const step = stepLine(it);
+  const w = waitView(it.wait);
   return (
     <div className={`rm-pi d${Math.min(it.depth ?? 0, 2)}${it.shownMark === '-' ? ' rm-old' : ''}`}>
       <span className={`rm-mk ${m.cls}`} title={m.word} aria-hidden="true">{m.sign}</span>
@@ -169,7 +170,7 @@ function PlanItem({ it }) {
         <span className="sr">{m.word}: </span>
         <span className="rm-num mono">{it.num}</span> {it.text}
         {it.card && <> <span className="faint">→</span> <CardLink id={it.card} /> <span className="faint">{cardWord(it.cardStatus)}</span></>}
-        {it.wait && <> <span className="rm-amb">ждёт <CardLink id={it.wait} /></span></>}
+        {w && <> <span className="rm-amb">ждёт {w.card ? <CardLink id={w.card} /> : <span className="rm-wt">{w.text}</span>}</span></>}
         {it.why && <span className="faint"> — {it.why}</span>}
         {(it.traces || []).map((t) => <span key={t.part}> <Trc t={t.state == null ? null : t} text={t.part} /></span>)}
         {it.cardTrace && <> <Trc t={it.cardTrace} text={it.card} /></>}
@@ -253,7 +254,7 @@ function One({ d }) {
 }
 
 export default function Roadmap({ code }) {
-  const source = useMemo(() => pollSource(roadmapUrl(code), ROADMAP_POLL_MS), [code]);
+  const source = useMemo(() => pollSource(roadmapUrl(code), ROADMAP_POLL_MS, { pauseHidden: true }), [code]);
   const { data, failingSince, error } = useSource(source);
   if (!data) {
     return <div className="foot" role="status">

@@ -71,16 +71,19 @@ export function streamSource(url, fallbackMs = 5000) {
   };
 }
 
-// Простой опрос ручки раз в everyMs без потока событий (экран «Расход»: данные тяжёлые, сервер кэширует их на 15 с)
-export function pollSource(url, everyMs = 30000) {
+// Простой опрос ручки раз в everyMs без потока событий (экран «Расход»: данные тяжёлые, сервер кэширует их на 15 с).
+// pauseHidden (окно «Дорожная карта», EXT-103): пока вкладка скрыта — опрос стоит; вкладка снова видна — сразу чтение.
+export function pollSource(url, everyMs = 30000, { pauseHidden = false } = {}) {
   const loads = new Set();
   return {
     // перечитать сейчас (после «Замерить остаток»); следующий плановый опрос отсчитывается от этого чтения
     reload() { loads.forEach((f) => f()); },
     subscribe(onData, onError) {
-      let stopped = false, ctl = null, timer = null;
+      let stopped = false, ctl = null, timer = null, paused = false;
       const load = async () => {
         clearTimeout(timer);
+        if (pauseHidden && document.hidden) { paused = true; return; }
+        paused = false;
         ctl?.abort();
         ctl = new AbortController();
         try {
@@ -94,9 +97,11 @@ export function pollSource(url, everyMs = 30000) {
         }
         if (!stopped) timer = setTimeout(load, everyMs);
       };
+      const onVis = () => { if (!stopped && paused && !document.hidden) load(); };
+      if (pauseHidden) document.addEventListener('visibilitychange', onVis);
       loads.add(load);
       load();
-      return () => { stopped = true; loads.delete(load); clearTimeout(timer); ctl?.abort(); };
+      return () => { stopped = true; loads.delete(load); clearTimeout(timer); ctl?.abort(); if (pauseHidden) document.removeEventListener('visibilitychange', onVis); };
     },
   };
 }

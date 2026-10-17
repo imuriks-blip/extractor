@@ -35,7 +35,7 @@ test('вход из шапки: «Карта» рядом с «Расход» (�
 test('свой опрос ручки раз в 5 с, пока окно открыто (поток событий правку карты не сигналит), не чаще прочих', () => {
   assert.equal(rd.ROADMAP_POLL_MS, 5000);
   const r = src('Roadmap.jsx');
-  assert.match(r, /useMemo\(\(\) => pollSource\(roadmapUrl\(code\), ROADMAP_POLL_MS\), \[code\]\)/);
+  assert.match(r, /useMemo\(\(\) => pollSource\(roadmapUrl\(code\), ROADMAP_POLL_MS, \{ pauseHidden: true \}\), \[code\]\)/);
   // App не читает для окна карты чужой поток: источник экрана — пустой
   assert.match(src('App.jsx'), /route\.name === 'usage' \|\| route\.name === 'roadmap' \? idleSource/);
 });
@@ -149,4 +149,23 @@ test('«откуда · дата» без повтора даты; дата ка
   assert.equal(rd.srcLine({ from: 'inbox/x.md', date: '2026-10-17' }), 'inbox/x.md · 17.10');
   assert.equal(rd.dateShort('2026-10-17 10:00'), '17.10 10:00');
   assert.equal(rd.roadmapTitle('EXT'), 'Экстрактор · Карта EXT');
+});
+
+test('«ждёт:» у пункта плана [!] — ссылка только на номер карточки; «слово Ивана» и прочее — обычным текстом (ревью Голема, Важно 1)', () => {
+  assert.deepEqual(rd.waitView('EXT-9'), { card: 'EXT-9', text: 'EXT-9' });
+  assert.deepEqual(rd.waitView('INFRA-101'), { card: 'INFRA-101', text: 'INFRA-101' });
+  assert.deepEqual(rd.waitView('слово Ивана'), { card: null, text: 'слово Ивана' });
+  assert.deepEqual(rd.waitView('EXT-9 и слово Ивана'), { card: null, text: 'EXT-9 и слово Ивана' }, 'номер — только всё значение целиком');
+  assert.equal(rd.waitView(null), null);
+  const r = src('Roadmap.jsx');
+  assert.match(r, /\{w\.card \? <CardLink id=\{w\.card\} \/> : <span className="rm-wt">\{w\.text\}<\/span>\}/);
+  assert.doesNotMatch(r, /<CardLink id=\{it\.wait\} \/>/, 'ссылку на «ждёт» без проверки не рисуем');
+});
+
+test('опрос карты стоит, пока вкладка скрыта; при возврате — сразу запрос (ревью Голема, Мелочь 1)', () => {
+  assert.match(src('Roadmap.jsx'), /pollSource\(roadmapUrl\(code\), ROADMAP_POLL_MS, \{ pauseHidden: true \}\)/);
+  const d = src('data.js');
+  assert.match(d, /if \(pauseHidden && document\.hidden\) \{ paused = true; return; \}/);
+  assert.match(d, /document\.addEventListener\('visibilitychange', onVis\)/);
+  assert.match(d, /export const usageSource = pollSource\('\/api\/usage', 30000\);/, '«Расход» — без паузы, как был');
 });

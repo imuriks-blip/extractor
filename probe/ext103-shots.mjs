@@ -63,6 +63,10 @@ function mapEXT({ t1 = 'in-progress', step108 = false } = {}) {
   const it1 = d.map.cards.ahead[0].plan.items[0]
   it1.traces.push({ part: 'extractor@abc1234', state: 'bad', label: 'abc1234 не в main (extractor)', hint: null, reasons: [{ level: 'bad', code: 'not-in-main', text: 'abc1234 не в main (extractor)' }], checked: { lines: [], who: null, commits: [] }, contractAt: null, laterRecords: 0 })
   if (step108) d.map.cards.ahead[0].plan.items[1].step = { thread: 'EXT', n: 3, of: 6 }
+  // «ждёт: слово Ивана» — не номер карточки: текстом, без ссылки (ревью Голема, Важно 1); рядом 2.2 «ждёт EXT-9» — ссылкой
+  const items = d.map.cards.ahead[0].plan.items
+  items.splice(4, 0, { depth: 1, mark: '!', shownMark: '!', num: '2.3', text: 'Выбор', card: null, cardStatus: null, cardTrace: null, wait: 'слово Ивана', why: null, traces: [] })
+  d.map.cards.ahead[0].plan.summary.total = items.length
   return d
 }
 let scenario = { all: ALL, one: mapEXT() }
@@ -174,6 +178,11 @@ try {
       must(`${tag} EXT: нет EXT-108 в данных → подписи «шаг» нет`, (await ev("document.querySelectorAll('.rm-step').length")) === 0 && !(await ev("document.body.textContent.includes('шаг 3 из')")), null)
       must(`${tag} EXT: маленькие под большой, «закрыто 1 из 2»`, (await ev("document.querySelector('[data-id=EXT-6] .rm-kids')?.textContent")).includes('EXT-7') && (await ev("document.querySelector('[data-id=EXT-6]>summary').textContent")).includes('закрыто 1 из 2'), await ev("document.querySelector('[data-id=EXT-6]>summary').textContent"))
       must(`${tag} EXT: «Сделано» — EXT-10, красный значок следа (нет контракта)`, (await ev("document.querySelector('[data-sec=done] [data-id=EXT-10] .trc.t-bad')?.textContent")) === '✕контракта закрытия нет', await ev("document.querySelector('[data-sec=done] [data-id=EXT-10]')?.textContent"))
+      const waits = await ev("[...document.querySelectorAll('[data-sec=ahead] .rm-pi')].filter(p=>p.textContent.includes('ждёт')).map(p=>({num:p.querySelector('.rm-num').textContent,link:p.querySelector('.rm-amb a.rm-id')?.getAttribute('href')??null,text:p.querySelector('.rm-amb').textContent}))")
+      must(`${tag} EXT: «ждёт EXT-9» — ссылкой, «ждёт слово Ивана» — текстом без ссылки`, JSON.stringify(waits) === JSON.stringify([{ num: '2.2', link: '#/project/EXT/EXT-9', text: 'ждёт EXT-9' }, { num: '2.3', link: null, text: 'ждёт слово Ивана' }]), waits)
+      must(`${tag} EXT: «слово Ивана» не моноширинным`, (await ev("getComputedStyle([...document.querySelectorAll('.rm-wt')].find(e=>e.textContent==='слово Ивана')).fontFamily")).includes('Plex Sans'), await ev("getComputedStyle(document.querySelector('.rm-wt')).fontFamily"))
+      const ml = await ev("getComputedStyle(document.querySelector('[data-sec=ahead] .rm-trc')).marginLeft")
+      must(`${tag} EXT: у знака следа отступ слева (margin-left 4px)`, ml === '4px', ml)
       must(`${tag} EXT: кнопок записи нет`, (await ev("document.querySelectorAll('.rm-col button').length")) === 0, await ev("document.querySelectorAll('.rm-col button').length"))
       must(`${tag} EXT: нет горизонтальной прокрутки`, (await noHScroll()) <= 0, await noHScroll())
       await shot('ext103-map', w, th)
@@ -205,6 +214,19 @@ try {
       await shot('neighbor-ceh', w, th)
     }
   }
+  // ===== опрос стоит, пока вкладка скрыта; вкладка снова видна — сразу запрос (ревью Голема, Мелочь 1) =====
+  scenario = { all: ALL, one: mapEXT() }
+  await go('#/roadmap/EXT', 1280, 800, 'light')
+  await ev("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))")
+  await sleep(1000)
+  const h0 = S.intercepted['roadmap/EXT']; await sleep(11000); const h1 = S.intercepted['roadmap/EXT']
+  must('скрытая вкладка: за 11 с ни одного запроса карты', h1 === h0, { before: h0, after: h1 })
+  await ev("Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'))")
+  await sleep(800)
+  const h2 = S.intercepted['roadmap/EXT']
+  must('вкладка снова видна: запрос сразу (≤ 0,8 с)', h2 === h1 + 1, { after: h1, back: h2 })
+  await sleep(5600)
+  must('и опрос пошёл дальше раз в 5 с', S.intercepted['roadmap/EXT'] >= h2 + 1, { back: h2, later: S.intercepted['roadmap/EXT'] })
   must('консоль: ни исключений, ни console.error / warning', S.console.length === 0, S.console)
   ws.close()
 } catch (e) { S.error = String(e?.stack ?? e); log(`СБОЙ: ${S.error}`) } finally {

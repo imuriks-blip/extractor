@@ -106,6 +106,14 @@ const CARD_WORDS = { backlog: 'Backlog', ready: 'в очереди', 'in-progres
 export const cardWord = (s) => (s ? CARD_WORDS[s] ?? s : 'нет на доске');
 export const cardHref = (id) => `#/project/${String(id).split('-')[0]}/${id}`;
 
+// «ждёт: …» у пункта [!]: ссылка — только когда значение целиком номер карточки; «слово Ивана» и прочее — текстом
+const CARD_ID = /^[A-Z]{2,6}-\d+$/;
+export function waitView(w) {
+  if (w == null || w === '') return null;
+  const text = String(w);
+  return { card: CARD_ID.test(text) ? text : null, text };
+}
+
 // отметка пункта плана (2.2, Р-2 (а)): знак и слово — не только цветом. Для [>] — shownMark со статуса карточки.
 const MARKS = {
   ' ': ['○', 'не начат', 'm-todo'],
