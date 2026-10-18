@@ -96,10 +96,11 @@ export function threadDoing(t) {
   return 'свободен';
 }
 
-// порядок: с тревогой, с замечанием, ждёт, работает; свободные и «нет вестей» без замечаний — каждой группой одной строкой
+// порядок: с тревогой (красное), ждёт, работает, прочие с жёлтым замечанием; жёлтое тред не поднимает (решение Ивана 10,
+// слово Ивана 02.10 «только красные, как решал»; спека витрины §2.1); свободные и «нет вестей» без замечаний — одной строкой
 export function workersView(threads) {
   const rows = (threads || []).map((t) => ({ t, remarks: threadRemarks(t) }));
-  const rank = (r) => (r.remarks.some((x) => x.level === 'red') ? 0 : r.remarks.length ? 1 : r.t.state === 'waiting' ? 2 : r.t.state === 'busy' ? 3 : 9);
+  const rank = (r) => (r.remarks.some((x) => x.level === 'red') ? 0 : r.t.state === 'waiting' ? 1 : r.t.state === 'busy' ? 2 : r.remarks.length ? 3 : 9);
   const shown = rows.filter((r) => rank(r) < 9).sort((a, b) => rank(a) - rank(b));
   const quiet = rows.filter((r) => rank(r) === 9);
   return {
