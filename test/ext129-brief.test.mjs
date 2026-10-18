@@ -2,10 +2,11 @@
 // карты проекта. Ручки: «Ждёт меня» (а), (б), (в); /api/card; /api/roadmap и /api/roadmap/<КОД> (карта и её карточки);
 // строки «Проекты» на «Цехе». Маска brief — строгая сеть (IPTV), как прочие тексты карточки в этих ручках.
 // Три случая на каждое: поле есть, поля нет, поле с тем, что режет только строгая сеть (id флоу рядом со словом-признаком:
-// сеть проекта EXT его прощает). Плюс карта со строкой и без, и оба вида библиотеки доски (до EXT-129 строка `для Ивана:`
-// лежит в свободном тексте «Где стоим», после — полем brief).
-// Формат поля в шапке (в main доски его ещё нет): `brief: "<текст>"` сразу после `title`. parseCardB — разбор доски
-// с этим полем: строка `brief:` снимается, остальное разбирает настоящий header.mjs доски, brief — значение строки.
+// сеть проекта EXT его прощает). Плюс карта со строкой и без.
+// Разбор — настоящая библиотека доски (boardLib, main доски с EXT-129 b62f084): header.mjs знает поле `brief: "<текст>"`
+// сразу после `title`, roadmap.mjs кладёт `для Ивана:` в where.brief и убирает её из where.text. Связка «настоящая
+// библиотека + витрина» на временной доске — Важно 1 Голема (дозапрос 1). Запасной путь витрины для библиотеки до EXT-129
+// (строка — первой строкой where.text, поля brief нет) — отдельный тест на подменённой библиотеке старого вида.
 // Ожидаемое — из положенного сюда (тексты карточек и карт), а не из кода под тестом.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,12 +28,6 @@ const roadmapLib = await import(libUrl('roadmap.mjs'));
 const scanT = (t, o = {}) => scan(t, { ...o, flowIds: new Set() });
 const FLOW = 'Ab12Cd34Ef56Gh78'; // строгая сеть (IPTV) — класс 5 (скрыть), сеть EXT — класс 4 (прощает)
 
-const parseCardB = (text) => {
-  const m = text.match(/^brief: (.*)\n/m);
-  if (!m) return parseCard(text);
-  const r = parseCard(text.replace(m[0], ''));
-  return { ...r, header: { ...r.header, brief: JSON.parse(m[1]) } };
-};
 
 // ---------- доска ----------
 const p2 = (n) => String(n).padStart(2, '0');
@@ -96,7 +91,7 @@ const threads = {
 
 async function start(lib = roadmapLib) {
   const roadmap = createRoadmapReader({ root: boardDir, lib, registry });
-  const board = createBoardReader({ root: boardDir, git: createGitRead(), parseCard: parseCardB, parseLog, latest, roadmap });
+  const board = createBoardReader({ root: boardDir, git: createGitRead(), parseCard, parseLog, latest, roadmap });
   await board.init();
   const app = await buildApp({ port: 4317, board, registry, threads, scan: scanT, projectCards: { get: () => ({ phase: 'Фаза Vault.', next: 'Шаг Vault.' }) }, roadmap });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } })).json();
@@ -206,16 +201,40 @@ test('«Цех», строки «Проекты»: brief из карты про�
   assert.equal(by('BW').phaseFrom, 'vault');
 });
 
-test('библиотека доски с полем where.brief (формат после EXT-129): берётся оно, строки в тексте нет — повтора нет', async () => {
-  const newLib = { ...roadmapLib, parseMap: (text, o) => {
-    const r = roadmapLib.parseMap(text, o);
-    const w = r.map?.where;
-    if (w && w.text[0]?.startsWith('для Ивана: ')) { w.brief = w.text[0].slice('для Ивана: '.length); w.text = w.text.slice(1); } else if (w) w.brief = '';
-    return r;
-  } };
-  const N = await start(newLib);
-  const ext = (await N.get('/api/roadmap/EXT')).map.where;
+test('Важно 1 Голема: настоящая библиотека доски (header.mjs, roadmap.mjs с EXT-129) + витрина — brief карточки и карты в ручках', async () => {
+  // библиотека та, что с EXT-129: шапка с brief разбирается, «для Ивана:» — в where.brief, не в where.text
+  const card = parseCard(fs.readFileSync(path.join(boardDir, 'EXT', 'EXT-1.md'), 'utf8').replace(/\r\n/g, '\n')).header;
+  assert.equal(card.brief, B1);
+  const m = roadmapLib.parseMap(fs.readFileSync(path.join(boardDir, 'EXT', 'EXT.map.md'), 'utf8'), { code: 'EXT' });
+  assert.deepEqual(m.errors, []);
+  assert.deepEqual([m.map.where.brief, m.map.where.text], [MAP_BRIEF, ['Абзац EXT.']]);
+  // ручки на той же временной доске — без повтора строки в абзаце
+  assert.equal((await S.get('/api/card/EXT-1')).header.brief, B1);
+  assert.equal((await S.get('/api/ceh')).waiting.review.find((r) => r.id === 'EXT-1').brief, B1);
+  const ext = (await S.get('/api/roadmap/EXT')).map;
+  assert.deepEqual([ext.where.brief, ext.where.text], [MAP_BRIEF, ['Абзац EXT.']]);
+  assert.equal(ext.cards.ahead.find((c) => c.id === 'EXT-1').brief, B1);
+  assert.equal((await S.get('/api/ceh')).projects.find((p) => p.code === 'EXT').brief, MAP_BRIEF);
+  assert.equal(S.board.state().badHeaders, 0);
+});
+
+test('запасной путь: библиотека доски до EXT-129 (поля where.brief нет, строка — первой в where.text) — brief из строки, в тексте её нет', async () => {
+  // подменённая библиотека старого вида — не обёртка над живой: разбор карты возвращает «Где стоим» так, как его отдавал
+  // roadmap.mjs до EXT-129 (строка «для Ивана:» — свободный текст); карточек в карте нет, планов нет
+  const oldWhere = (code, line) => ({ updated: '2026-10-18 19:00', by: `trurl:${code}`, phase: `Фаза ${code}.`, next: `Шаг ${code}.`, text: [...(line ? [line] : []), `Абзац ${code}.`] });
+  const LINES = { EXT: `для Ивана: ${MAP_BRIEF}`, INFRA: null, CAR: `Абзац с для Ивана: не первой строкой` };
+  const oldLib = {
+    roadmapFile: (code, name) => (name === `${code}.map.md` ? { kind: 'map', code } : null),
+    parseMap: (text, { code }) => ({ map: { code, where: oldWhere(code, LINES[code]), questions: [], ideas: [], cards: [] }, errors: [], warnings: [], refs: [] }),
+    parsePlan: (text, { id }) => ({ plan: { id, items: [] }, errors: [], warnings: [] }),
+  };
+  const O = await start(oldLib);
+  const ext = (await O.get('/api/roadmap/EXT')).map.where;
   assert.deepEqual([ext.brief, ext.text], [MAP_BRIEF, ['Абзац EXT.']]);
-  assert.equal((await N.get('/api/roadmap/INFRA')).map.where.brief, null);
-  assert.equal((await N.get('/api/ceh')).projects.find((p) => p.code === 'EXT').brief, MAP_BRIEF);
+  const infra = (await O.get('/api/roadmap/INFRA')).map.where;
+  assert.deepEqual([infra.brief, infra.text], [null, ['Абзац INFRA.']]);
+  // «для Ивана:» не в начале строки — обычный текст, не brief
+  const car = (await O.get('/api/roadmap/CAR')).map.where;
+  assert.deepEqual([car.brief, car.text], [null, ['Абзац с для Ивана: не первой строкой', 'Абзац CAR.']]);
+  assert.equal((await O.get('/api/ceh')).projects.find((p) => p.code === 'EXT').brief, MAP_BRIEF);
 });
