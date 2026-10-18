@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { pollSource, useSource } from './data.js';
 import { useOpen } from './prefs.js';
 import { Summary, More } from './Summary.jsx';
-import { lineForIvan, mapStatus, phaseLine } from './plainData.js';
+import { lineForIvan, mapStatus, nowView, phaseLine } from './plainData.js';
 import { TraceBadge } from './Trace.jsx';
 import {
   ROADMAP_POLL_MS, NO_MAP, brokenLine, cardHref, cardWord, countsParts, dateShort, ideaView, markView, offLines,
@@ -111,6 +111,27 @@ function Where({ w }) {
       {text.length > 0 && <><span className="l" /><div className="rm-text">{text.map((p, i) => <p key={i}>{p}</p>)}</div></>}
       {(w.updated || w.by) && <><span className="l" /><More label={`карта обновлена ${dateShort(w.updated) || '—'}`}>{w.by ? <span className="mono">{w.by}</span> : 'кто правил — не указано'}</More></>}
     </div>
+  );
+}
+
+// EXT-130: «Сейчас» — живые карточки проекта (поле now сервера, порядок его же: на приёмке выше, свежие сверху). Строка — ссылка
+// на карточку, как номер в соседних списках; крупно — строка для Ивана или заголовок (тогда заголовок — подсказкой), мелко — статус
+// словом и номер. «На приёмке» ждёт Ивана — жёлтым, как «посмотри» карты и «ждёт тебя» «Цеха». Пусто или поля нет (старый сервер) —
+// блока нет вовсе
+function Now({ code, list }) {
+  const o = useOpen(`rm-now-${code}`);
+  const rows = nowView(list);
+  if (!rows.length) return null;
+  return (
+    <details className="blk" data-sec="now" open={o.open} onToggle={o.onToggle}>
+      <Summary>Сейчас <span className="cnt num">{rows.length}</span><span className="hint hsm">собирается сам из карточек в работе и на приёмке</span></Summary>
+      {rows.map((x) => (
+        <a className="rm-now" key={x.id} href={cardHref(x.id)} title={x.title ?? undefined}>
+          <span className="rm-t">{x.text} <span className={`rm-st s-${x.cls}`}>{x.word}</span></span>
+          <span className="rm-id">{x.id}</span>
+        </a>
+      ))}
+    </details>
   );
 }
 
@@ -277,15 +298,17 @@ function Cards({ code, sec, title, list, defOpen, cardsOpen, hint }) {
 function One({ d }) {
   const code = d.code;
   if (!d.hasMap && !d.map) {
-    return <div className="beacon" data-sec="nomap"><span className="faint">{NO_MAP}: у проекта {code} карты на доске нет ({code}/{code}.map.md)</span></div>;
+    // «Сейчас» — по коду проекта, не по карте: сервер отдаёт now и без карты
+    return <><div className="beacon" data-sec="nomap"><span className="faint">{NO_MAP}: у проекта {code} карты на доске нет ({code}/{code}.map.md)</span></div><Now code={code} list={d.now} /></>;
   }
   const m = d.map;
-  if (!m) return <><Broken b={d.broken} /><div className="beacon"><span className="faint">карта {code} не разобрана ни разу — показывать нечего</span></div></>;
+  if (!m) return <><Broken b={d.broken} /><div className="beacon"><span className="faint">карта {code} не разобрана ни разу — показывать нечего</span></div><Now code={code} list={d.now} /></>;
   const cards = m.cards || {};
   return (
     <div className="rm-col">
       <Broken b={d.broken} />
       <Where w={m.where} />
+      <Now code={code} list={d.now} />
       <Ask code={code} qs={m.questions} />
       <Ideas code={code} ideas={m.ideas} discuss={d.counts?.ideasDiscuss ?? 0} />
       <Cards code={code} sec="ahead" title="Впереди" list={cards.ahead || []} defOpen cardsOpen={false} hint="что важнее — выше" />
