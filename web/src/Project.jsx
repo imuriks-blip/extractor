@@ -11,6 +11,7 @@ import NewCard from './NewCard.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { Worktrees } from './Words.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
+import { lineForIvan } from './plainData.js';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
 const DONE_SHOWN = 5; // 2.5: в Done видны 5 последних, остальные — поиском
@@ -168,7 +169,8 @@ function WRowBody({ r, now, sel, onOpen, noAge = false }) {
       <div className="prow" title={r.title}>
         <span className="src"><span className="k">тред</span></span>
         <span title={r.recap || undefined}>
-          {r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+          {/* EXT-129: есть строка для Ивана (brief карточки строки) — первой, вопрос треда — строкой ниже серым */}
+          {r.overDay && <span className="tag r">ждёт больше суток</span>}{lineForIvan(r) ? <>{lineForIvan(r)}<span className="mline muted">{r.text}</span></> : r.text}
           {r.projectBy === 'cards' && <span className="faint"> · по карточкам</span>}
           {r.kind === 'nextStep' && <StepChips actions={r.actions} />}
           {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}
@@ -179,9 +181,12 @@ function WRowBody({ r, now, sel, onOpen, noAge = false }) {
   }
   const yes = r.group === 'yes';
   return (
-    <button type="button" className={r.answered ? 'prow ans' : 'prow'} aria-current={sel === r.id ? 'true' : undefined} onClick={() => onOpen(r.id)}>
+    <button type="button" className={r.answered ? 'prow ans' : 'prow'} aria-current={sel === r.id ? 'true' : undefined} onClick={() => onOpen(r.id)}
+      title={lineForIvan(r) ? r.title : undefined}>
       <span className="src">{r.id}</span>
-      <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{r.title}
+      {/* EXT-129: есть строка для Ивана — она вместо заголовка; заголовок — подсказкой и в панели карточки по щелчку
+          (раскрытие «подробнее» внутри кнопки-строки не вложить) */}
+      <span>{yes ? <span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{r.mark}</span> : <span className="tag">Review</span>}{lineForIvan(r) ?? r.title}
         {!yes && !r.answered && <TraceBadge t={r.trace} />}
         {/* отметка — у «отвечено» и у красной в своей группе (§1.7, слово Ивана 05.10); кнопки — в панели карточки */}
         {r.pultMark && <PultMark m={r.pultMark} />}</span>

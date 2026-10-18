@@ -151,8 +151,8 @@ export function briefMe(w) {
 /* ---------- проекты строками ---------- */
 
 // «тихо, описания пока нет»: нет фазы, нет шага, все счётчики нулевые и чтение не падает — одной строкой внизу;
-// проект со счётчиками или со сбоем чтения — обычной строкой
-export const isQuiet = (p) => !p.phase && !p.next && !p.inProgress && !p.ready && !p.review && !p.phaseFailingSince;
+// проект со счётчиками, со строкой для Ивана (EXT-129) или со сбоем чтения — обычной строкой
+export const isQuiet = (p) => !lineForIvan(p) && !p.phase && !p.next && !p.inProgress && !p.ready && !p.review && !p.phaseFailingSince;
 export function splitProjects(projects) {
   const ps = projects || [];
   return { described: ps.filter((p) => !isQuiet(p)), quiet: ps.filter(isQuiet) };
@@ -165,6 +165,17 @@ export function projectCounts(p) {
     p.ready ? `в очереди ${p.ready}` : null,
     p.review ? `посмотри ${p.review}` : null,
   ].filter(Boolean);
+}
+
+/* ---------- строка для Ивана (EXT-129; правило цеха — «Протокол доски» п.14, INFRA-113) ---------- */
+
+// поле brief сервера: у карточки — поле шапки, у карты и проекта — строка «для Ивана:» из «Где стоим». Есть — это главный
+// текст строки, заголовок и номер уходят под «подробнее»; нет (null, пусто, не строка) — строка как раньше, заголовок первым
+export const lineForIvan = (x) => (typeof x?.brief === 'string' && x.brief.trim() ? x.brief.trim() : null);
+
+// «Проекты» на «Цехе» и список карт: при строке для Ивана фаза и следующий шаг — мелко серым одной строкой под ней
+export function phaseLine(phase, next) {
+  return [phase, next && `дальше: ${next}`].filter(Boolean).join(' · ') || null;
 }
 
 /* ---------- карта проекта: статус карточки словом ---------- */

@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { pollSource, useSource } from './data.js';
 import { useOpen } from './prefs.js';
 import { Summary, More } from './Summary.jsx';
-import { mapStatus } from './plainData.js';
+import { lineForIvan, mapStatus, phaseLine } from './plainData.js';
 import { TraceBadge } from './Trace.jsx';
 import {
   ROADMAP_POLL_MS, NO_MAP, brokenLine, cardHref, cardWord, countsParts, dateShort, ideaView, markView, offLines,
@@ -55,7 +55,13 @@ function All({ d, onOpen }) {
                   aria-label={`Открыть карту ${p.code}`}>
                   <td className="code">{p.code}</td>
                   <td>
-                    {p.hasMap && p.where
+                    {/* EXT-129: есть строка для Ивана — она вместо «фаза → шаг», фаза и шаг — мелко серым под ней */}
+                    {p.hasMap && lineForIvan(p.where)
+                      ? <span className="pj-t">
+                          <span className="pj-now">{lineForIvan(p.where)}</span>
+                          {phaseLine(p.where.phase, p.where.next) && <span className="pj-ph" title={phaseLine(p.where.phase, p.where.next)}>{phaseLine(p.where.phase, p.where.next)}</span>}
+                        </span>
+                      : p.hasMap && p.where
                       ? <span className="pn" title={[p.where.phase, p.where.next && `→ ${p.where.next}`].filter(Boolean).join(' ') || undefined}>
                           {p.where.phase ? <span className="phase">{p.where.phase}</span> : <span className="faint">фаза не указана</span>}
                           {p.where.next && <> <span className="next">→ {p.where.next}</span></>}
@@ -91,11 +97,15 @@ function All({ d, onOpen }) {
 function Where({ w }) {
   if (!w) return <div className="beacon" data-sec="where"><span className="faint">«Где стоим» в карте пусто</span></div>;
   const text = Array.isArray(w.text) ? w.text : [];
-  // EXT-125: «Где стоим» крупно (одно крупное на экране), «Дальше», абзац карты; кто и когда правил карту — под «подробнее»
+  // EXT-125: «Где стоим» крупно (одно крупное на экране), «Дальше», абзац карты; кто и когда правил карту — под «подробнее».
+  // EXT-129: есть строка для Ивана — крупно она, фаза ниже обычным текстом строкой «Фаза»; нет — как раньше
+  const b = lineForIvan(w);
   return (
     <div className="beacon brief rm-where" data-sec="where" aria-label="Где стоим">
       <span className="l">Где стоим</span>
-      {w.phase ? <span className="lead">{w.phase}</span> : <span className="faint">фаза не указана</span>}
+      {b
+        ? <><span className="lead">{b}</span><span className="l">Фаза</span>{w.phase ? <span>{w.phase}</span> : <span className="faint">не указана</span>}</>
+        : w.phase ? <span className="lead">{w.phase}</span> : <span className="faint">фаза не указана</span>}
       <span className="l">Дальше</span>
       <span>{w.next ?? <span className="faint">—</span>}</span>
       {text.length > 0 && <><span className="l" /><div className="rm-text">{text.map((p, i) => <p key={i}>{p}</p>)}</div></>}
@@ -212,7 +222,8 @@ function BigCard({ c, defOpen }) {
   // раскрытие — это «подробнее»: номер, статус доски, след, маленькие и план со следами и хешами
   const head = (
     <>
-      <span className="rm-ct">{c.exists === false ? <span className="faint">нет на доске</span> : c.title}</span>
+      {/* EXT-129: есть строка для Ивана — она вместо заголовка; заголовок — в раскрытии, первым */}
+      <span className="rm-ct">{c.exists === false ? <span className="faint">нет на доске</span> : lineForIvan(c) ?? c.title}</span>
       {c.exists !== false && <span className={`rm-st s-${stCls}`}>{st.text}</span>}
       {hot && <TraceBadge t={c.trace} />}
       {plan && <span className="rm-sum num">шагов {plan.summary?.done ?? 0} из {plan.summary?.total ?? 0}</span>}
@@ -222,6 +233,7 @@ function BigCard({ c, defOpen }) {
     <details className="grp rm-card" data-id={c.id} open={o.open} onToggle={o.onToggle}>
       <Summary>{head}</Summary>
       <div className="rm-meta">
+        {c.exists !== false && lineForIvan(c) && <span className="dd-t">{c.title}</span>}
         <CardLink id={c.id} />
         <span className="lbl">{cardWord(c.status)}</span>
         {c.trace && !hot && <TraceBadge t={c.trace} />}

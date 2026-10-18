@@ -145,7 +145,8 @@ test('карта: статус словом; «нет на доске» не д�
 
 test('служебное — под «подробнее», действия на месте; прораб и код проекта — в заголовке строки треда', () => {
   const c = src('Ceh.jsx');
-  assert.match(c, /<More><span className="mono">\{r\.id\}<\/span><TraceBadge t=\{r\.trace\} \/><\/More>/);
+  // EXT-129: при строке для Ивана под «подробнее» первым уходит и заголовок
+  assert.match(c, /<More>\{lineForIvan\(r\) && <span className="dd-t">\{r\.title\}<\/span>\}<span className="mono">\{r\.id\}<\/span><TraceBadge t=\{r\.trace\} \/><\/More>/);
   assert.match(c, /<Pult card=\{r\.id\} q=\{r\.q \?\? null\} accept=\{r\.accept\} mark=\{r\.pultMark\} ar=\{pultOn\} \/>/, '«Принять»/«Вернуть» — как были');
   assert.match(c, /<Reread session=\{t\.sessionId\} missing=\{oldRules\.missing\} now=\{now\} bare \/>/);
   assert.match(c, /sid=\{inner \? undefined : t\.sessionId\}/, 'под «подробнее» кнопка не дублируется');
