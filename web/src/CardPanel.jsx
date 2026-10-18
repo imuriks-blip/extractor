@@ -8,6 +8,7 @@ import { staleText } from './Ceh.jsx';
 import Pult from './Pult.jsx';
 import { cardMainMark } from './pultData.js';
 import { TraceBlock } from './Trace.jsx';
+import { lineForIvan } from './plainData.js';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8): серая строка у коммитов — после трёх пропущенных проходов
 
@@ -197,6 +198,8 @@ function CardView({ id, now, onOpen, onClose, closeRef, filter, setFilter }) {
           {(h?.labels || []).map((l) => <span className="lbl" key={l}>{l}</span>)}
           <button ref={closeRef} type="button" className="close" aria-label="Закрыть карточку" title="Закрыть (Esc)" onClick={onClose}>×</button>
         </div>
+        {/* EXT-129: строка для Ивана — над заголовком; нет — заголовок, как раньше */}
+        {lineForIvan(h) && <p className="pbrief">{lineForIvan(h)}</p>}
         <h2 id="p-title">{h?.title ?? (data ? 'Карточка не читается' : id)}</h2>
         {h && (
           <div className="meta">

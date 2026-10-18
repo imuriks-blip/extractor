@@ -772,3 +772,7 @@ details.grp.wq>summary{font-weight:400}
 .pst-n{font-size:12px;color:var(--muted)}
 .rm-card>summary .trc,.rm-pl .rm-t>.trc{display:inline-flex;margin-left:6px}
 .rm-where>details.dd{margin-top:4px}
+/* строка для Ивана (EXT-129): главный текст строки; заголовок карточки — первым в «подробнее», фаза и шаг проекта — мелко серым */
+.dd-t{flex-basis:100%}
+.pj-ph{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;line-clamp:1;overflow:hidden;font-size:12px;color:var(--faint)}
+.pbrief{margin:4px 0 0}

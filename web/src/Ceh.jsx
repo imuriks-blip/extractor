@@ -9,7 +9,7 @@ import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 import { Summary, More } from './Summary.jsx';
 import Reread from './Reread.jsx';
-import { FILTER_WORD, briefMe, briefNow, markWord, projectCounts, reviewSubView, splitProjects, threadDoing, traceWord, workersView } from './plainData.js';
+import { FILTER_WORD, briefMe, briefNow, lineForIvan, markWord, phaseLine, projectCounts, reviewSubView, splitProjects, threadDoing, traceWord, workersView } from './plainData.js';
 import { MyWords, Worktrees } from './Words.jsx';
 import NewCard from './NewCard.jsx';
 
@@ -82,6 +82,14 @@ function Brief({ data }) {
       <span className="lead">{briefMe(data.waiting)}</span>
     </div>
   );
+}
+
+// строка (а) (EXT-129): есть строка для Ивана (brief карточки строки) — она первой, номер карточки — под «подробнее»;
+// вопрос треда остаётся виден строкой ниже серым — на него и отвечаешь. Нет строки — вопрос, как раньше
+function AskText({ r }) {
+  const b = lineForIvan(r);
+  if (!b) return r.text;
+  return <>{b}{r.card && <More><span className="mono">{r.card}</span></More>}<span className="mline muted">{r.text}</span></>;
 }
 
 function Group({ id, title, count, hint, children }) {
@@ -177,11 +185,12 @@ function Waiting({ w, now, stale, pult, threads, order }) {
   const [review, moreReview] = useShowMore(open);
   const [filter, setFilter] = useStored(REVIEW_FILTER_KEY, 'all', isReviewFilter);
   const rv = reviewView(open, order, filter);
-  // EXT-125: сверху — заголовок и плашка следа словами; номер карточки и след целиком — под «подробнее»
+  // EXT-125: сверху — заголовок и плашка следа словами; номер карточки и след целиком — под «подробнее».
+  // EXT-129: есть строка для Ивана — она сверху вместо заголовка, заголовок — под «подробнее» первым
   const reviewRow = (r) => (
     <div className="wrow pr np" key={r.id}>
-      <span className="tt">{r.title}<Plain t={r.trace} />
-        <More><span className="mono">{r.id}</span><TraceBadge t={r.trace} /></More></span>
+      <span className="tt">{lineForIvan(r) ?? r.title}<Plain t={r.trace} />
+        <More>{lineForIvan(r) && <span className="dd-t">{r.title}</span>}<span className="mono">{r.id}</span><TraceBadge t={r.trace} /></More></span>
       <span className="age num">{ageShort(r.at, now)}</span>
       <Pult card={r.id} q={r.q ?? null} accept={r.accept} mark={r.pultMark} ar={pultOn} />
       {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
@@ -211,7 +220,7 @@ function Waiting({ w, now, stale, pult, threads, order }) {
                   <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                     {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
                   </span>
-                  <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+                  <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}<AskText r={r} />
                     {r.kind === 'nextStep' && <StepChips actions={r.actions} buttons />}</span>
                   <span className="age num">{ageShort(r.since, now)}</span>
                   <Pult card={null} q={{ uuid: r.uuid, at: r.since }} ar={false} mark={r.pultMark}
@@ -226,7 +235,7 @@ function Waiting({ w, now, stale, pult, threads, order }) {
               <span className="src" title={r.title}><span className="k">тред</span>{r.title}
                 {r.projectBy === 'cards' && r.project && <span className="by"><span className="mono">{r.project}</span> · по карточкам</span>}
               </span>
-              <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}{r.text}
+              <span className="tt" title={r.recap || undefined}>{r.overDay && <span className="tag r">ждёт больше суток</span>}<AskText r={r} />
                 {r.kind === 'nextStep' && <StepChips actions={r.actions} />}
                 {waitsInDesktop(r) && <span className="mline muted">{DESKTOP_HINT}</span>}</span>
               <span className="age num">{ageShort(r.since, now)}</span>
@@ -241,16 +250,16 @@ function Waiting({ w, now, stale, pult, threads, order }) {
         <Group id="yes" title="Нужно твоё «да»" count={yes.length}>
           {yes.map((r) => (wordsOn && r.q ? (
             <div className="wrow pr np" key={r.key}>
-              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{markWord(r.mark)}</span>{r.title}
-                <More><span className="mono">{r.id}</span> · метка {r.mark}</More></span>
+              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{markWord(r.mark)}</span>{lineForIvan(r) ?? r.title}
+                <More>{lineForIvan(r) && <span className="dd-t">{r.title}</span>}<span className="mono">{r.id}</span> · метка {r.mark}</More></span>
               <span className="age num">{ageShort(r.since, now)}</span>
               <Pult card={r.id} q={r.q} ar={false} mark={r.pultMark} words={{ btns: [MAIN_WORD[r.mark] ?? 'yes', 'no'], main: MAIN_WORD[r.mark] ?? 'yes' }} />
               {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
           ) : (
             <div className="wrow df np" key={r.key}>
-              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{markWord(r.mark)}</span>{r.title}{redLine(r)}
-                <More><span className="mono">{r.id}</span> · метка {r.mark}</More></span>
+              <span className="tt"><span className={r.mark === 'Б' ? 'tag b' : 'tag'}>{markWord(r.mark)}</span>{lineForIvan(r) ?? r.title}{redLine(r)}
+                <More>{lineForIvan(r) && <span className="dd-t">{r.title}</span>}<span className="mono">{r.id}</span> · метка {r.mark}</More></span>
               <span className="age num">{ageShort(r.since, now)}</span>
               {r.key && <><DeferBtn rowKey={r.key} options={w.deferOptions} name={r.id} /><DeferNote rowKey={r.key} /></>}
             </div>
@@ -307,8 +316,16 @@ function Projects({ projects, now, stale, onOpen, pult }) {
           <span className="code">{p.code}</span>
           {/* не выше двух строк с «…»; целиком — во всплывающей подсказке (слово Ивана 02.10) */}
           <span className="pj-t" title={phaseTip(p)}>
-            {p.phase ? <span className="pj-now">{p.phase.short}</span> : <span className="pj-now faint">{noPhase(p)}</span>}
-            {p.next && <span className="pj-next"><span className="pj-k">Дальше:</span> {p.next.short}</span>}
+            {/* EXT-129: есть строка для Ивана из карты — она вместо пары «фаза / Дальше:», фаза и шаг — мелко серым под ней */}
+            {lineForIvan(p)
+              ? <>
+                  <span className="pj-now">{lineForIvan(p)}</span>
+                  {phaseLine(p.phase?.short, p.next?.short) && <span className="pj-ph">{phaseLine(p.phase?.short, p.next?.short)}</span>}
+                </>
+              : <>
+                  {p.phase ? <span className="pj-now">{p.phase.short}</span> : <span className="pj-now faint">{noPhase(p)}</span>}
+                  {p.next && <span className="pj-next"><span className="pj-k">Дальше:</span> {p.next.short}</span>}
+                </>}
             {p.phaseFailingSince && (
               <span className="pfail">данные на {hm(p.phaseReadAt, now)}, чтение не удаётся {minutes(Date.parse(p.phaseFailingSince), now)}</span>
             )}
