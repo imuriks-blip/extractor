@@ -1,4 +1,5 @@
 {
+  "_brief": "EXT-129 (INFRA-113): brief — строка для Ивана, одна строка до ~200 знаков, или null. Строки (б), (в) — поле шапки brief карточки; (а) — brief карточки строки (поле card), без card — null; projects[] — строка «для Ивана:» карты проекта (только у phaseFrom map, иначе null). Строгой маской.",
   "boardMode": "mirror",
   "_boardMode": "EXT-91 такт 3 (§3.3 п.15–16): режим доски — mirror | live | null (board.config.json не читается; страница ведёт себя как mirror). live: в меню «Служебное» нет «Обновить» и «Полного прохода зеркала», в шапке «доска в git» вместо возраста зеркала.",
   "pult": { "enabled": true, "words": true, "bell": true, "_note": "EXT-70 (спека пульта §1.7): флаги пульта. enabled — pult.enabled; words — pult.words (кнопки-слова прячутся при false); bell — ДЕЙСТВУЮЩЕЕ состояние звонка, как bell.on в /api/health (флаг pult.bell включён и папка звонка задана), не флаг из конфига (звонковые кнопки прячутся при false). Страница не узнаёт об этом по 503 после нажатия." },
@@ -7,6 +8,7 @@
       {
         "sessionId": "00000000-0000-4000-8000-000000000001",
         "title": "CAR · портал",
+        "brief": null,
         "project": "CAR",
         "text": "Трурль: Ветка ext-31 готова, Голем без «Критично». Сливаю в main и выкатываю на car.unorbis.com — да?",
         "since": "2026-10-01T09:12:00+03:00",
@@ -20,6 +22,7 @@
       {
         "sessionId": "00000000-0000-4000-8000-000000000002",
         "title": "Астро: new",
+        "brief": null,
         "project": null,
         "text": "Трурль: Какой из двух вариантов шаблона гороскопа берём — короткий или с картой?",
         "since": "2026-09-30T08:40:00+03:00",
@@ -33,6 +36,7 @@
       {
         "sessionId": "00000000-0000-4000-8000-000000000007",
         "title": "INFRA · бэкапы",
+        "brief": null,
         "project": "INFRA",
         "projectBy": "title",
         "kind": "permission",
@@ -46,6 +50,7 @@
       {
         "sessionId": "00000000-0000-4000-8000-000000000008",
         "title": "EXT · пульт",
+        "brief": "Кнопки пульта готовы; ответь треду, сливать ли; дальше — проверка на витрине",
         "project": "EXT",
         "projectBy": "title",
         "kind": "question",
@@ -65,6 +70,7 @@
         "id": "LEDGER-168",
         "mark": "сливай",
         "title": "Одна кнопка съёмки — родная камера",
+        "brief": "Кнопка съёмки готова и проверена; нужно твоё «сливай»; дальше — выкатка в апп",
         "since": "2026-10-01T11:05:00+03:00",
         "project": "LEDGER",
         "status": "review",
@@ -86,6 +92,7 @@
         "id": "INFRA-80",
         "mark": "Б",
         "title": "Перенос бэкапов на второй диск",
+        "brief": null,
         "since": "2026-09-30T17:20:00+03:00",
         "project": "INFRA",
         "status": "review",
@@ -107,6 +114,7 @@
         "id": "BW-41",
         "mark": "развилка",
         "title": "Фото сметы: один снимок или по листам",
+        "brief": "Решаем, как снимать смету — одним кадром или по листам; нужен твой выбор",
         "since": "2026-09-29T14:02:00+03:00",
         "project": "BW",
         "status": "review",
@@ -129,6 +137,7 @@
       {
         "id": "EXT-23",
         "title": "Зеркало: --changed без перечитывания незакрытых",
+        "brief": "Зеркало стало быстрее — посмотри и прими; дальше ничего не ждёт",
         "at": "2026-10-01T10:30:00+03:00",
         "project": "EXT",
         "key": "EXT-23|2026-10-01 10:30 +03:00 · plane · коммент",
@@ -196,6 +205,7 @@
       {
         "id": "CAR-260",
         "title": "FRONT · Галерея фото: порядок и обложка",
+        "brief": null,
         "at": "2026-09-25T16:44:00+03:00",
         "project": "CAR",
         "key": "CAR-260|2026-09-25 16:44 +03:00 · plane · ▶",
@@ -282,6 +292,7 @@
   "projects": [
     {
       "code": "CAR",
+      "brief": "Галерея фото почти готова; от тебя — «да» на выкатку; дальше — мини-апп",
       "name": "orbis-car",
       "inRegistry": true,
       "phase": {
@@ -303,6 +314,7 @@
     },
     {
       "code": "LEDGER",
+      "brief": null,
       "name": "ledger",
       "inRegistry": true,
       "phase": {
@@ -324,6 +336,7 @@
     },
     {
       "code": "MAKAR",
+      "brief": null,
       "name": "makar",
       "inRegistry": true,
       "phase": {
@@ -342,6 +355,7 @@
     },
     {
       "code": "ASTRO",
+      "brief": null,
       "name": "orbis-astro",
       "inRegistry": true,
       "phase": {
@@ -363,6 +377,7 @@
     },
     {
       "code": "BW",
+      "brief": null,
       "name": "unorbis-bodywork",
       "inRegistry": true,
       "phase": {
@@ -384,6 +399,7 @@
     },
     {
       "code": "INFRA",
+      "brief": null,
       "name": "unorbis-infra",
       "inRegistry": true,
       "phase": {
@@ -405,6 +421,7 @@
     },
     {
       "code": "EXT",
+      "brief": null,
       "name": null,
       "inRegistry": true,
       "phase": {
@@ -426,6 +443,7 @@
     },
     {
       "code": "RADAR",
+      "brief": null,
       "name": null,
       "inRegistry": true,
       "phase": null,
@@ -441,6 +459,7 @@
     },
     {
       "code": "IPTV",
+      "brief": null,
       "name": null,
       "inRegistry": true,
       "phase": null,
