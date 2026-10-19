@@ -172,7 +172,7 @@ async function realResponses() {
       // EXT-49: выжимка памяти читателя — у ручки поле memory в полной форме (сверяется с образцом)
       memory: { tokens: 378000, model: 'claude-opus-5-5', at, compactions: 2 },
       runs: [{ agentId: 'a1', agentType: 'terminus', description: 'EXT-6 В3', target: 60, cards: ['EXT-6', 'EXT-7'], at, turns: 3, zakhods: [3], alive: true, lastEndAt: null, currentZakhod: 3, lastAt: at }] },
-    { sessionId: sidW, ivan: { cards: {} }, boardWrites: [], runs: [{ agentId: 'a2', agentType: 'golem', description: 'EXT-7 ревью', target: null, alive: true, lastEndAt: null, currentZakhod: 1, lastAt: at }], thread: { askOpen: true, endTurnQ: null, lastAt: at, ask: { text: 'Какой вариант?', uuid: 'u1', at } }, memory: { tokens: 836000, model: 'claude-opus-5-5', at, compactions: 0 } },
+    { sessionId: sidW, ivan: { cards: {} }, boardWrites: [], runs: [{ agentId: 'a2', agentType: 'golem', description: 'EXT-6 ревью', target: null, cards: ['EXT-6'], alive: true, lastEndAt: null, currentZakhod: 1, lastAt: at }], thread: { askOpen: true, endTurnQ: null, lastAt: at, ask: { text: 'Какой вариант?', uuid: 'u1', at } }, memory: { tokens: 836000, model: 'claude-opus-5-5', at, compactions: 0 } },
     { sessionId: sidC, ivan: { cards: {} }, runs: [], thread: { customTitle: 'EXT · закрытый' }, boardWrites: [{ at: new Date(now - 4 * 3600000).toISOString(), refs: ['EXT-6'], firstLine: '▶ выдан: terminus · ext-6 · В4' }] },
   ];
   const titles = { local_x: 'EXT · витрина', local_w: 'EXT · вопрос' };

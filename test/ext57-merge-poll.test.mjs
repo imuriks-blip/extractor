@@ -23,7 +23,7 @@ const PORT = 4357;
 const H = { host: `127.0.0.1:${PORT}` };
 
 // доска: EXT-1 — неслитая ветка ext-1-a, EXT-2 — слитая ext-2-b, EXT-3 — ветки нет, EXT-4 — mark_b (с EXT-115 ветку считает
-// проход, как у обычной; ветки нет — слита)
+// проход, как у обычной; ни ветки, ни коммита с номером — следа слияния нет, «Принять» нет)
 const boardDir = makeBoard(tmpDir('e57-board-'), { codes: ['EXT'], cards: [
   { id: 'EXT-1', status: 'review' }, { id: 'EXT-2', status: 'review' }, { id: 'EXT-3', status: 'review' }, { id: 'EXT-4', status: 'review', markB: true },
 ] });
@@ -95,7 +95,7 @@ test('EXT-57: запросы /api/ceh, /api/project, /api/card git не зову
     assert.equal(after['EXT-1'][where].branch, 'ext-1-a');
     assert.equal(after['EXT-2'][where].can, true, `EXT-2 ${where}`);
     assert.equal(after['EXT-3'][where].can, true, `EXT-3 ${where}`);
-    assert.equal(after['EXT-4'][where].can, true, `EXT-4 (Б, ветки нет) ${where}`);
+    assert.equal(after['EXT-4'][where].can, false, `EXT-4 (Б, следа нет) ${where}`);
   }
 
   // вершины не менялись — повторный проход git не зовёт (нагрузка в покое, EXT-37)

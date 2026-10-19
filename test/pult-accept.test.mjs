@@ -354,13 +354,13 @@ test('секрет в причине «Вернуть» (класс 2) → от�
 // с 17.10 12:00 по Риге EXT-8 выпадала из (б) в (в), и метки 'Б' у строки не было
 const V7_NOW = '2026-10-04T09:00:00.000Z';
 
-test('В7: карточка с неслитой веткой — «Принять» скрыта в карточке и в строке (в), POST → отказ; слитая и без ветки — можно, Б-карточка без ветки тоже (EXT-115)', async (t) => {
+test('В7: карточка с неслитой веткой и Б-карточка без следа слияния — «Принять» скрыта в карточке и в строке (в), POST → отказ; слитая и без ветки — можно', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse(V7_NOW) });
   const s = await setup();
   await s.pass(); // EXT-57: ветки считает проход читателя git, не запрос страницы
   const acc = async (id) => (await s.get(`/api/card/${id}`)).pult.accept;
-  // EXT-115: Б-карточка — та же проверка ветки; ветки нет — «Принять» есть, репозиторий не из списка автовыкатки — предупреждение
-  assert.deepEqual(await acc('EXT-8'), { can: true, why: null, hint: null, branch: null, warn: 'выкатка ещё не сделана? «Принять» её не снимает' });
+  // EXT-115 (дозапрос 1): у Б-карточки ни ветки, ни коммита с номером в main — следа слияния нет, «Принять» нет
+  assert.deepEqual(await acc('EXT-8'), { can: false, why: 'not-merged', hint: 'не вижу слияния карточки — прими словом в чате', branch: null });
   const nm = await acc('EXT-9');
   assert.equal(nm.can, false);
   assert.equal(nm.why, 'not-merged');
@@ -372,10 +372,12 @@ test('В7: карточка с неслитой веткой — «Принят�
   assert.equal(row('EXT-9').accept.why, 'not-merged');
   assert.equal(row('EXT-10').accept.can, true);
   assert.equal(row('EXT-8').mark, 'Б', 'метка строки (б) не затёрта местной отметкой (у той — pultMark)');
-  assert.equal(row('EXT-8').accept.can, true);
+  assert.equal(row('EXT-8').accept.why, 'not-merged');
   const proj = await s.get('/api/project/EXT');
   assert.equal(proj.waiting.find((x) => x.id === 'EXT-9').accept.why, 'not-merged');
-  // POST у Б-карточки — test/ext115-accept-b.test.mjs
+  const b = await s.press({ action: 'accept', card: 'EXT-8', q: Q });
+  assert.equal(b.json().outcome, 'refused');
+  assert.equal(s.lines().at(-1).refusal, 'not-merged');
   const m = await s.press({ action: 'accept', card: 'EXT-9', q: Q });
   assert.equal(m.json().outcome, 'refused');
   assert.match(m.json().message, /ext-9-x/);
