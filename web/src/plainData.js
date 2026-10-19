@@ -83,7 +83,7 @@ export function threadRemarks(t) {
     else if (m.kind === 'subagentWrite') out.push({ key, kind: m.kind, level, text: `помощник ${who} записал в доску — так нельзя` });
     else if (m.kind === 'collision') { const o = m.other?.title || 'другой тред'; if (!files.includes(o)) files.push(o); }
     // EXT-128: незнакомый вид — словом, сырое имя вида — только под «подробнее» (Mark, Ceh.jsx)
-    else out.push({ key, kind: m.kind, level, text: 'пометка' });
+    else out.push({ key, kind: m.kind, level, text: 'незнакомая пометка — смотри «подробнее»' });
   });
   if (files.length) out.push({ key: 'collision', kind: 'collision', level: 'amber', text: `правит общие файлы вместе с: ${files.join(', ')}` });
   if (t.memory?.warn) out.push({ key: 'memory', kind: 'memory', level: 'amber', text: 'память на исходе — пора сделать снимок и открыть новый тред' });

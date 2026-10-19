@@ -62,7 +62,7 @@ test('EXT-128: у «работает» без подмастерьев стро�
 
 test('EXT-128: незнакомый вид пометки — словом «пометка», не сырым именем; уровень — как у сервера (красный)', () => {
   const r = pd.threadRemarks({ marks: [{ kind: 'newKindX' }, { kind: 'partial', who: 'Голем' }] });
-  assert.deepEqual(r.map((x) => [x.text, x.level]), [['пометка', 'red'], ['помощник Голем остановился на полпути', 'red']]);
+  assert.deepEqual(r.map((x) => [x.text, x.level]), [['незнакомая пометка — смотри «подробнее»', 'red'], ['помощник Голем остановился на полпути', 'red']]);
   assert.ok(!r.some((x) => x.text.includes('newKindX')), 'сырое имя вида в строку не попадает');
   assert.equal(pd.threadRemarks({ marks: [{ kind: 'collision', other: { title: 'EXT' } }] })[0].text, 'правит общие файлы вместе с: EXT', 'знакомые — прежними словами');
 });

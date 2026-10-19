@@ -362,7 +362,7 @@ test('пометка жёлтая: isRedMark ложь, тред не подни�
   const yellow = await cehOf(() => w);
   assert.equal(yellow.json.workers.threads.flatMap((x) => x.marks).filter((m) => m.kind === 'collision').length, 2);
   assert.equal(yellow.json.workers.marksCount, 0, 'жёлтая «Общий файл» в счётчик не входит');
-  const withRed = { ...w, threads: w.threads.map((x) => (x.sessionId === A ? { ...x, marks: [...x.marks, { kind: 'oldRules', at: at(H) }] } : x)) };
+  const withRed = { ...w, threads: w.threads.map((x) => (x.sessionId === A ? { ...x, marks: [...x.marks, { kind: 'partial', at: at(H) }] } : x)) }; // EXT-126: oldRules в счётчик не входит — красная иного вида
   assert.equal((await cehOf(() => withRed)).json.workers.marksCount, 1, 'красная — входит');
   assert.equal(isRedMark({ kind: 'collision' }), false);
   assert.equal(isRedMark({ kind: 'oldRules' }), true, 'прежние пометки красные, как были');
