@@ -1,5 +1,6 @@
 {
   "_brief": "EXT-129 (INFRA-113): map.where.brief — строка «для Ивана:» карты (нет — null), map.cards.ahead|done|cancelled[].brief — поле шапки brief большой карточки (нет — null; маленькие children — без brief). Строгой маской.",
+  "_now": "EXT-130: now — «Сейчас» карты: живые карточки проекта (in-progress, review) — с кодом проекта и из списка «Карточки» карты (любого проекта), без повторов; review выше, внутри свежие сверху. Элемент — только id, title, status, brief (строка для Ивана или null), owner (владелец из шапки или null), updated (давность: max(updated шапки, последняя запись журнала), ISO). Карты нет — now всё равно (по коду); модуль карты недоступен — now []. Строгой маской.",
   "_comment": "GET /api/roadmap/<КОД>: дерево карты. map null — карты нет (hasMap false) или первый разбор битый (broken). ideas[].shown — статус показа: у идеи с card — со статуса карточки (стала карточкой / в работе / сделана / стала карточкой · карточка снята), cardTrace — след карточки в done. cards — ahead / done / cancelled по статусу доски в порядке файла; trace — у done: итог проверки следа как у «Принять» (state ok/warn/bad/none, label, hint, reasons, checked, contractAt, laterRecords). children — маленькие по parent, childrenSummary.label «закрыто X из Y · идёт Z · ждёт W» (закрыто — done и cancelled), hint — серая подсказка «все маленькие закрыты». plan — null или пункты: mark из файла, shownMark — для [>] со статуса карточки; traces[] — по части следа «имя@хеш» или номер карточки, state null — ещё не проверено («проверяю след…»); summary — сделано X из Y.",
   "available": true,
   "error": null,
@@ -282,5 +283,23 @@
     "ideasDiscuss": 1,
     "ahead": 2
   },
-  "broken": null
+  "broken": null,
+  "now": [
+    {
+      "id": "EXT-6",
+      "title": "Спека",
+      "status": "review",
+      "brief": "Спека витрины готова — прочти и прими; дальше — вёрстка",
+      "owner": "trurl:EXT",
+      "updated": "2026-10-18T07:00:00.000Z"
+    },
+    {
+      "id": "EXT-7",
+      "title": "Слить",
+      "status": "in-progress",
+      "brief": null,
+      "owner": null,
+      "updated": "2026-10-18T08:00:00.000Z"
+    }
+  ]
 }

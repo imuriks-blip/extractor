@@ -664,6 +664,10 @@ section.blk{background:var(--surface);border:1px solid var(--line);border-radius
 .rm-st.s-work,.rm-st.s-done{background:var(--green-bg);color:var(--green)}
 .rm-st.s-wait{background:var(--amber-bg);color:var(--amber)}
 .rm-st.s-gone{background:transparent;color:var(--faint);border:1px dashed var(--line)}
+/* «Сейчас» (EXT-130): строка — ссылка на карточку, отступы — как у .rm-row; статусы — .rm-st (на приёмке — s-look, в работе — s-work) */
+.rm-now{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:3px 10px 3px 28px;align-items:baseline;color:inherit;text-decoration:none}
+.rm-now:hover{background:var(--hover)}
+.rm-now:last-child{padding-bottom:7px}
 .rm-it{margin-left:4px}
 .rm-old,.rm-old .rm-id{color:var(--faint)}
 .rm-ans{color:var(--fg)}
@@ -687,7 +691,7 @@ details.grp.rm-card>summary{flex-wrap:wrap;gap:2px 8px;padding:4px 10px;font-siz
   .rm-row{display:block;padding-left:12px}
   .rm-row .rm-n{margin-right:6px}
   .rm-row .rm-src{margin-left:6px;font-size:11px;white-space:normal}
-  .rm-flat{padding-left:12px}
+  .rm-flat,.rm-now{padding-left:12px}
   .rm-kids,.rm-plan{padding-left:28px}
   .rm-pi.d1{padding-left:10px} .rm-pi.d2{padding-left:20px}
   .rm-all .rm-cnt{white-space:normal}
