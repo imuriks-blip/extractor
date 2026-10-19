@@ -15,7 +15,7 @@ import { buildApp } from '../lib/app.mjs';
 import { createBoardReader } from '../lib/board-reader.mjs';
 import { createGitRead } from '../lib/git-read.mjs';
 import { createRegistryReader } from '../lib/registry.mjs';
-import { acceptState, needsGit, createMergeCheck, B_HINT } from '../lib/pult/accept.mjs';
+import { acceptState, needsGit, createMergeCheck, B_HINT, FORK_HINT } from '../lib/pult/accept.mjs';
 import { BOARD_LIB, tmpDir, makeBoard, gitInitCommit, git, gitCommitAll } from './helpers.mjs';
 
 const { parseCard } = await import(new URL(`file:///${BOARD_LIB}/header.mjs`).href);
@@ -66,10 +66,10 @@ test('EXT-115: Б не слита или не проверить → кнопк�
 });
 
 test('EXT-115: Б слита, но последняя запись — «развилка» / «сливай» / «выкатывай» → кнопки нет (как раньше)', () => {
-  // подсказка у Б с развилкой — как была (B_HINT, не FORK_HINT): ТЗ п.1 «по-прежнему без кнопки, как сейчас»
+  // подсказка: «развилка» — FORK_HINT (сначала ответ на развилку; правка дирижёра), «сливай»/«выкатывай» — B_HINT
   for (const mk of ['развилка', 'сливай', 'выкатывай']) {
     const st = acceptState(B({ mark: mk }), repoOk('ledger-read-api'));
-    assert.deepEqual([st.can, st.why, st.hint], [false, 'b-deal', B_HINT], mk);
+    assert.deepEqual([st.can, st.why, st.hint], [false, 'b-deal', mk === 'развилка' ? FORK_HINT : B_HINT], mk);
   }
   // askMark читателя сильнее mark (запись пульта с Б)
   assert.equal(acceptState(B({ mark: null, askMark: 'сливай' }), repoOk('ledger-read-api')).can, false);
@@ -203,7 +203,7 @@ test('EXT-115: ручки после прохода git — Б слита → «
   assert.equal(c5.branch, 'car-5-x');
   assert.ok(c5.hint.includes(B_HINT), c5.hint);
   const c7 = await acc('CAR-7');
-  assert.deepEqual([c7.can, c7.why, c7.hint], [false, 'b-deal', B_HINT]);
+  assert.deepEqual([c7.can, c7.why, c7.hint], [false, 'b-deal', FORK_HINT]);
   const l6 = await acc('LEDGER-6');
   assert.equal(l6.can, true);
   assert.equal(l6.warn ?? null, null, 'у проекта один репозиторий, с автовыкаткой');
