@@ -22,7 +22,8 @@ const { scan } = await import(new URL(`file:///${BOARD_LIB}/secrets.mjs`).href);
 const PORT = 4357;
 const H = { host: `127.0.0.1:${PORT}` };
 
-// доска: EXT-1 — неслитая ветка ext-1-a, EXT-2 — слитая ext-2-b, EXT-3 — ветки нет, EXT-4 — mark_b (git не нужен)
+// доска: EXT-1 — неслитая ветка ext-1-a, EXT-2 — слитая ext-2-b, EXT-3 — ветки нет, EXT-4 — mark_b (с EXT-115 ветку считает
+// проход, как у обычной; ни ветки, ни коммита с номером — следа слияния нет, «Принять» нет)
 const boardDir = makeBoard(tmpDir('e57-board-'), { codes: ['EXT'], cards: [
   { id: 'EXT-1', status: 'review' }, { id: 'EXT-2', status: 'review' }, { id: 'EXT-3', status: 'review' }, { id: 'EXT-4', status: 'review', markB: true },
 ] });
@@ -76,11 +77,11 @@ test('EXT-57: запросы /api/ceh, /api/project, /api/card git не зову
   const g = countedGit();
   const s = await setup(g);
 
-  // до прохода: страницы git не зовут, у карточек, где решает ветка, — «проверяю»; Б-карточка — без git
+  // до прохода: страницы git не зовут, у карточек, где решает ветка, — «проверяю»; Б-карточка — тоже (EXT-115)
   const before = await s.pages();
   assert.deepEqual(g.calls, [], 'запрос страницы не зовёт git');
   for (const id of ['EXT-1', 'EXT-2', 'EXT-3']) for (const where of ['card', 'ceh', 'proj']) assert.deepEqual(before[id][where], CHECKING, `${id} ${where}`);
-  assert.equal(before['EXT-4'].card.why, 'b-deal');
+  assert.deepEqual(before['EXT-4'].card, CHECKING, 'EXT-4 (Б) card');
 
   // проход: git зовётся здесь
   await s.merge.refresh();
@@ -94,6 +95,7 @@ test('EXT-57: запросы /api/ceh, /api/project, /api/card git не зову
     assert.equal(after['EXT-1'][where].branch, 'ext-1-a');
     assert.equal(after['EXT-2'][where].can, true, `EXT-2 ${where}`);
     assert.equal(after['EXT-3'][where].can, true, `EXT-3 ${where}`);
+    assert.equal(after['EXT-4'][where].can, false, `EXT-4 (Б, следа нет) ${where}`);
   }
 
   // вершины не менялись — повторный проход git не зовёт (нагрузка в покое, EXT-37)

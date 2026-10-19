@@ -84,6 +84,10 @@ export function withdrawResult(status, body) {
   return { phase: 'error', text: msg };
 }
 
+// EXT-115: предупреждение рядом с «Принять» — только когда кнопка есть (can === true) и сервер дал непустой warn (у слитой
+// Б-карточки с ручной выкаткой: «выкатка ещё не сделана? …»). Кнопку не прячет; у обычных карточек поля нет — null
+export const acceptWarn = (a) => (a?.can === true && typeof a.warn === 'string' && a.warn.trim() ? a.warn.trim() : null);
+
 // Местная отметка отозванного слова (§1.9): для кнопок слов считается красной — кнопки у карточки и строки снова есть
 export const markIsRed = (m) => !!m && (m.missing === true || isWithdrawnRing(m.ring));
 

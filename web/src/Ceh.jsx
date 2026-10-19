@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import { useOpen, useStored } from './prefs.js';
 import { REVIEW_FILTER_KEY, isReviewFilter, nextFilter, reviewView } from './reviewData.js';
-import { ageShort, dur, hm, dm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine, foremanLabel, canReplyRow, replyWords } from './format.js';
+import { ageShort, dur, hm, minutes, plural, DESKTOP_HINT, waitsInDesktop, stepChips, compactLine, foremanLabel, canReplyRow, replyWords } from './format.js';
 import Pult, { MarkLine, PultMark } from './Pult.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
 import { Summary, More } from './Summary.jsx';
-import Reread from './Reread.jsx';
-import { FILTER_WORD, briefMe, briefNow, lineForIvan, markWord, phaseLine, projectCounts, reviewSubView, splitProjects, threadDoing, traceWord, workersView } from './plainData.js';
+import { FILTER_WORD, briefMe, briefNow, lineForIvan, markWord, phaseLine, projectCounts, reviewSubView, shownMarks, splitProjects, threadDoing, traceWord, workersView } from './plainData.js';
 import { MyWords, Worktrees } from './Words.jsx';
 import NewCard from './NewCard.jsx';
 
@@ -382,7 +381,7 @@ function Done({ done }) {
   return done.map((c, i) => <span key={c.hash}>{i > 0 && '; '}<span className="mono">{c.hash}</span>{c.subject}</span>);
 }
 
-export function Mark({ m, now, sid }) {
+export function Mark({ m, now }) {
   const who = m.who || m.agent;
   switch (m.kind) {
     case 'partial':
@@ -411,16 +410,8 @@ export function Mark({ m, now, sid }) {
         </div>
       );
     case 'oldRules':
-      // EXT-65: missing — файлы набора, которых тред после момента не прочитал; поля нет — набор выключен, строки нет.
-      // Закрытый тред (sid не передан) просить некому — строка без кнопки.
-      return (
-        <div className="alarm">
-          <span className="h">Старые правила</span>тред открыт до «правила обновлены» {dm(m.rulesUpdatedAt)}
-          {m.missing?.length > 0 && (sid
-            ? <Reread session={sid} missing={m.missing} now={now} />
-            : <div className="rr">не перечитаны: {m.missing.map((f) => f.short || f.path).join(', ')}</div>)}
-        </div>
-      );
+      // EXT-126: «Старые правила» и кнопки «Перечитать правила» нет — треды видят обновление правил сами (INFRA-112)
+      return null;
     case 'collision': {
       // EXT-60 (§2.3): жёлтая; путь — short, полный — подсказкой; время — правка другого треда (otherAt)
       const files = m.files || [];
@@ -461,8 +452,8 @@ function Memory({ m, now }) {
   );
 }
 
-// inner (EXT-125) — тред целиком под «подробнее» строки «Цеха»: без своей шапки и рамки; кнопку «Перечитать правила» там
-// не рисуем (она уже в строке замечания) — «Старые правила» показывают только список файлов
+// inner (EXT-125) — тред целиком под «подробнее» строки «Цеха»: без своей шапки и рамки. Пометки — без «старых правил»
+// (shownMarks, EXT-126): о правилах витрина больше не говорит — ни пометкой, ни строками «правила свежие / перечитаны»
 export function Thread({ t, now, inner = false }) {
   const [cls, word] = STATE[t.state] || ['free', t.state];
   const showCode = t.project && !(t.title || '').startsWith(t.project);
@@ -484,15 +475,11 @@ export function Thread({ t, now, inner = false }) {
           : <>
               {t.card ? <span className="mono">{t.card}</span> : <span className="faint">без карточки</span>}
               <span className="num">{t.sinceKind === 'card' ? 'идёт' : 'открыт'} {dur(t.since, now)}</span>
-              {/* окно проекта (3.2): rulesFresh приходит только из /api/project; «Старые правила» — пометкой oldRules ниже */}
-              {t.rulesFresh === true && <span>правила свежие</span>}
-              {/* EXT-54: тред до «правила обновлены», но сам перечитал правила после — серая строка вместо пометки */}
-              {t.rulesReread && <span className="faint">правила перечитаны {dm(t.rulesReread)}</span>}
             </>}
       </div>
       <Memory m={t.memory} now={now} />
       {t.subagents.map((s, i) => <Sub key={`${s.agent}-${i}`} s={s} />)}
-      {t.marks.map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} sid={inner ? undefined : t.sessionId} />)}
+      {shownMarks(t.marks).map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} />)}
     </div>
   );
 }
@@ -501,12 +488,12 @@ const GaugeLegend = () => (
   <div className="legend"><span><span className="gauge"><i style={{ width: '40%' }} /><b style={{ left: '55%' }} /></span> ходы до тормоза агента, риска — ориентир из ТЗ</span></div>
 );
 
-// EXT-125: тред одной строкой по-людски — чем занят или его замечания (кнопка «Перечитать правила» рядом); прежний вид треда
+// EXT-125: тред одной строкой по-людски — чем занят или его замечания; прежний вид треда
 // целиком (карточка, память, помощники, пометки) — под «подробнее»
 function PlainThread({ t, remarks, now }) {
   const [cls, word] = STATE[t.state] || ['free', t.state];
-  const oldRules = t.marks.find((m) => m.kind === 'oldRules');
-  const doing = !remarks.length || t.subagents.length > 0;
+  // EXT-128: у «работает» без подмастерьев сказать нечего — строки нет (threadDoing null), плашка не повторяется
+  const doing = !remarks.length || t.subagents.length > 0 ? threadDoing(t) : null;
   return (
     <div className="thr">
       <div className="th1">
@@ -519,13 +506,8 @@ function PlainThread({ t, remarks, now }) {
         </span>
         <span className={`st ${cls}`}>{word}</span>
       </div>
-      {doing && <div className="pl">{threadDoing(t)}</div>}
-      {remarks.map((r) => (
-        <div key={r.key} className={`pl pl-${r.level}`}>
-          <span>{r.text}</span>
-          {r.reread && oldRules && <Reread session={t.sessionId} missing={oldRules.missing} now={now} bare />}
-        </div>
-      ))}
+      {doing && <div className="pl">{doing}</div>}
+      {remarks.map((r) => <div key={r.key} className={`pl pl-${r.level}`}><span>{r.text}</span></div>)}
       <More>
         <Thread t={t} now={now} inner />
         {t.subagents.length > 0 && <GaugeLegend />}

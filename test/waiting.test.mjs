@@ -369,10 +369,10 @@ test('Важно 1: наверх поднимает только красная 
   const order = (marks) => buildThreads({ procs: [proc(sA, 'waiting'), proc(sB, 'idle')], sessions: [thr(sA), thr(sB)], board: b, now: T0, marks: { [sB]: marks } }).threads.map((t) => t.sessionId);
   assert.deepEqual(order([yellow]), [sA, sB], 'жёлтый такт тред не поднимает (слово Ивана 02.10 «только красные»)');
   assert.deepEqual(order([{ ...yellow, level: 'red' }]), [sB, sA], 'красный такт — свободный над ждущим');
-  assert.deepEqual(order([{ kind: 'oldRules', rulesUpdatedAt: iso(T0) }]), [sB, sA], 'старые правила — тоже красная');
+  assert.deepEqual(order([{ kind: 'oldRules', rulesUpdatedAt: iso(T0) }]), [sA, sB], 'старые правила тред не поднимают (EXT-126: вид их больше не показывает)');
   const red = [{ ...yellow, level: 'red' }, { kind: 'oldRules', rulesUpdatedAt: iso(T0) }, { kind: 'partial' }, { kind: 'subagentWrite' }];
   const ceh = buildCeh({ board: { codes: () => [], counts: () => ({}), activity: () => null }, registry: { codes: [] }, workers: { threads: [{ marks: [yellow, ...red] }], subagentsCount: 0 }, freshness: {} });
-  assert.equal(ceh.workers.marksCount, 4, 'жёлтый такт в красный счётчик не входит');
+  assert.equal(ceh.workers.marksCount, 3, 'жёлтый такт в красный счётчик не входит; oldRules — тоже (EXT-126)');
 });
 
 test('Важно 2: журнал карточки заперт (EBUSY) — карточка остаётся с прежней последней записью, счётчик ошибок журналов; исправный — обновляется', async () => {
