@@ -134,23 +134,58 @@ fs.writeFileSync(path.join(carBack, 'b.txt'), 'b');
 gitCommitAll(carBack, 'car-5');
 git(carBack, 'checkout', '-q', 'main');
 pushed(carBack);
-// ledger-read-api (один репозиторий проекта, автовыкатка), веток карточек нет — след только коммитом (б):
-// LEDGER-6 (Б): следа нет; LEDGER-8 (Б): «Merge LEDGER-8 …» в main и origin/main; LEDGER-10, LEDGER-11 (Б): одно слияние
-// ветки на две карточки, отправлено; LEDGER-12 (Б): только номер-префикс «LEDGER-120» и слитно с буквой — не след;
-// LEDGER-13 (Б): номер в кавычках-ёлочках рядом с кириллицей — след; LEDGER-9 (Б): коммит только в локальном main (origin позади);
-// LEDGER-15 (Б): вопрос «выкатывай?», после него запись без метки, следа нет
-commit(ledger, 'Merge LEDGER-8: очередь голоса');
-commit(ledger, 'Merge LEDGER-10, LEDGER-11 (ветка ledger-10-11-x): две карточки одним заходом');
-commit(ledger, 'LEDGER-120 готово; LEDGER-12б черновик');
-commit(ledger, 'Слито «LEDGER-13» в main');
+// коммит слияния ветки в текущую (--no-ff): msgs — абзацы сообщения (первый — тема); ветка после слияния удалена, как у нас
+const T = ['-c', 'user.name=t', '-c', 'user.email=t@t'];
+const mergeIn = (repo, branch, ...msgs) => {
+  const into = git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
+  git(repo, 'checkout', '-q', '-b', branch);
+  commit(repo, `${branch}: работа`);
+  git(repo, 'checkout', '-q', into);
+  git(repo, ...T, 'merge', '--no-ff', '-q', ...msgs.flatMap((m) => ['-m', m]), branch);
+  git(repo, 'branch', '-D', branch);
+};
+// ledger-read-api (автовыкатка), веток карточек нет — след только слиянием (б): коммит слияния на first-parent main, номер в теме.
+// LEDGER-6 (Б): следа нет; LEDGER-8 (Б): «Merge … (LEDGER-8)» в main и origin/main; LEDGER-10, LEDGER-11 (Б): одно слияние
+// ветки на две карточки, отправлено; LEDGER-12 (Б): в теме слияния только «LEDGER-120» и «LEDGER-12б» — не след;
+// LEDGER-13 (Б): номер в ёлочках рядом с кириллицей — след; LEDGER-15 (Б): «выкатывай?», потом запись без метки, следа нет;
+// LEDGER-18 (Б): обычный коммит main «… до LEDGER-18 (Б, миграция)» — упоминание, не слияние; LEDGER-19 (Б): слияние с номером
+// в ветку side (side потом влита в main без номера) — не first-parent main; LEDGER-20 (Б): номер в теле слияния, не в теме;
+// LEDGER-21 (Б): «Merge ledger-21-x (LEDGER-21): …» в main и origin; LEDGER-22 (Б): старое упоминание отправлено, а слияние
+// только локально; LEDGER-9 (Б): слияние только в локальном main (origin позади)
+mergeIn(ledger, 'work-8', 'Merge work-8 (LEDGER-8): очередь голоса');
+mergeIn(ledger, 'ledger-10-11-x', 'Merge LEDGER-10, LEDGER-11 (ветка ledger-10-11-x): две карточки одним заходом');
+mergeIn(ledger, 'work-12', 'Merge work-12: LEDGER-120 готово; LEDGER-12б черновик');
+mergeIn(ledger, 'work-13', 'Слито «LEDGER-13» в main');
+commit(ledger, 'Деньги: схема до LEDGER-18 (Б, миграция)');
+git(ledger, 'checkout', '-q', '-b', 'side');
+commit(ledger, 'side: своё');
+mergeIn(ledger, 'feat-19', 'Merge feat-19 (LEDGER-19) в side');
+git(ledger, 'checkout', '-q', 'main');
+git(ledger, ...T, 'merge', '--no-ff', '-q', '-m', 'merge: side', 'side');
+git(ledger, 'branch', '-D', 'side');
+mergeIn(ledger, 'work-20', 'Merge work-20: деньги', 'Закрывает LEDGER-20.');
+mergeIn(ledger, 'ledger-21-x', 'Merge ledger-21-x (LEDGER-21): миграция');
+commit(ledger, 'LEDGER-22: черновик схемы');
 pushed(ledger);
-commit(ledger, 'Merge LEDGER-9 — ещё не отправлено');
+mergeIn(ledger, 'ledger-22-x', 'Merge ledger-22-x (LEDGER-22): схема');
+mergeIn(ledger, 'work-9', 'Merge work-9 (LEDGER-9) — ещё не отправлено');
+// репозиторий доски (registry board.repo) среди репозиториев проекта: каждая запись доски — коммит main «<НОМЕР>: log …»; там же
+// слияние с номером в теме и слитая ветка карточки — из поиска следа Б доска исключена целиком.
+// LEDGER-16 (Б): только запись доски; LEDGER-17 (Б): ветка ledger-17-x и «Merge ledger-17-x (LEDGER-17)» — только в доске
+const boardRepo = mkRepo('unorbis-board');
+commit(boardRepo, 'LEDGER-16: log ▶');
+git(boardRepo, 'checkout', '-q', '-b', 'ledger-17-x');
+commit(boardRepo, 'ledger-17-x: работа');
+git(boardRepo, 'checkout', '-q', 'main');
+git(boardRepo, ...T, 'merge', '--no-ff', '-q', '-m', 'Merge ledger-17-x (LEDGER-17)', 'ledger-17-x');
+pushed(boardRepo);
 
 const Q_MD = 'Готово, ветка слита и выкачена — принимай?';
 const Q_HTML = '<p>Готово, ветка слита и выкачена — принимай?</p>';
 const Q_AT = '2026-10-03T09:00:00.000Z';
 const logWith = (body) => `### 2026-10-03 12:00 +03:00 · plane · коммент\n\n${body}\n`;
-const LEDGER_B = ['LEDGER-6', 'LEDGER-8', 'LEDGER-9', 'LEDGER-10', 'LEDGER-11', 'LEDGER-12', 'LEDGER-13', 'LEDGER-15'];
+const LEDGER_B = ['LEDGER-6', 'LEDGER-8', 'LEDGER-9', 'LEDGER-10', 'LEDGER-11', 'LEDGER-12', 'LEDGER-13', 'LEDGER-15', 'LEDGER-16', 'LEDGER-17',
+  'LEDGER-18', 'LEDGER-19', 'LEDGER-20', 'LEDGER-21', 'LEDGER-22'];
 const boardDir = makeBoard(tmpDir('e115-board-'), { codes: ['CAR', 'LEDGER'], cards: [
   { id: 'CAR-1', status: 'review', markB: true }, { id: 'CAR-2', status: 'review', markB: true }, { id: 'CAR-3', status: 'review', markB: true },
   { id: 'CAR-4', status: 'review' }, { id: 'CAR-5', status: 'review', markB: true }, { id: 'CAR-7', status: 'review', markB: true },
@@ -166,7 +201,7 @@ fs.writeFileSync(path.join(boardDir, '.mirror', 'status.json'), JSON.stringify({
 fs.mkdirSync(path.join(boardDir, 'tools'));
 fs.writeFileSync(path.join(boardDir, 'tools', 'mirror-hidden.js'), '// заглушка: настоящий не запускается\n');
 const regFile = path.join(tmpDir('e115-reg-'), 'registry.json');
-fs.writeFileSync(regFile, JSON.stringify({ board_codes: { CAR: { repos: [carWeb, carBack] }, LEDGER: { repos: [ledger] } } }));
+fs.writeFileSync(regFile, JSON.stringify({ board: { repo: boardRepo }, board_codes: { CAR: { repos: [carWeb, carBack] }, LEDGER: { repos: [ledger, boardRepo] } } }));
 
 const board = createBoardReader({ root: boardDir, git: createGitRead(), parseCard, parseLog, latest });
 await board.init();
@@ -243,7 +278,7 @@ test('EXT-115: ручки после прохода git — след ветко�
   await s.app.close();
 });
 
-test('EXT-115: след коммитом (б) — номер отдельным словом в сообщении коммита main; origin/main решает warn у автовыкатки', async () => {
+test('EXT-115: след слиянием (б) — коммит слияния на first-parent main, номер отдельным словом в теме; origin/main решает warn у автовыкатки', async () => {
   const s = await setup();
   await s.pass();
   const acc = async (id) => (await s.get(`/api/card/${id}`)).pult.accept;
@@ -256,6 +291,16 @@ test('EXT-115: след коммитом (б) — номер отдельным 
   assert.equal((await acc('LEDGER-12')).can, false, '«LEDGER-120» и «LEDGER-12б» — не номер LEDGER-12');
   assert.equal((await acc('LEDGER-13')).can, true, '«LEDGER-13» в ёлочках рядом с кириллицей — номер');
   assert.deepEqual(await acc('LEDGER-15'), { can: false, why: 'not-merged', hint: NO_TRACE, branch: null }, '«выкатывай?», потом запись без метки, следа нет');
+  const none = { can: false, why: 'not-merged', hint: NO_TRACE, branch: null };
+  assert.deepEqual(await acc('LEDGER-16'), none, 'запись доски «LEDGER-16: log ▶» — не след');
+  assert.deepEqual(await acc('LEDGER-17'), none, 'ветка и слияние только в репозитории доски — не след');
+  assert.deepEqual(await acc('LEDGER-18'), none, 'обычный коммит «до LEDGER-18» — упоминание, не слияние');
+  assert.deepEqual(await acc('LEDGER-19'), none, 'слияние в ветку side — не first-parent main');
+  assert.deepEqual(await acc('LEDGER-20'), none, 'номер в теле слияния, не в теме');
+  const l21 = await acc('LEDGER-21');
+  assert.deepEqual([l21.can, l21.warn], [true, null], '«Merge ledger-21-x (LEDGER-21)» в main и origin/main');
+  const l22 = await acc('LEDGER-22');
+  assert.deepEqual([l22.can, l22.warn], [true, WARN], 'старое упоминание отправлено, слияние только локально');
   // отправили (origin/main догнал main) — следующий проход снимает warn
   pushed(ledger);
   await s.pass();
