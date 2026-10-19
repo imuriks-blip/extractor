@@ -165,19 +165,24 @@ git(ledger, ...T, 'merge', '--no-ff', '-q', '-m', 'merge: side', 'side');
 git(ledger, 'branch', '-D', 'side');
 mergeIn(ledger, 'work-20', 'Merge work-20: деньги', 'Закрывает LEDGER-20.');
 mergeIn(ledger, 'ledger-21-x', 'Merge ledger-21-x (LEDGER-21): миграция');
+mergeIn(ledger, 'work-23', 'Merge work-23 (LEDGER-23): часть в учётке');
 commit(ledger, 'LEDGER-22: черновик схемы');
 pushed(ledger);
 mergeIn(ledger, 'ledger-22-x', 'Merge ledger-22-x (LEDGER-22): схема');
 mergeIn(ledger, 'work-9', 'Merge work-9 (LEDGER-9) — ещё не отправлено');
-// репозиторий доски (registry board.repo) среди репозиториев проекта: каждая запись доски — коммит main «<НОМЕР>: log …»; там же
-// слияние с номером в теме и слитая ветка карточки — из поиска следа Б доска исключена целиком.
-// LEDGER-16 (Б): только запись доски; LEDGER-17 (Б): ветка ledger-17-x и «Merge ledger-17-x (LEDGER-17)» — только в доске
+// репозиторий доски (registry board.repo) среди репозиториев проекта: каждая запись доски — коммит main «<НОМЕР>: log …» —
+// следом (б) в доске не ищется; ветки кода карточки в доске (`ext-N-*`) проверяются как везде (третий круг Голема).
+// LEDGER-16 (Б): только запись доски — не след; LEDGER-17 (Б): ветка ledger-17-x в доске слита — след (а), warn (доска не
+// автовыкатка); LEDGER-23 (Б): «Merge work-23 (LEDGER-23)» в учётке, а ветка ledger-23-x в доске не слита — not-merged
 const boardRepo = mkRepo('unorbis-board');
 commit(boardRepo, 'LEDGER-16: log ▶');
 git(boardRepo, 'checkout', '-q', '-b', 'ledger-17-x');
 commit(boardRepo, 'ledger-17-x: работа');
 git(boardRepo, 'checkout', '-q', 'main');
 git(boardRepo, ...T, 'merge', '--no-ff', '-q', '-m', 'Merge ledger-17-x (LEDGER-17)', 'ledger-17-x');
+git(boardRepo, 'checkout', '-q', '-b', 'ledger-23-x');
+commit(boardRepo, 'ledger-23-x: работа в доске');
+git(boardRepo, 'checkout', '-q', 'main');
 pushed(boardRepo);
 
 const Q_MD = 'Готово, ветка слита и выкачена — принимай?';
@@ -185,7 +190,7 @@ const Q_HTML = '<p>Готово, ветка слита и выкачена — �
 const Q_AT = '2026-10-03T09:00:00.000Z';
 const logWith = (body) => `### 2026-10-03 12:00 +03:00 · plane · коммент\n\n${body}\n`;
 const LEDGER_B = ['LEDGER-6', 'LEDGER-8', 'LEDGER-9', 'LEDGER-10', 'LEDGER-11', 'LEDGER-12', 'LEDGER-13', 'LEDGER-15', 'LEDGER-16', 'LEDGER-17',
-  'LEDGER-18', 'LEDGER-19', 'LEDGER-20', 'LEDGER-21', 'LEDGER-22'];
+  'LEDGER-18', 'LEDGER-19', 'LEDGER-20', 'LEDGER-21', 'LEDGER-22', 'LEDGER-23'];
 const boardDir = makeBoard(tmpDir('e115-board-'), { codes: ['CAR', 'LEDGER'], cards: [
   { id: 'CAR-1', status: 'review', markB: true }, { id: 'CAR-2', status: 'review', markB: true }, { id: 'CAR-3', status: 'review', markB: true },
   { id: 'CAR-4', status: 'review' }, { id: 'CAR-5', status: 'review', markB: true }, { id: 'CAR-7', status: 'review', markB: true },
@@ -293,7 +298,10 @@ test('EXT-115: след слиянием (б) — коммит слияния н
   assert.deepEqual(await acc('LEDGER-15'), { can: false, why: 'not-merged', hint: NO_TRACE, branch: null }, '«выкатывай?», потом запись без метки, следа нет');
   const none = { can: false, why: 'not-merged', hint: NO_TRACE, branch: null };
   assert.deepEqual(await acc('LEDGER-16'), none, 'запись доски «LEDGER-16: log ▶» — не след');
-  assert.deepEqual(await acc('LEDGER-17'), none, 'ветка и слияние только в репозитории доски — не след');
+  const l17 = await acc('LEDGER-17');
+  assert.deepEqual([l17.can, l17.warn], [true, WARN], 'слитая ветка кода в доске — след (а); доска не автовыкатка — warn');
+  const l23 = await acc('LEDGER-23');
+  assert.deepEqual([l23.can, l23.why, l23.branch], [false, 'not-merged', 'ledger-23-x'], 'ветка в доске не слита — нет кнопки, хоть след в учётке есть');
   assert.deepEqual(await acc('LEDGER-18'), none, 'обычный коммит «до LEDGER-18» — упоминание, не слияние');
   assert.deepEqual(await acc('LEDGER-19'), none, 'слияние в ветку side — не first-parent main');
   assert.deepEqual(await acc('LEDGER-20'), none, 'номер в теле слияния, не в теме');
