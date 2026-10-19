@@ -14,8 +14,8 @@ const ONE = JSON.parse(fs.readFileSync(path.join(ROOT, '..', 'web', 'fixtures', 
 
 test('«Сейчас»: строка для Ивана первой, нет — заголовок; статус словом; review ждёт Ивана; порядок — сервера', () => {
   assert.deepEqual(nowView(ONE.now), [
-    { id: 'EXT-6', text: 'Спека витрины готова — прочти и прими; дальше — вёрстка', title: 'Спека', word: 'на приёмке', cls: 'look', me: true },
-    { id: 'EXT-7', text: 'Слить', title: null, word: 'в работе', cls: 'work', me: false },
+    { id: 'EXT-6', text: 'Спека витрины готова — прочти и прими; дальше — вёрстка', title: 'Спека', word: 'на приёмке', cls: 'look' },
+    { id: 'EXT-7', text: 'Слить', title: null, word: 'в работе', cls: 'work' },
   ]);
 });
 

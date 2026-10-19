@@ -192,7 +192,7 @@ export function mapStatus(s) {
 /* ---------- карта проекта: «Сейчас» (EXT-130) ---------- */
 
 // поле now сервера (GET /api/roadmap/<КОД>): живые карточки проекта, порядок — сервера (на приёмке выше, свежие сверху).
-// Строка — brief карточки (нет — заголовок), мелко — номер и статус словом; review ждёт Ивана (me) — цвет «посмотри» карты и
+// Строка — brief карточки (нет — заголовок), мелко — номер и статус словом; review ждёт Ивана — цвет «посмотри» карты и
 // «ждёт тебя» «Цеха» (cls look), в работе — цвет «делаем» (work). Поля нет (старый сервер),
 // не массив или пусто — пустой список: блока нет вовсе
 const NOW_WORD = { review: ['на приёмке', 'look'], 'in-progress': ['в работе', 'work'] };
@@ -206,6 +206,5 @@ export function nowView(now) {
       title: lineForIvan(x) && typeof x.title === 'string' ? x.title : null,
       word: NOW_WORD[x.status]?.[0] ?? (x.status ? String(x.status) : '—'),
       cls: NOW_WORD[x.status]?.[1] ?? 'later',
-      me: x.status === 'review',
     }));
 }

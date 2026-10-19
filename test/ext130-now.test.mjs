@@ -42,8 +42,11 @@ const CARDS = [
   { id: 'INFRA-3', status: 'done', title: 'Чужая сделанная из карты', updated: '2026-10-08T12:00+03:00' },
   { id: 'BW-1', status: 'review', title: 'Без карты', updated: '2026-10-05T12:00+03:00' },
   { id: 'BW-2', status: 'backlog', title: 'Без карты, бэклог', updated: '2026-10-05T12:00+03:00' },
+  // равная давность — порядок по номеру числом (IPTV-9 раньше IPTV-10; строкой было бы наоборот)
+  { id: 'IPTV-10', status: 'in-progress', title: 'Десятая', updated: '2026-10-05T12:00+03:00' },
+  { id: 'IPTV-9', status: 'in-progress', title: 'Девятая', updated: '2026-10-05T12:00+03:00' },
 ];
-const boardDir = makeBoard(tmpDir('b130-'), { codes: ['EXT', 'INFRA', 'CAR', 'BW'], cards: CARDS });
+const boardDir = makeBoard(tmpDir('b130-'), { codes: ['EXT', 'INFRA', 'CAR', 'BW', 'IPTV'], cards: CARDS });
 for (const c of CARDS) {
   const dir = path.join(boardDir, c.id.split('-')[0]);
   let t = cardText(c);
@@ -74,7 +77,7 @@ gitInitCommit(boardDir);
 
 const regFile = path.join(tmpDir('r130-'), 'registry.json');
 const reg0 = { projects: [], project_cards: [], repos: [] };
-fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: reg0, INFRA: reg0, CAR: reg0, BW: reg0 }, board_shared_repos: { repos: [] } }));
+fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: reg0, INFRA: reg0, CAR: reg0, BW: reg0, IPTV: reg0 }, board_shared_repos: { repos: [] } }));
 const registry = createRegistryReader(regFile);
 
 async function start({ lib = roadmapLib, parse = parseCard } = {}) {
@@ -136,6 +139,10 @@ test('проект без карты: now всё равно отдаётся —
   assert.equal(bw.hasMap, false);
   assert.equal(bw.map, null);
   assert.deepEqual(bw.now.map((x) => [x.id, x.status, x.updated]), [['BW-1', 'review', '2026-10-05T09:00:00.000Z']]);
+});
+
+test('now: равная давность — порядок по номеру числом (IPTV-9 раньше IPTV-10)', async () => {
+  assert.deepEqual((await get('/api/roadmap/IPTV')).now.map((x) => x.id), ['IPTV-9', 'IPTV-10']);
 });
 
 test('проект с картой без живых карточек: now — пустой список', async () => {
