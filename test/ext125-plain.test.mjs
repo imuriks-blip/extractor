@@ -67,23 +67,23 @@ test('свёртка подгруппы «Готово, посмотри»: вс
   assert.equal(pd.reviewSubView([row(undefined), row(undefined)]).uniform, null, 'без следа — не сворачиваем');
 });
 
-test('уровни замечаний — как isRedMark сервера: старые правила, PARTIAL, запись субагента, красный такт — красные; жёлтый такт и общий файл — жёлтые', () => {
+test('уровни замечаний — как isRedMark сервера: старые правила, PARTIAL, запись субагента, красный такт — красные; жёлтый такт и общий файл — жёлтые; старые правила в строке не видны (EXT-126)', () => {
   const marks = [
     { kind: 'oldRules', missing: [{ path: 'a' }] }, { kind: 'partial', who: 'Бальд' }, { kind: 'subagentWrite', who: 'Голем' },
     { kind: 'takt', level: 'red', card: 'EXT-1' }, { kind: 'takt', level: 'amber', card: 'EXT-2' }, { kind: 'collision', other: { title: 'EXT' } },
   ];
   for (const m of marks) assert.equal(pd.isRedMark(m), serverIsRed(m), m.kind + (m.level ? ` ${m.level}` : ''));
   const r = pd.threadRemarks({ marks });
-  assert.deepEqual(r.map((x) => [x.kind, x.level]), [['oldRules', 'red'], ['partial', 'red'], ['subagentWrite', 'red'], ['takt', 'red'], ['takt', 'amber'], ['collision', 'amber']]);
+  assert.deepEqual(r.map((x) => [x.kind, x.level]), [['partial', 'red'], ['subagentWrite', 'red'], ['takt', 'red'], ['takt', 'amber'], ['collision', 'amber']]);
   assert.equal(new Set(r.map((x) => x.key)).size, r.length, 'ключи уникальны');
   assert.deepEqual(r.filter((x) => x.kind === 'takt').map((x) => x.text), ['задача EXT-1 выдана, ответа от неё нет', 'задача EXT-2 выдана, ответа от неё нет'], 'два такта — с номерами, не сливаются');
   assert.equal(pd.threadRemarks({ marks: [], memory: { warn: true } })[0].level, 'amber', 'память — жёлтая');
-  assert.equal(pd.threadRemarks({ marks: [{ kind: 'oldRules' }] })[0].reread, false, 'набора нет — без кнопки');
+  assert.deepEqual(pd.threadRemarks({ marks: [{ kind: 'oldRules', missing: [{ path: 'x' }] }] }), [], 'EXT-126: «работает по старым правилам» нет');
 });
 
-test('«Кто работает»: красный счётчик — только треды с красными пометками; старые правила — тревога сводки', () => {
+test('«Кто работает»: красный счётчик — только треды с красными пометками; старые правила — не тревога и не счётчик (EXT-126)', () => {
   const v = pd.workersView([
-    { sessionId: 'a', state: 'idle', marks: [{ kind: 'oldRules', missing: [{ path: 'x' }] }], subagents: [] },
+    { sessionId: 'a', state: 'idle', marks: [{ kind: 'partial', who: 'Бальд' }], subagents: [] },
     { sessionId: 'b', state: 'busy', marks: [{ kind: 'collision', other: { title: 'EXT' } }], subagents: [] },
     { sessionId: 'c', state: 'idle', marks: [], memory: { warn: true }, subagents: [] },
     { sessionId: 'd', state: 'idle', marks: [], subagents: [] },
@@ -96,21 +96,24 @@ test('«Кто работает»: красный счётчик — тольк�
   const y = pd.workersView([
     { sessionId: 'y', state: 'idle', marks: [{ kind: 'collision', other: { title: 'EXT' } }], subagents: [] },
     { sessionId: 'w', state: 'waiting', marks: [], subagents: [] },
-    { sessionId: 'r', state: 'idle', marks: [{ kind: 'oldRules', missing: [{ path: 'x' }] }], subagents: [] },
+    { sessionId: 'r', state: 'idle', marks: [{ kind: 'takt', level: 'red', card: 'EXT-1' }], subagents: [] },
     { sessionId: 'b', state: 'busy', marks: [], subagents: [] },
   ]);
   assert.deepEqual(y.shown.map((r) => r.t.sessionId), ['r', 'w', 'b', 'y'], 'красное — первым, жёлтое — после ждёт и работает');
-  assert.equal(pd.briefNow([{ title: 'BW · приёмка', state: 'idle', marks: [{ kind: 'oldRules' }] }]).alarm, 'BW · приёмка: работает по старым правилам');
+  // EXT-126: старые правила — ни тревоги, ни красного счётчика, тред с одной этой пометкой — среди свободных
+  assert.equal(pd.briefNow([{ title: 'BW · приёмка', state: 'idle', marks: [{ kind: 'oldRules' }] }]).alarm, null);
+  const o = pd.workersView([{ sessionId: 'o', state: 'idle', marks: [{ kind: 'oldRules', missing: [{ path: 'x' }] }], subagents: [] }]);
+  assert.deepEqual([o.withRed, o.withRemarks, o.shown.length, o.idle.map((t) => t.sessionId)], [0, 0, 0, ['o']]);
   assert.equal(pd.briefNow([{ title: 'X', state: 'busy', marks: [{ kind: 'collision', other: {} }] }]).alarm, null, 'жёлтое — не тревога');
   const ceh = fx('ceh.json');
-  assert.equal(pd.workersView(ceh.workers.threads).withRed, ceh.workers.threads.filter((t) => t.marks.some(serverIsRed)).length);
+  assert.equal(pd.workersView(ceh.workers.threads).withRed, ceh.workers.threads.filter((t) => t.marks.some((m) => serverIsRed(m) && m.kind !== 'oldRules')).length);
 });
 
 test('сводка «Цеха»: «Сейчас» — треды и тревога; «Ждёт меня» — (а)+(б) и посмотреть; строки «Дальше» нет', () => {
   const ceh = fx('ceh.json');
   const b = pd.briefNow(ceh.workers.threads);
   assert.equal(b.line, 'Тредов 6: работают 2, ждут ответа 2, свободны 1, нет вестей 1.');
-  assert.match(b.alarm, /^LEDGER · учётка: помощник .+ остановился на полпути/, 'обрыв помощника срочнее старых правил у EXT, хотя EXT выше в списке');
+  assert.match(b.alarm, /^LEDGER · учётка: помощник .+ остановился на полпути/, 'обрыв помощника — самая срочная тревога образца');
   assert.equal(pd.briefNow([]).line, 'Живых тредов нет.');
   assert.equal(pd.briefMe({ count: 1, more: 0 }), '1 ждёт ответа или «да»');
   assert.equal(pd.briefMe({ count: 3, more: 14 }), '3 ждут ответа или «да», 14 — посмотреть');
@@ -148,8 +151,8 @@ test('служебное — под «подробнее», действия н�
   // EXT-129: при строке для Ивана под «подробнее» первым уходит и заголовок
   assert.match(c, /<More>\{lineForIvan\(r\) && <span className="dd-t">\{r\.title\}<\/span>\}<span className="mono">\{r\.id\}<\/span><TraceBadge t=\{r\.trace\} \/><\/More>/);
   assert.match(c, /<Pult card=\{r\.id\} q=\{r\.q \?\? null\} accept=\{r\.accept\} mark=\{r\.pultMark\} ar=\{pultOn\} \/>/, '«Принять»/«Вернуть» — как были');
-  assert.match(c, /<Reread session=\{t\.sessionId\} missing=\{oldRules\.missing\} now=\{now\} bare \/>/);
-  assert.match(c, /sid=\{inner \? undefined : t\.sessionId\}/, 'под «подробнее» кнопка не дублируется');
+  assert.doesNotMatch(c, /Reread/, 'EXT-126: кнопки «Перечитать правила» нет');
+  assert.match(c, /\{shownMarks\(t\.marks\)\.map\(\(m, i\) => <Mark /, 'под «подробнее» — без «старых правил»');
   assert.match(c, /<div key=\{r\.key\} className=\{`pl pl-\$\{r\.level\}`\}>/);
   assert.equal((c.match(/foremanLabel\(t\) && <span className="faint"> · \{foremanLabel\(t\)\}<\/span>/g) || []).length, 2, 'метка прораба — в Thread и в PlainThread');
 });

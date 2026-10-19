@@ -64,35 +64,40 @@ export const markWord = (m) => MARK_WORD[m] ?? m;
 /* ---------- «Кто работает»: замечания треда — строкой по-людски ---------- */
 
 // уровень — как у сервера (isRedMark, lib/threads.mjs): красное всё, кроме жёлтого такта и «Общего файла» (collision);
-// «память на исходе» — не пометка сервера, жёлтая. reread — у строки кнопка «Перечитать правила» (если тред открыт)
+// «память на исходе» — не пометка сервера, жёлтая
 export const isRedMark = (m) => !((m?.kind === 'takt' && m.level !== 'red') || m?.kind === 'collision');
+
+// EXT-126: пометку «старые правила» (oldRules) сервер отдаёт по-прежнему, витрина её не показывает нигде — треды видят обновление
+// правил сами (хук сессии rules, INFRA-112); кнопки «Перечитать правила» больше нет. Красные счётчики вида её не считают.
+export const shownMarks = (marks) => (marks || []).filter((m) => m?.kind !== 'oldRules');
 
 export function threadRemarks(t) {
   const out = [];
   const files = [];
-  (t.marks || []).forEach((m, i) => {
+  shownMarks(t.marks).forEach((m, i) => {
     const who = m.who || m.agent || 'помощник';
     const level = isRedMark(m) ? 'red' : 'amber';
     const key = `${m.kind}-${i}`;
     if (m.kind === 'partial') out.push({ key, kind: m.kind, level, text: `помощник ${who} остановился на полпути${m.card ? ` (${m.card})` : ''}${m.waitingWord ? ' — ждёт твоего слова' : ''}` });
     else if (m.kind === 'takt') out.push({ key, kind: m.kind, level, text: `задача ${m.card ? `${m.card} ` : ''}выдана, ответа от неё нет` });
     else if (m.kind === 'subagentWrite') out.push({ key, kind: m.kind, level, text: `помощник ${who} записал в доску — так нельзя` });
-    else if (m.kind === 'oldRules') out.push({ key, kind: m.kind, level, text: 'работает по старым правилам', reread: (m.missing?.length ?? 0) > 0 });
     else if (m.kind === 'collision') { const o = m.other?.title || 'другой тред'; if (!files.includes(o)) files.push(o); }
-    else out.push({ key, kind: m.kind, level, text: m.kind });
+    // EXT-128: незнакомый вид — словом, сырое имя вида — только под «подробнее» (Mark, Ceh.jsx)
+    else out.push({ key, kind: m.kind, level, text: 'пометка' });
   });
   if (files.length) out.push({ key: 'collision', kind: 'collision', level: 'amber', text: `правит общие файлы вместе с: ${files.join(', ')}` });
   if (t.memory?.warn) out.push({ key: 'memory', kind: 'memory', level: 'amber', text: 'память на исходе — пора сделать снимок и открыть новый тред' });
   return out;
 }
 
-// чем занят тред — одной строкой (детали — под «подробнее»)
+// чем занят тред — одной строкой (детали — под «подробнее»); null — сказать нечего: у «работает» без подмастерьев строка
+// повторила бы плашку (EXT-128) — строки нет
 export function threadDoing(t) {
   if (t.state === 'waiting') return 'ждёт твоего ответа';
   if (t.state === 'stale') return 'нет вестей';
   const subs = t.subagents || [];
   if (subs.length) return subs.map((s) => `${s.who || s.agent}: ${s.description || 'задача без описания'}`).join('; ');
-  if (t.state === 'busy') return 'работает';
+  if (t.state === 'busy') return null;
   return 'свободен';
 }
 
@@ -125,8 +130,8 @@ export function briefNow(threads) {
   if (n('idle')) parts.push(`свободны ${n('idle')}`);
   if (n('stale')) parts.push(`нет вестей ${n('stale')}`);
   const line = parts.length ? `Тредов ${ts.length}: ${parts.join(', ')}.` : 'Живых тредов нет.';
-  // тревога — самая срочная красная пометка цеха: обрыв помощника, запись в доску, такт без ответа, потом старые правила
-  const PRI = ['partial', 'subagentWrite', 'takt', 'oldRules'];
+  // тревога — самая срочная красная пометка цеха: обрыв помощника, запись в доску, такт без ответа
+  const PRI = ['partial', 'subagentWrite', 'takt'];
   const pri = (k) => (PRI.includes(k) ? PRI.indexOf(k) : PRI.length);
   let best = null;
   for (const t of ts) {

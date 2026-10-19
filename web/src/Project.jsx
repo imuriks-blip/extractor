@@ -11,7 +11,7 @@ import NewCard from './NewCard.jsx';
 import { TraceBadge } from './Trace.jsx';
 import { Worktrees } from './Words.jsx';
 import { DeferBtn, DeferNote, Deferred } from './Defer.jsx';
-import { lineForIvan } from './plainData.js';
+import { lineForIvan, shownMarks } from './plainData.js';
 
 const GIT_STALE_MS = 90_000; // git опрашивается раз в 30 с (2.8)
 const DONE_SHOWN = 5; // 2.5: в Done видны 5 последних, остальные — поиском
@@ -222,14 +222,17 @@ function PWaiting({ code, rows, cnt, deferred, options, now, stale, sel, onOpen 
 
 /* ---------- кто работает по проекту ---------- */
 
-// как marksCount «Цеха»: только красные; «Общий файл» (collision, EXT-60) — жёлтая, не считается
+// как красный счётчик «Цеха»: только красные; «Общий файл» (collision, EXT-60) — жёлтая, не считается; «старые правила»
+// (oldRules) витрина не показывает с EXT-126 — не считаются (shownMarks)
 const isRed = (m) => m.kind !== 'collision' && (m.kind !== 'takt' || m.level === 'red');
 
 function PWorkers({ code, w, now, stale }) {
   const o = useOpen('pworkers');
   const threads = w.threads || [], closed = w.closed || [];
   const subs = threads.reduce((n, t) => n + (t.subagents?.length || 0), 0);
-  const marks = [...threads, ...closed].reduce((n, t) => n + (t.marks || []).filter(isRed).length, 0);
+  const marks = [...threads, ...closed].reduce((n, t) => n + shownMarks(t.marks).filter(isRed).length, 0);
+  // закрытый тред — строкой «тред закрыт» только с видимой пометкой
+  const shut = closed.filter((t) => shownMarks(t.marks).length > 0);
   return (
     <details className="blk" open={o.open} onToggle={o.onToggle}>
       <Summary>
@@ -238,13 +241,13 @@ function PWorkers({ code, w, now, stale }) {
       </Summary>
       {threads.map((t) => <Thread key={t.sessionId} t={t} now={now} />)}
       {/* В-6 (б): закрытый тред с обрывом или тактом без ответа — строкой «тред закрыт» */}
-      {closed.map((t) => (
+      {shut.map((t) => (
         <div className="thr" key={t.sessionId}>
           <div className="th1"><span className="tname">{t.title || 'без названия'}</span><span className="st old">тред закрыт</span></div>
-          {(t.marks || []).map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} />)}
+          {shownMarks(t.marks).map((m, i) => <Mark key={`${m.kind}-${i}`} m={m} now={now} />)}
         </div>
       ))}
-      {!threads.length && !closed.length && <div className="empty">Живых тредов по {code} нет.</div>}
+      {!threads.length && !shut.length && <div className="empty">Живых тредов по {code} нет.</div>}
       <Stale text={stale} />
     </details>
   );

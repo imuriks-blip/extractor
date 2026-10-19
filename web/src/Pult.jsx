@@ -9,7 +9,7 @@ import { useNow } from './data.js';
 import { dm, hm } from './format.js';
 import { pullNote } from './mirrorData.js';
 import { useBoardMode } from './boardMode.js';
-import { confirmTargetNote, markIsRed, wordBody } from './pultData.js';
+import { acceptWarn, confirmTargetNote, markIsRed, wordBody } from './pultData.js';
 
 const TEXT_MAX = 500;
 const CONFIRM_MS = 5 * 60_000; // второй щелчок — не дольше 5 мин после первого (1.1 п.7)
@@ -334,6 +334,8 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
   if (note && phase !== 'busy' && st?.warnings?.length) note = <>{note}<Warns st={st} /></>;
 
   const canAccept = accept?.can === true;
+  // EXT-115: жёлтое предупреждение сервера рядом с кнопкой (слитая Б-карточка, выкатка ручная) — мелко, кнопку не прячет
+  const warn = ar ? acceptWarn(accept) : null;
   // can null — слитость ветки ещё не посчитана проходом читателя git (EXT-57): кнопки нет, серое «проверяю…» из hint сервера
   const hint = ar && (accept?.can === false || (accept && accept.can === null)) && (accept.hint || 'проверяю, слита ли ветка карточки');
   // partial и «нет связи» — действие уже начато: вместо кнопок одно «повторить»
@@ -375,6 +377,7 @@ export default function Pult({ card, q, accept, mark, ar = true, words = null, t
           )}
         </span>
       )}
+      {arShown && warn && <span className="pamb" role="note">{warn}</span>}
       {q && hint && !note && <span className="phint">{hint}</span>}
       {note}
       {thread && markMine && !busy && !confirming && <span className="pmark"><PultMark m={mark} /></span>}
