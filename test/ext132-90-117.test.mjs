@@ -119,7 +119,8 @@ test('EXT-132: /api/ceh — слитая Б в waiting.review с «Принят�
   const p = (await get('/api/project/EXT')).json();
   assert.equal(p.waiting.find((r) => r.id === 'EXT-1').group, 'review');
   assert.equal(p.waiting.find((r) => r.id === 'EXT-3').group, 'yes');
-  assert.equal(ceh.waiting.count + ceh.waiting.more, ceh.waiting.threads.length + ceh.waiting.yes.length + ceh.waiting.review.length, 'count и more — по группам после переноса');
+  assert.equal(ceh.waiting.count, ceh.waiting.threads.length + ceh.waiting.yes.length, 'count — (а) и (б) после переноса');
+  assert.equal(ceh.waiting.more, ceh.waiting.review.length, 'more — (в) после переноса');
   await app.close();
 });
 
