@@ -14,7 +14,7 @@ import { WT_CONFIRM_MS, WT_URL, cleanupBody, finalAnswer, firstAnswer, pickedPat
 const actionsSource = streamSource('/api/actions');
 
 const SERVICE = new Set(['mirror', 'defer', 'undefer', 'reindex', 'ping', 'cleanup']); // не слова: Обновить, Отложить и прочее служебное
-const LABEL = { ...WORD, accept: 'принять', return: 'вернуть', reread: 'перечитать правила', 'new-card': 'новая карточка', withdraw: 'отозвать' };
+const LABEL = { ...WORD, accept: 'принять', return: 'вернуть', reread: 'перечитать правила', 'new-card': 'новая карточка', withdraw: 'отозвать', measure: 'замерить остаток' };
 const SHOWN = 6;
 
 // «Отозвать» (EXT-71, спека пульта §1.9): один щелчок, подтверждения нет; во время запроса — «идёт», кнопка неактивна.
