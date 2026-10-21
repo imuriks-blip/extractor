@@ -91,7 +91,7 @@ test('EXT-132: без проверки слияния (параметра нет
 
 /* ---------------- EXT-132: /api/ceh — та же проверка, что у «Принять», warn до строки ---------------- */
 
-async function appOf({ glossary } = {}) {
+async function appOf({ glossary, enabled = true } = {}) {
   const { board } = await boardOf();
   const regFile = path.join(tmpDir('e132-reg-'), 'registry.json');
   fs.writeFileSync(regFile, JSON.stringify({ board_codes: { EXT: { projects: [], project_cards: [], repos: [] } } }));
@@ -99,7 +99,7 @@ async function appOf({ glossary } = {}) {
   const merge = { peek: (id) => PEEK[id] ?? null, check: async (id) => PEEK[id] ?? null, refresh: async () => {} };
   const actionsLog = path.join(tmpDir('e132-data-'), 'actions.log');
   const app = await buildApp({ port: 4317, board, registry: createRegistryReader(regFile), scan: scanT, merge,
-    pult: { enabled: true, words: false, actionsLog }, ...(glossary ? { glossary } : {}) });
+    pult: { enabled, words: false, actionsLog }, ...(glossary ? { glossary } : {}) });
   const get = async (url) => (await app.inject({ method: 'GET', url, headers: { host: '127.0.0.1:4317' } }));
   return { app, get };
 }
@@ -119,6 +119,15 @@ test('EXT-132: /api/ceh — слитая Б в waiting.review с «Принят�
   const p = (await get('/api/project/EXT')).json();
   assert.equal(p.waiting.find((r) => r.id === 'EXT-1').group, 'review');
   assert.equal(p.waiting.find((r) => r.id === 'EXT-3').group, 'yes');
+  assert.equal(ceh.waiting.count + ceh.waiting.more, ceh.waiting.threads.length + ceh.waiting.yes.length + ceh.waiting.review.length, 'count и more — по группам после переноса');
+  await app.close();
+});
+
+test('EXT-132: пульт выключен — «Принять» в строке нет, перенос не делается: все незакрытые Б — в «да», как раньше', async () => {
+  const { app, get } = await appOf({ enabled: false });
+  const ceh = (await get('/api/ceh')).json();
+  assert.deepEqual(ceh.waiting.yes.map((r) => r.id).sort(), ['EXT-1', 'EXT-2', 'EXT-3', 'EXT-4', 'EXT-5', 'EXT-7', 'EXT-8']);
+  assert.deepEqual(ceh.waiting.review.map((r) => r.id).sort(), ['EXT-6']);
   await app.close();
 });
 
